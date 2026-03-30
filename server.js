@@ -146,6 +146,36 @@ class OyunOdasi extends Room {
         const durum = new OyunDurumu();
         durum.oyuncular = new MapSchema();
         this.setState(durum);
+
+        // ========== 7. MESAJ İŞLEYİCİLERİ ==========
+        this.onMessage("hareket", (client, data) => {
+            const oyuncu = this.state.oyuncular.get(client.sessionId);
+            if (!oyuncu) return;
+
+            let dx = data.dx || 0;
+            let dz = data.dz || 0;
+
+            // Maksimum adım boyutu (hız sınırlaması)
+            const maxStep = 0.25;
+            dx = Math.min(maxStep, Math.max(-maxStep, dx));
+            dz = Math.min(maxStep, Math.max(-maxStep, dz));
+
+            // Aday yeni konum
+            const newX = oyuncu.x + dx;
+            const newZ = oyuncu.z + dz;
+
+            // Çarpışma ve kaymayı uygula
+            const { x: finalX, z: finalZ } = resolveSlide(
+                client.sessionId,
+                oyuncu.x, oyuncu.z,
+                newX, newZ,
+                PLAYER_RADIUS,
+                this.state
+            );
+
+            oyuncu.x = finalX;
+            oyuncu.z = finalZ;
+        });
     }
 
     onJoin(client, options) {
@@ -166,50 +196,7 @@ class OyunOdasi extends Room {
     onLeave(client) {
         this.state.oyuncular.delete(client.sessionId);
     }
-
-    onMessage(type, handler) {
-        super.onMessage(type, handler);
-    }
 }
-
-// ========== 7. MESAJ İŞLEYİCİLERİ ==========
-// Not: onMessage'ı onCreate içinde tanımlamak Colyseus'un önerilen yoludur.
-// Yukarıdaki OyunOdasi sınıfını genişletiyoruz:
-
-OyunOdasi.prototype.onCreate = function () {
-    const durum = new OyunDurumu();
-    durum.oyuncular = new MapSchema();
-    this.setState(durum);
-
-    this.onMessage("hareket", (client, data) => {
-        const oyuncu = this.state.oyuncular.get(client.sessionId);
-        if (!oyuncu) return;
-
-        let dx = data.dx || 0;
-        let dz = data.dz || 0;
-
-        // Maksimum adım boyutu (hız sınırlaması)
-        const maxStep = 0.25;
-        dx = Math.min(maxStep, Math.max(-maxStep, dx));
-        dz = Math.min(maxStep, Math.max(-maxStep, dz));
-
-        // Aday yeni konum
-        const newX = oyuncu.x + dx;
-        const newZ = oyuncu.z + dz;
-
-        // Çarpışma ve kaymayı uygula
-        const { x: finalX, z: finalZ } = resolveSlide(
-            client.sessionId,
-            oyuncu.x, oyuncu.z,
-            newX, newZ,
-            PLAYER_RADIUS,
-            this.state
-        );
-
-        oyuncu.x = finalX;
-        oyuncu.z = finalZ;
-    });
-};
 
 // ========== 8. SUNUCUYU BAŞLAT ==========
 const gameServer = new Server({ server: httpServer });
