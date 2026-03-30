@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Açık Dünya Satranç</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #ui {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            pointer-events: none;
+            z-index: 10;
+        }
+        #anlatici {
+            background: rgba(0,0,0,0.8);
+            color: #ffcc00;
+            padding: 10px;
+            margin: 10px auto;
+            width: 80%;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+            pointer-events: none;
+            border-left: 4px solid orange;
+        }
+        #canbar, #tasTipi {
+            background: rgba(0,0,0,0.7);
+            color: white;
+            display: inline-block;
+            padding: 5px 12px;
+            margin: 5px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+        #joyistik {
+            position: fixed;
+            bottom: 30px;
+            left: 20px;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 80px;
+            display: grid;
+            grid-template-columns: repeat(3, 60px);
+            gap: 8px;
+            pointer-events: auto;
+            backdrop-filter: blur(5px);
+        }
+        #joyistik button {
+            width: 60px;
+            height: 60px;
+            background: rgba(255,100,0,0.9);
+            border: none;
+            border-radius: 40px;
+            font-size: 24px;
+            font-weight: bold;
+            color: white;
+            box-shadow: 0 2px 5px black;
+        }
+        #attack {
+            background: rgba(200,0,0,0.9) !important;
+            grid-column: span 3;
+            width: auto !important;
+        }
+        #oyuncuListesi {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.6);
+            color: white;
+            padding: 10px;
+            border-radius: 10px;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            pointer-events: none;
+            font-family: monospace;
+        }
+        @media (max-width: 600px) {
+            #joyistik button { width: 50px; height: 50px; font-size: 20px; }
+            #anlatici { font-size: 12px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <div id="anlatici">💬 Anlatıcı hazır...</div>
+        <div>
+            <span id="canbar">❤️ Can: 100</span>
+            <span id="tasTipi">♟️ Piyon</span>
+        </div>
+        <div id="joyistik">
+            <button id="up">▲</button>
+            <button id="left">◀</button>
+            <button id="down">▼</button>
+            <button id="right">▶</button>
+            <button id="attack">⚔️ SALDIR</button>
+        </div>
+    </div>
+    <div id="oyuncuListesi">Oyuncular: -</div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.128.0/build/three.module.js",
+                "colyseus.js": "https://unpkg.com/colyseus.js@0.15.0/dist/colyseus.js"
+            }
+        }
+    </script>
+    <script type="module" src="/client.js"></script>
+</body>
+</html>
