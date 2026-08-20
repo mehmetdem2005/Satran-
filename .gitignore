@@ -1,0 +1,25 @@
+# Hermes Agent kurulumu (~176 MB monorepo) — scripts/install_hermes.sh indirir.
+vendor/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Çalışma zamanı verisi
+*.sqlite3
+*.sqlite3-*
+.hermesforge/
+hermes-gateway.log
+
+# Ortam
+.env
+.env.*
+!.env.example
+
+# Düzenleyici / işletim sistemi
+.vscode/
+.idea/
+.DS_Store
