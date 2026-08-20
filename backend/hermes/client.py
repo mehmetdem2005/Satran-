@@ -1,0 +1,406 @@
+"""Hermes Agent'ın OpenAI uyumlu API sunucusuna bağlanan istemci.
+
+Kullanılan uçlar (``gateway/platforms/api_server.py``):
+
+* ``GET  /health`` / ``GET /v1/capabilities`` — canlılık ve yetenek keşfi
+* ``GET  /v1/models``                        — model adı
+* ``POST /api/sessions``                     — kalıcı oturum aç
+* ``GET  /api/sessions/{id}/messages``       — oturum geçmişi (Hermes belleği)
+* ``POST /api/sessions/{id}/chat/stream``    — SSE turu (``assistant.delta``,
+  ``tool.started``, ``tool.completed``, ``run.completed``)
+* ``POST /v1/chat/completions``              — durumsuz yedek akış
+
+Oturum tabanlı yolu tercih ediyoruz: konuşma Hermes'in kendi oturum
+veritabanında yaşar, dolayısıyla Hermes'in bellek sağlayıcıları, oturum
+araması ve becerileri kendiliğinden devreye girer. ``X-Hermes-Session-Key``
+başlığı uzun vadeli belleği tek bir kapsamda tutar.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from typing import Any, Dict, Iterator, List, Optional, Tuple
+
+import requests
+
+logger = logging.getLogger(__name__)
+
+# Hermes tarafından yayımlanan olay adları → uygulama içi normalize tipler.
+_TOOL_START_EVENTS = {"tool.started"}
+_TOOL_END_EVENTS = {"tool.completed", "tool.failed"}
+
+
+class HermesError(RuntimeError):
+    """Hermes tarafından döndürülen hata."""
+
+
+class HermesUnavailable(HermesError):
+    """Hermes API sunucusuna hiç ulaşılamadı."""
+
+
+def _sse_events(response: requests.Response) -> Iterator[Tuple[str, Any]]:
+    """Bir SSE gövdesini ``(olay_adı, veri)`` çiftlerine ayrıştırır.
+
+    Hermes ``event:`` + ``data:`` çerçeveleri yollar; OpenAI uyumlu uçta ise
+    yalnızca ``data:`` gelir ve akış ``[DONE]`` ile biter. İkisini de aynı
+    ayrıştırıcı karşılar.
+    """
+    event_name = "message"
+    data_lines: List[str] = []
+
+    for raw_line in response.iter_lines(decode_unicode=True):
+        if raw_line is None:
+            continue
+        line = raw_line.rstrip("\r")
+
+        if line == "":  # çerçeve sonu
+            if data_lines:
+                payload = "\n".join(data_lines)
+                data_lines = []
+                if payload == "[DONE]":
+                    yield "done", None
+                else:
+                    try:
+                        yield event_name, json.loads(payload)
+                    except json.JSONDecodeError:
+                        yield event_name, {"raw": payload}
+            event_name = "message"
+            continue
+
+        if line.startswith(":"):  # keepalive yorumu
+            continue
+        if line.startswith("event:"):
+            event_name = line[6:].strip() or "message"
+        elif line.startswith("data:"):
+            data_lines.append(line[5:].lstrip())
+
+    if data_lines:  # gövde boş satırla bitmediyse
+        payload = "\n".join(data_lines)
+        if payload != "[DONE]":
+            try:
+                yield event_name, json.loads(payload)
+            except json.JSONDecodeError:
+                yield event_name, {"raw": payload}
+
+
+class HermesClient:
+    """Hermes API sunucusuyla konuşan ince istemci."""
+
+    def __init__(self, config) -> None:
+        self.config = config
+        self._session = requests.Session()
+        self._capabilities: Optional[Dict[str, Any]] = None
+
+    # ------------------------------------------------------------------
+    # Alt seviye
+    # ------------------------------------------------------------------
+    @property
+    def base_url(self) -> str:
+        return self.config.hermes_base_url.rstrip("/")
+
+    def _url(self, path: str) -> str:
+        return f"{self.base_url}{path}"
+
+    def _headers(self, extra: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+        headers = {"Content-Type": "application/json", "Accept": "application/json"}
+        if self.config.hermes_api_key:
+            headers["Authorization"] = f"Bearer {self.config.hermes_api_key}"
+        if extra:
+            headers.update({k: v for k, v in extra.items() if v})
+        return headers
+
+    def _request(
+        self,
+        method: str,
+        path: str,
+        *,
+        json_body: Optional[Dict[str, Any]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        timeout: Optional[float] = None,
+        stream: bool = False,
+        extra_headers: Optional[Dict[str, str]] = None,
+    ) -> requests.Response:
+        url = self._url(path)
+        connect_timeout = self.config.hermes_connect_timeout
+        read_timeout = timeout if timeout is not None else self.config.hermes_timeout
+        try:
+            response = self._session.request(
+                method,
+                url,
+                json=json_body,
+                params=params,
+                headers=self._headers(extra_headers),
+                timeout=(connect_timeout, read_timeout),
+                stream=stream,
+            )
+        except requests.exceptions.RequestException as exc:
+            raise HermesUnavailable(
+                f"Hermes API sunucusuna ulaşılamadı ({url}): {exc}"
+            ) from exc
+
+        if response.status_code >= 400:
+            detail = self._error_detail(response)
+            if response.status_code in (401, 403):
+                raise HermesError(
+                    "Hermes API anahtarı reddedildi. ~/.hermes/.env içindeki "
+                    f"API_SERVER_KEY ile ayarları eşleyin. ({detail})"
+                )
+            raise HermesError(f"Hermes {response.status_code}: {detail}")
+        return response
+
+    @staticmethod
+    def _error_detail(response: requests.Response) -> str:
+        try:
+            payload = response.json()
+        except ValueError:
+            return (response.text or "")[:300]
+        error = payload.get("error") if isinstance(payload, dict) else None
+        if isinstance(error, dict):
+            return str(error.get("message") or error)
+        return str(error or payload)[:300]
+
+    # ------------------------------------------------------------------
+    # Keşif
+    # ------------------------------------------------------------------
+    def health(self) -> Dict[str, Any]:
+        """Sunucu ayakta mı? Hata fırlatmaz, durum sözlüğü döndürür."""
+        try:
+            response = self._request("GET", "/health", timeout=5)
+        except HermesUnavailable as exc:
+            return {"reachable": False, "reason": "unreachable", "error": str(exc)}
+        except HermesError as exc:
+            # /health kimlik doğrulaması istemez; 4xx gelirse yine de ayakta.
+            return {"reachable": True, "authorized": False, "error": str(exc)}
+        try:
+            body = response.json()
+        except ValueError:
+            body = {"status": "ok"}
+        return {"reachable": True, "authorized": True, "status": body.get("status", "ok")}
+
+    def capabilities(self, refresh: bool = False) -> Dict[str, Any]:
+        if self._capabilities is not None and not refresh:
+            return self._capabilities
+        response = self._request("GET", "/v1/capabilities", timeout=10)
+        self._capabilities = response.json()
+        return self._capabilities
+
+    def models(self) -> List[str]:
+        response = self._request("GET", "/v1/models", timeout=10)
+        payload = response.json()
+        data = payload.get("data") if isinstance(payload, dict) else None
+        return [row.get("id") for row in (data or []) if isinstance(row, dict) and row.get("id")]
+
+    def skills(self) -> List[Dict[str, Any]]:
+        response = self._request("GET", "/v1/skills", timeout=15)
+        payload = response.json()
+        return payload if isinstance(payload, list) else payload.get("data", [])
+
+    # ------------------------------------------------------------------
+    # Oturumlar
+    # ------------------------------------------------------------------
+    def create_session(
+        self,
+        *,
+        session_id: Optional[str] = None,
+        title: Optional[str] = None,
+        system_prompt: Optional[str] = None,
+    ) -> str:
+        body: Dict[str, Any] = {"source": "api_server"}
+        if session_id:
+            body["id"] = session_id
+        if title:
+            body["title"] = title[:200]
+        if system_prompt:
+            body["system_prompt"] = system_prompt
+        response = self._request("POST", "/api/sessions", json_body=body, timeout=30)
+        payload = response.json()
+        resolved = payload.get("id") or payload.get("session_id") or session_id
+        if not resolved:
+            raise HermesError("Hermes oturum kimliği döndürmedi.")
+        return str(resolved)
+
+    def session_messages(self, session_id: str, limit: int = 100) -> List[Dict[str, Any]]:
+        response = self._request(
+            "GET",
+            f"/api/sessions/{session_id}/messages",
+            params={"limit": limit},
+            timeout=30,
+        )
+        payload = response.json()
+        if isinstance(payload, list):
+            return payload
+        for key in ("messages", "data", "items"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                return value
+        return []
+
+    def delete_session(self, session_id: str) -> None:
+        self._request("DELETE", f"/api/sessions/{session_id}", timeout=30)
+
+    def update_session_title(self, session_id: str, title: str) -> None:
+        self._request(
+            "PATCH",
+            f"/api/sessions/{session_id}",
+            json_body={"title": title[:200]},
+            timeout=30,
+        )
+
+    # ------------------------------------------------------------------
+    # Akışlı tur
+    # ------------------------------------------------------------------
+    def stream_session_turn(
+        self,
+        session_id: str,
+        message: str,
+        *,
+        system_message: Optional[str] = None,
+        session_key: Optional[str] = None,
+        model: Optional[str] = None,
+        provider: Optional[str] = None,
+        model_options: Optional[Dict[str, Any]] = None,
+    ) -> Iterator[Dict[str, Any]]:
+        """Kalıcı bir oturumda tek bir turu akıtır (normalize olaylar)."""
+        body: Dict[str, Any] = {"input": message}
+        if system_message:
+            body["system_message"] = system_message
+        if model or self.config.hermes_model:
+            body["model"] = model or self.config.hermes_model
+        if provider or self.config.hermes_provider:
+            body["provider"] = provider or self.config.hermes_provider
+        if model_options:
+            body["model_options"] = model_options
+
+        response = self._request(
+            "POST",
+            f"/api/sessions/{session_id}/chat/stream",
+            json_body=body,
+            stream=True,
+            extra_headers={"Accept": "text/event-stream", "X-Hermes-Session-Key": session_key or ""},
+        )
+        try:
+            yield from self._normalize_session_stream(response)
+        finally:
+            response.close()
+
+    def _normalize_session_stream(self, response: requests.Response) -> Iterator[Dict[str, Any]]:
+        for name, data in _sse_events(response):
+            if name == "done" or (isinstance(data, dict) and name == "done"):
+                yield {"type": "done"}
+                continue
+            if not isinstance(data, dict):
+                continue
+
+            if name == "assistant.delta":
+                delta = data.get("delta") or ""
+                if delta:
+                    yield {"type": "delta", "text": delta}
+            elif name == "tool.progress":
+                tool = data.get("tool_name") or ""
+                delta = data.get("delta") or ""
+                if tool == "_thinking" and delta:
+                    yield {"type": "reasoning", "text": delta}
+                elif delta:
+                    yield {"type": "status", "text": delta, "tool": tool}
+            elif name in _TOOL_START_EVENTS:
+                yield {
+                    "type": "tool_start",
+                    "tool": data.get("tool_name") or "araç",
+                    "preview": data.get("preview") or "",
+                }
+            elif name in _TOOL_END_EVENTS:
+                yield {
+                    "type": "tool_end",
+                    "tool": data.get("tool_name") or "araç",
+                    "ok": name != "tool.failed",
+                    "preview": data.get("preview") or "",
+                }
+            elif name == "run.completed":
+                yield {
+                    "type": "final",
+                    "session_id": data.get("session_id"),
+                    "messages": data.get("messages") or [],
+                    "usage": data.get("usage") or {},
+                }
+            elif name in {"error", "run.failed"}:
+                yield {"type": "error", "text": data.get("message") or "Hermes hatası"}
+
+    def stream_chat_completion(
+        self,
+        messages: List[Dict[str, Any]],
+        *,
+        session_id: Optional[str] = None,
+        session_key: Optional[str] = None,
+        model: Optional[str] = None,
+        provider: Optional[str] = None,
+    ) -> Iterator[Dict[str, Any]]:
+        """Durumsuz OpenAI uyumlu akış (oturum açılamadığında yedek yol)."""
+        body: Dict[str, Any] = {
+            "model": model or self.config.hermes_model,
+            "messages": messages,
+            "stream": True,
+        }
+        if provider or self.config.hermes_provider:
+            body["provider"] = provider or self.config.hermes_provider
+
+        response = self._request(
+            "POST",
+            "/v1/chat/completions",
+            json_body=body,
+            stream=True,
+            extra_headers={
+                "Accept": "text/event-stream",
+                "X-Hermes-Session-Id": session_id or "",
+                "X-Hermes-Session-Key": session_key or "",
+            },
+        )
+        try:
+            for name, data in _sse_events(response):
+                if name == "done":
+                    yield {"type": "done"}
+                    continue
+                if not isinstance(data, dict):
+                    continue
+                if name == "hermes.tool.progress":
+                    yield {
+                        "type": "tool_start",
+                        "tool": data.get("tool_name") or "araç",
+                        "preview": data.get("preview") or "",
+                    }
+                    continue
+                choices = data.get("choices") or []
+                if not choices:
+                    continue
+                delta = choices[0].get("delta") or {}
+                reasoning = delta.get("reasoning_content") or delta.get("reasoning")
+                if reasoning:
+                    yield {"type": "reasoning", "text": reasoning}
+                content = delta.get("content")
+                if content:
+                    yield {"type": "delta", "text": content}
+        finally:
+            response.close()
+
+    def complete(
+        self,
+        messages: List[Dict[str, Any]],
+        *,
+        model: Optional[str] = None,
+        provider: Optional[str] = None,
+        timeout: Optional[float] = None,
+    ) -> str:
+        """Akışsız tek atış — yönlendirici gibi kısa çağrılar için."""
+        body: Dict[str, Any] = {
+            "model": model or self.config.hermes_model,
+            "messages": messages,
+            "stream": False,
+        }
+        if provider or self.config.hermes_provider:
+            body["provider"] = provider or self.config.hermes_provider
+        response = self._request("POST", "/v1/chat/completions", json_body=body, timeout=timeout or 180)
+        payload = response.json()
+        choices = payload.get("choices") or []
+        if not choices:
+            return ""
+        return (choices[0].get("message") or {}).get("content") or ""

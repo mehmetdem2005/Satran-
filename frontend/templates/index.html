@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <title>HermesForge</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚒️</text></svg>">
+</head>
+<body class="dark">
+
+  <header class="topbar">
+    <button class="icon-btn" id="menuBtn" aria-label="Menü">☰</button>
+    <div class="topbar-titles">
+      <!-- Başlık canlıdır: o an çalışan ajanın adını taşır. -->
+      <div class="top-title" id="topTitle">HermesForge</div>
+      <div class="top-subtitle" id="topSubtitle" style="display:none"></div>
+    </div>
+    <button class="icon-btn" id="settingsBtn" aria-label="Ayarlar">⚙</button>
+  </header>
+
+  <div class="pipeline-strip" id="pipelineStrip"></div>
+
+  <div class="overlay" id="overlay"></div>
+
+  <!-- Yan panel -->
+  <aside class="drawer panel" id="drawer">
+    <div class="panel-head">
+      <h2>Menü</h2>
+      <button class="icon-btn" id="closeDrawerBtn" aria-label="Kapat">×</button>
+    </div>
+    <div class="panel-body">
+      <button class="primary-btn" id="newChatBtn">+  Yeni sohbet</button>
+
+      <section class="panel-section">
+        <div class="section-title">Motor</div>
+        <div class="engine-row">
+          <span class="engine-badge engine-none" id="engineBadge">kontrol ediliyor…</span>
+        </div>
+        <div class="engine-detail" id="engineDetail"></div>
+        <button class="ghost-btn" id="startHermesBtn" style="display:none">Hermes gateway başlat</button>
+        <pre class="log-box" id="hermesLog"></pre>
+      </section>
+
+      <section class="panel-section">
+        <div class="section-title">Sohbetler</div>
+        <div class="list" id="historyList"></div>
+      </section>
+
+      <section class="panel-section">
+        <div class="section-title">Projeler</div>
+        <div class="list" id="projectList"></div>
+      </section>
+
+      <section class="panel-section">
+        <div class="section-title">Bellek <span class="stat" id="memoryStat">0 anı</span></div>
+        <div class="inline-form">
+          <input type="text" id="memoryInput" placeholder="Kalıcı bir bilgi ekle…">
+          <button class="ghost-btn small" id="addMemoryBtn">Ekle</button>
+        </div>
+        <div class="list" id="memoryList"></div>
+        <button class="ghost-btn danger small" id="clearMemoryBtn">Belleği temizle</button>
+      </section>
+
+      <section class="panel-section">
+        <div class="section-title">Kaynaklar (RAG) <span class="stat" id="ragStat">0 belge</span></div>
+        <div class="list" id="sourceList"></div>
+        <button class="ghost-btn danger small" id="clearSourcesBtn">Kaynakları temizle</button>
+      </section>
+
+      <section class="panel-section">
+        <button class="ghost-btn" id="exportChatBtn">Sohbeti dışa aktar (zip)</button>
+        <button class="ghost-btn" id="themeBtn">🌙  Karanlık tema</button>
+      </section>
+    </div>
+  </aside>
+
+  <!-- Ayarlar -->
+  <aside class="settings panel" id="settingsPanel">
+    <div class="panel-head">
+      <h2>Ayarlar</h2>
+      <button class="icon-btn" id="closeSettingsBtn" aria-label="Kapat">×</button>
+    </div>
+    <div class="panel-body">
+      <section class="panel-section">
+        <div class="section-title">Hermes Agent</div>
+        <label class="field">
+          <span>API sunucusu adresi</span>
+          <input type="text" id="hermes_base_url" placeholder="http://127.0.0.1:8642">
+        </label>
+        <label class="field">
+          <span>API_SERVER_KEY</span>
+          <input type="password" id="hermes_api_key" placeholder="~/.hermes/.env içinden okunur">
+        </label>
+        <label class="field">
+          <span>Model</span>
+          <input type="text" id="hermes_model" placeholder="hermes-agent">
+        </label>
+        <label class="field">
+          <span>Hermes repo klasörü</span>
+          <input type="text" id="hermes_repo_dir" placeholder="vendor/hermes-agent">
+        </label>
+        <label class="check">
+          <input type="checkbox" id="hermes_autostart">
+          <span>Uygulama açılırken gateway'i otomatik başlat</span>
+        </label>
+      </section>
+
+      <section class="panel-section">
+        <div class="section-title">Yedek sağlayıcı</div>
+        <p class="hint">Hermes kapalıyken devreye girer. OpenAI uyumlu herhangi bir uç kullanılabilir.</p>
+        <label class="check">
+          <input type="checkbox" id="fallback_enabled">
+          <span>Yedek sağlayıcıyı kullan</span>
+        </label>
+        <label class="field">
+          <span>Taban adres</span>
+          <input type="text" id="fallback_base_url" placeholder="https://api.deepseek.com">
+        </label>
+        <label class="field">
+          <span>Model</span>
+          <input type="text" id="fallback_model" placeholder="deepseek-chat">
+        </label>
+        <label class="field">
+          <span>API anahtarı</span>
+          <input type="password" id="fallback_api_key" placeholder="sk-…">
+        </label>
+      </section>
+
+      <button class="primary-btn" id="saveSettingsBtn">Kaydet</button>
+    </div>
+  </aside>
+
+  <!-- Sohbet -->
+  <main class="chat">
+    <div class="messages" id="messages">
+      <div class="empty" id="emptyState">
+        <div class="empty-icon">⚒️</div>
+        <h1>Uygulama üreten uygulama</h1>
+        <p>Ne istediğini yaz — hangi ajanların çalışacağına sistem karar verir,
+           kod dosya dosya üretilir ve istediğin biçimde indirilir.</p>
+        <div class="samples">
+          <span>“Termux'ta çalışan bir not alma uygulaması yap”</span>
+          <span>“Bir pomodoro sayacı yap, tek HTML dosyası olsun”</span>
+          <span>“Projeyi zip olarak ver”</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="artifact-bar" id="artifactBar">
+      <div class="artifact-head">
+        <span class="artifact-label">📦 Üretilen proje</span>
+        <span class="artifact-count" id="artifactCount">0 dosya</span>
+        <span class="artifact-actions">
+          <select id="formatSelect" aria-label="Teslim biçimi"></select>
+          <button class="primary-btn small" id="downloadBtn">İndir</button>
+        </span>
+      </div>
+      <div class="artifact-files" id="artifactFiles"></div>
+    </div>
+
+    <div class="attachments" id="attachments"></div>
+
+    <div class="composer">
+      <label for="fileInput" class="icon-btn attach" title="Dosya ekle">📎</label>
+      <input type="file" id="fileInput" hidden multiple
+             accept=".pdf,.txt,.md,.zip,.tar,.tar.gz,.tgz,.json,.csv,.py,.js,.ts,.html,.css,.yaml,.yml,.toml">
+      <textarea id="userInput" rows="1" placeholder="Ne yapmamı istersin?" autocomplete="off"></textarea>
+      <button class="send-btn" id="sendBtn" aria-label="Gönder">➤</button>
+      <button class="send-btn stop" id="stopBtn" aria-label="Durdur" style="display:none">■</button>
+    </div>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="{{ url_for('static', filename='js/markdown.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

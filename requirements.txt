@@ -1,0 +1,6 @@
+# HermesForge çalışma zamanı bağımlılıkları.
+# Hermes Agent'ın kendi bağımlılıkları ayrı bir sanal ortamda yaşar
+# (scripts/install_hermes.sh) — burada yalnızca web katmanı var.
+flask>=3.0
+requests>=2.31
+pypdf>=4.0

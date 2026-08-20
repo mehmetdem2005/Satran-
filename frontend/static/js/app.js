@@ -1,0 +1,793 @@
+/**
+ * HermesForge arayüzü.
+ *
+ * Tasarım kararları:
+ * - Ajan seçimi YOK. Hangi ajanların çalışacağına sunucudaki yönlendirici
+ *   karar verir; arayüz yalnızca sonucu gösterir.
+ * - Üst başlık canlıdır: o an hangi ajan çalışıyorsa onun adını taşır.
+ * - Kod hiçbir zaman düz metin akmaz; dosya adı başlıklı, kopyalanabilir ve
+ *   indirilebilir kod kartlarına dönüşür (markdown.js).
+ */
+(function () {
+  'use strict';
+
+  const $ = function (id) { return document.getElementById(id); };
+
+  const els = {
+    title: $('topTitle'),
+    subtitle: $('topSubtitle'),
+    menuBtn: $('menuBtn'),
+    settingsBtn: $('settingsBtn'),
+    drawer: $('drawer'),
+    settings: $('settingsPanel'),
+    overlay: $('overlay'),
+    closeDrawer: $('closeDrawerBtn'),
+    closeSettings: $('closeSettingsBtn'),
+    messages: $('messages'),
+    empty: $('emptyState'),
+    input: $('userInput'),
+    sendBtn: $('sendBtn'),
+    stopBtn: $('stopBtn'),
+    fileInput: $('fileInput'),
+    attachments: $('attachments'),
+    pipeline: $('pipelineStrip'),
+    artifactBar: $('artifactBar'),
+    artifactCount: $('artifactCount'),
+    artifactFiles: $('artifactFiles'),
+    formatSelect: $('formatSelect'),
+    downloadBtn: $('downloadBtn'),
+    newChatBtn: $('newChatBtn'),
+    historyList: $('historyList'),
+    projectList: $('projectList'),
+    memoryList: $('memoryList'),
+    sourceList: $('sourceList'),
+    engineBadge: $('engineBadge'),
+    engineDetail: $('engineDetail'),
+    startHermesBtn: $('startHermesBtn'),
+    hermesLog: $('hermesLog'),
+    themeBtn: $('themeBtn'),
+    exportChatBtn: $('exportChatBtn'),
+    clearMemoryBtn: $('clearMemoryBtn'),
+    clearSourcesBtn: $('clearSourcesBtn'),
+    memoryInput: $('memoryInput'),
+    addMemoryBtn: $('addMemoryBtn'),
+    saveSettingsBtn: $('saveSettingsBtn'),
+    toast: $('toast')
+  };
+
+  const state = {
+    messages: [],
+    projectId: null,
+    sessionId: null,
+    chatTitle: '',
+    running: false,
+    controller: null,
+    activeAgent: null,
+    currentBubble: null,
+    currentText: '',
+    history: JSON.parse(localStorage.getItem('hf.history') || '[]'),
+    chatId: null,
+    dark: localStorage.getItem('hf.dark') !== 'false'
+  };
+
+  // ---------------------------------------------------------------- yardımcı
+
+  function toast(text, kind) {
+    els.toast.textContent = text;
+    els.toast.className = 'toast show' + (kind ? ' ' + kind : '');
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(function () { els.toast.className = 'toast'; }, 3200);
+  }
+
+  function scrollToEnd(force) {
+    const box = els.messages;
+    const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 160;
+    if (force || nearBottom) box.scrollTop = box.scrollHeight;
+  }
+
+  function setTitle(main, sub) {
+    els.title.textContent = main;
+    els.subtitle.textContent = sub || '';
+    els.subtitle.style.display = sub ? 'block' : 'none';
+    document.title = main === 'HermesForge' ? 'HermesForge' : main + ' · HermesForge';
+  }
+
+  function applyTheme() {
+    document.body.classList.toggle('dark', state.dark);
+    els.themeBtn.textContent = state.dark ? '☀️  Aydınlık tema' : '🌙  Karanlık tema';
+  }
+
+  function openPanel(panel) {
+    panel.classList.add('open');
+    els.overlay.classList.add('show');
+  }
+  function closePanels() {
+    els.drawer.classList.remove('open');
+    els.settings.classList.remove('open');
+    els.overlay.classList.remove('show');
+  }
+
+  // ---------------------------------------------------------------- mesajlar
+
+  function clearEmpty() {
+    if (els.empty) els.empty.style.display = 'none';
+  }
+
+  function addUserMessage(text) {
+    clearEmpty();
+    const row = document.createElement('div');
+    row.className = 'msg msg-user';
+    row.innerHTML = '<div class="bubble">' + window.Markdown.escapeHtml(text).replace(/\n/g, '<br>') + '</div>';
+    els.messages.appendChild(row);
+    scrollToEnd(true);
+  }
+
+  function addAgentMessage(agent) {
+    clearEmpty();
+    const row = document.createElement('div');
+    row.className = 'msg msg-agent';
+    row.innerHTML =
+      '<div class="agent-head">' +
+        '<span class="agent-emoji">' + (agent.emoji || '🤖') + '</span>' +
+        '<span class="agent-name">' + window.Markdown.escapeHtml(agent.name || 'Ajan') + '</span>' +
+        '<span class="agent-title">' + window.Markdown.escapeHtml(agent.title || '') + '</span>' +
+        '<span class="agent-spinner" aria-hidden="true"></span>' +
+      '</div>' +
+      '<div class="bubble markdown"></div>';
+    els.messages.appendChild(row);
+    scrollToEnd(true);
+    return row;
+  }
+
+  function addNotice(text, kind) {
+    clearEmpty();
+    const row = document.createElement('div');
+    row.className = 'notice notice-' + (kind || 'info');
+    row.textContent = text;
+    els.messages.appendChild(row);
+    scrollToEnd();
+    return row;
+  }
+
+  function renderCurrent() {
+    if (!state.currentBubble) return;
+    state.currentBubble.innerHTML = window.Markdown.render(state.currentText);
+    scrollToEnd();
+  }
+
+  function finishBubble() {
+    if (state.currentBubble) {
+      const row = state.currentBubble.closest('.msg');
+      if (row) row.classList.remove('streaming');
+      renderCurrent();
+      if (state.currentText.trim() && state.activeAgent) {
+        state.messages.push({
+          role: 'assistant',
+          content: state.currentText,
+          agentId: state.activeAgent.id,
+          agentName: state.activeAgent.name
+        });
+      }
+    }
+    state.currentBubble = null;
+    state.currentText = '';
+  }
+
+  // ------------------------------------------------------------ hat şeridi
+
+  function renderPipeline(agents, activeId) {
+    if (!agents || !agents.length) { els.pipeline.innerHTML = ''; els.pipeline.classList.remove('show'); return; }
+    els.pipeline.classList.add('show');
+    els.pipeline.innerHTML = agents.map(function (agent) {
+      let cls = 'pipe-chip';
+      if (agent.id === activeId) cls += ' active';
+      else if (agent.done) cls += ' done';
+      return '<span class="' + cls + '"><span>' + agent.emoji + '</span>' +
+        window.Markdown.escapeHtml(agent.name) + '</span>';
+    }).join('<span class="pipe-arrow">→</span>');
+  }
+
+  // ------------------------------------------------------------- ürün paneli
+
+  function renderArtifacts(payload) {
+    state.projectId = payload.project_id || state.projectId;
+    const files = payload.files || [];
+    if (!files.length) { els.artifactBar.classList.remove('show'); return; }
+
+    els.artifactBar.classList.add('show');
+    els.artifactCount.textContent = files.length + ' dosya';
+    const newSet = new Set(payload.new_files || []);
+    els.artifactFiles.innerHTML = files.map(function (file) {
+      const fresh = newSet.has(file.path) ? ' fresh' : '';
+      return '<button type="button" class="artifact-file' + fresh + '" data-path="' +
+        window.Markdown.escapeHtml(file.path) + '">' +
+        window.Markdown.escapeHtml(file.path) + '<small>' + file.bytes + 'B</small></button>';
+    }).join('');
+
+    if (payload.suggested_format) els.formatSelect.value = payload.suggested_format;
+    refreshProjects();
+  }
+
+  function downloadProject() {
+    if (!state.projectId) { toast('Henüz üretilmiş bir proje yok.', 'warn'); return; }
+    const fmt = els.formatSelect.value || 'zip';
+    window.location.href = '/api/projects/' + encodeURIComponent(state.projectId) +
+      '/export?format=' + encodeURIComponent(fmt);
+  }
+
+  // ----------------------------------------------------------------- akış
+
+  async function send() {
+    const text = els.input.value.trim();
+    if (!text || state.running) return;
+
+    els.input.value = '';
+    els.input.style.height = 'auto';
+    addUserMessage(text);
+    state.messages.push({ role: 'user', content: text });
+    if (!state.chatTitle) { state.chatTitle = text.slice(0, 40); setTitle(state.chatTitle); }
+
+    state.running = true;
+    els.sendBtn.style.display = 'none';
+    els.stopBtn.style.display = 'flex';
+    state.controller = new AbortController();
+
+    let pipelineAgents = [];
+
+    try {
+      const response = await fetch('/api/chat/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: text,
+          history: state.messages.slice(-14).map(function (m) {
+            return { role: m.role, content: m.content };
+          }),
+          project_id: state.projectId,
+          session_id: state.sessionId
+        }),
+        signal: state.controller.signal
+      });
+
+      if (!response.ok || !response.body) {
+        const detail = await response.text().catch(function () { return ''; });
+        throw new Error('Sunucu yanıt vermedi (' + response.status + ') ' + detail.slice(0, 200));
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        buffer += decoder.decode(chunk.value, { stream: true });
+
+        let index;
+        while ((index = buffer.indexOf('\n\n')) !== -1) {
+          const frame = buffer.slice(0, index);
+          buffer = buffer.slice(index + 2);
+          if (!frame.startsWith('data:')) continue;
+          let event;
+          try { event = JSON.parse(frame.slice(5).trim()); } catch (err) { continue; }
+          pipelineAgents = handleEvent(event, pipelineAgents);
+        }
+      }
+    } catch (err) {
+      if (err.name === 'AbortError') addNotice('Akış durduruldu.', 'warn');
+      else addNotice('Hata: ' + err.message, 'error');
+    } finally {
+      finishBubble();
+      state.running = false;
+      state.controller = null;
+      state.activeAgent = null;
+      els.sendBtn.style.display = 'flex';
+      els.stopBtn.style.display = 'none';
+      renderPipeline(pipelineAgents.map(function (a) { return Object.assign({}, a, { done: true }); }), null);
+      setTitle(state.chatTitle || 'HermesForge');
+      persistChat();
+    }
+  }
+
+  function handleEvent(event, pipelineAgents) {
+    switch (event.type) {
+      case 'status':
+        setTitle(state.chatTitle || 'HermesForge', event.text);
+        break;
+
+      case 'engine':
+        updateEngineBadge(event);
+        if (event.engine === 'none') addNotice(event.note || 'Çalışan motor yok.', 'error');
+        break;
+
+      case 'route':
+        pipelineAgents = (event.agents || []).map(function (a) { return Object.assign({}, a, { done: false }); });
+        if (event.title) { state.chatTitle = event.title; }
+        renderPipeline(pipelineAgents, null);
+        addNotice('Yönlendirme: ' + event.mode + ' · ' + (event.reason || ''), 'info');
+        break;
+
+      case 'project':
+        state.projectId = event.project_id;
+        break;
+
+      case 'session':
+        state.sessionId = event.session_id;
+        break;
+
+      case 'agent_start':
+        finishBubble();
+        state.activeAgent = event.agent;
+        setTitle(event.agent.emoji + '  ' + event.agent.name, event.agent.title);
+        renderPipeline(pipelineAgents, event.agent.id);
+        state.currentBubble = addAgentMessage(event.agent).querySelector('.bubble');
+        state.currentBubble.closest('.msg').classList.add('streaming');
+        state.currentText = '';
+        break;
+
+      case 'delta':
+        if (!state.currentBubble) {
+          const agent = state.activeAgent || { id: 'advisor', name: 'Ajan', emoji: '🤖', title: '' };
+          state.activeAgent = agent;
+          state.currentBubble = addAgentMessage(agent).querySelector('.bubble');
+        }
+        state.currentText += event.text;
+        renderCurrent();
+        break;
+
+      case 'reasoning':
+        setTitle(
+          state.activeAgent ? state.activeAgent.emoji + '  ' + state.activeAgent.name : 'HermesForge',
+          'düşünüyor…'
+        );
+        break;
+
+      case 'tool_start':
+        setTitle(
+          state.activeAgent ? state.activeAgent.emoji + '  ' + state.activeAgent.name : 'HermesForge',
+          '🔧 ' + event.tool
+        );
+        break;
+
+      case 'agent_end':
+        pipelineAgents = pipelineAgents.map(function (a) {
+          return a.id === event.agent_id ? Object.assign({}, a, { done: true }) : a;
+        });
+        renderPipeline(pipelineAgents, null);
+        finishBubble();
+        if (event.files && event.files.length) {
+          addNotice(event.agent.name + ' ' + event.files.length + ' dosya yazdı: ' +
+            event.files.map(function (f) { return f.path; }).join(', '), 'ok');
+        }
+        break;
+
+      case 'artifacts':
+        renderArtifacts(event);
+        break;
+
+      case 'memory':
+        if (event.stored && event.stored.length) {
+          addNotice('Belleğe eklendi: ' + event.stored.map(function (s) { return s.text; }).join(' | '), 'info');
+          refreshMemory();
+        }
+        break;
+
+      case 'error':
+        addNotice(event.text, 'error');
+        break;
+
+      case 'done':
+        break;
+    }
+    return pipelineAgents;
+  }
+
+  // ------------------------------------------------------------- kalıcılık
+
+  function persistChat() {
+    if (!state.messages.length) return;
+    const entry = {
+      id: state.chatId || String(Date.now()),
+      title: state.chatTitle || 'Sohbet',
+      projectId: state.projectId,
+      sessionId: state.sessionId,
+      messages: state.messages,
+      at: Date.now()
+    };
+    state.chatId = entry.id;
+    state.history = state.history.filter(function (c) { return c.id !== entry.id; });
+    state.history.unshift(entry);
+    state.history = state.history.slice(0, 40);
+    localStorage.setItem('hf.history', JSON.stringify(state.history));
+    renderHistory();
+  }
+
+  function renderHistory() {
+    els.historyList.innerHTML = state.history.map(function (chat) {
+      const active = chat.id === state.chatId ? ' active' : '';
+      return '<button type="button" class="list-item' + active + '" data-chat="' + chat.id + '">' +
+        window.Markdown.escapeHtml(chat.title) + '</button>';
+    }).join('') || '<div class="list-empty">Henüz sohbet yok.</div>';
+  }
+
+  function loadChat(chatId) {
+    const chat = state.history.find(function (c) { return c.id === chatId; });
+    if (!chat) return;
+    state.chatId = chat.id;
+    state.messages = chat.messages || [];
+    state.projectId = chat.projectId || null;
+    state.sessionId = chat.sessionId || null;
+    state.chatTitle = chat.title;
+
+    els.messages.innerHTML = '';
+    state.messages.forEach(function (message) {
+      if (message.role === 'user') addUserMessage(message.content);
+      else {
+        const row = addAgentMessage({
+          emoji: '🤖', name: message.agentName || 'Ajan', title: ''
+        });
+        row.querySelector('.bubble').innerHTML = window.Markdown.render(message.content);
+      }
+    });
+    setTitle(chat.title);
+    if (state.projectId) loadProjectFiles(state.projectId);
+    renderHistory();
+    closePanels();
+  }
+
+  function newChat() {
+    persistChat();
+    state.messages = [];
+    state.projectId = null;
+    state.sessionId = null;
+    state.chatTitle = '';
+    state.chatId = null;
+    els.messages.innerHTML = '';
+    if (els.empty) { els.messages.appendChild(els.empty); els.empty.style.display = 'flex'; }
+    els.artifactBar.classList.remove('show');
+    els.pipeline.classList.remove('show');
+    setTitle('HermesForge');
+    renderHistory();
+    closePanels();
+  }
+
+  // ------------------------------------------------------------- veri çekme
+
+  function updateEngineBadge(info) {
+    const engine = info.engine || 'none';
+    els.engineBadge.textContent = info.label || engine;
+    els.engineBadge.className = 'engine-badge engine-' + engine;
+    els.engineDetail.textContent = (info.detail || '') + (info.note ? ' — ' + info.note : '');
+  }
+
+  async function refreshStatus() {
+    try {
+      const data = await fetch('/api/status').then(function (r) { return r.json(); });
+      const reachable = data.hermes && data.hermes.health && data.hermes.health.reachable;
+      updateEngineBadge(
+        reachable
+          ? { engine: 'hermes', label: 'Hermes Agent', detail: data.hermes.base_url }
+          : (data.fallback.available
+            ? { engine: 'fallback', label: 'Yedek sağlayıcı', detail: data.fallback.model, note: 'Hermes kapalı' }
+            : { engine: 'none', label: 'Motor yok', detail: 'Hermes kurulu değil' })
+      );
+      els.startHermesBtn.style.display = reachable ? 'none' : 'block';
+      if (data.rag) $('ragStat').textContent = data.rag.documents + ' belge · ' + data.rag.chunks + ' parça';
+      if (data.memory) $('memoryStat').textContent = data.memory.total + ' anı';
+      if (data.formats && els.formatSelect.options.length === 0) {
+        els.formatSelect.innerHTML = data.formats.map(function (f) {
+          return '<option value="' + f + '">' + formatLabel(f) + '</option>';
+        }).join('');
+      }
+    } catch (err) {
+      updateEngineBadge({ engine: 'none', label: 'Sunucuya ulaşılamadı', detail: err.message });
+    }
+  }
+
+  function formatLabel(fmt) {
+    return { zip: 'ZIP arşivi', targz: 'tar.gz', markdown: 'Markdown', json: 'JSON', single: 'Tek dosya (.py)' }[fmt] || fmt;
+  }
+
+  async function refreshMemory() {
+    try {
+      const data = await fetch('/api/memory').then(function (r) { return r.json(); });
+      els.memoryList.innerHTML = (data.memories || []).map(function (m) {
+        return '<div class="mem-item"><span class="mem-cat">' + m.category + '</span>' +
+          '<span class="mem-body">' + window.Markdown.escapeHtml(m.body) + '</span>' +
+          '<button type="button" class="mem-del" data-mem="' + m.id + '">×</button></div>';
+      }).join('') || '<div class="list-empty">Bellek boş.</div>';
+      $('memoryStat').textContent = (data.stats ? data.stats.total : 0) + ' anı';
+    } catch (err) { /* panel kapalıyken sessiz geç */ }
+  }
+
+  async function refreshSources() {
+    try {
+      const data = await fetch('/api/rag/sources').then(function (r) { return r.json(); });
+      els.sourceList.innerHTML = (data.sources || []).map(function (s) {
+        return '<div class="list-row"><span>' + window.Markdown.escapeHtml(s.source) + '</span><small>' +
+          s.chunks + '</small></div>';
+      }).join('') || '<div class="list-empty">Yüklenmiş dosya yok.</div>';
+    } catch (err) { /* yoksay */ }
+  }
+
+  async function refreshProjects() {
+    try {
+      const data = await fetch('/api/projects').then(function (r) { return r.json(); });
+      els.projectList.innerHTML = (data.projects || []).map(function (p) {
+        const active = p.project_id === state.projectId ? ' active' : '';
+        return '<button type="button" class="list-item' + active + '" data-project="' + p.project_id + '">' +
+          window.Markdown.escapeHtml(p.project_id) + '<small>' + p.files + ' dosya</small></button>';
+      }).join('') || '<div class="list-empty">Henüz proje yok.</div>';
+    } catch (err) { /* yoksay */ }
+  }
+
+  async function loadProjectFiles(projectId) {
+    try {
+      const data = await fetch('/api/projects/' + encodeURIComponent(projectId) + '/files')
+        .then(function (r) { return r.json(); });
+      renderArtifacts({ project_id: projectId, files: data.files || [], new_files: [] });
+    } catch (err) { /* yoksay */ }
+  }
+
+  async function openProjectFile(path) {
+    if (!state.projectId) return;
+    const data = await fetch('/api/projects/' + encodeURIComponent(state.projectId) +
+      '/file?path=' + encodeURIComponent(path)).then(function (r) { return r.json(); });
+    if (data.error) { toast(data.error, 'error'); return; }
+    const language = (path.split('.').pop() || 'text').toLowerCase();
+    const row = document.createElement('div');
+    row.className = 'msg msg-agent';
+    row.innerHTML = '<div class="bubble markdown">' +
+      window.Markdown.render('```' + language + ' path=' + path + '\n' + data.content + '\n```') + '</div>';
+    els.messages.appendChild(row);
+    scrollToEnd(true);
+  }
+
+  // ----------------------------------------------------------------- yükleme
+
+  async function uploadFiles(files) {
+    for (const file of files) {
+      const chip = document.createElement('span');
+      chip.className = 'attach-chip loading';
+      chip.textContent = '⏳ ' + file.name;
+      els.attachments.appendChild(chip);
+
+      const form = new FormData();
+      form.append('file', file);
+      try {
+        const data = await fetch('/api/upload', { method: 'POST', body: form })
+          .then(function (r) { return r.json(); });
+        if (data.error) {
+          chip.className = 'attach-chip error';
+          chip.textContent = '⚠️ ' + file.name;
+          toast(data.error, 'error');
+        } else {
+          chip.className = 'attach-chip ok';
+          chip.textContent = '📎 ' + file.name + ' (' + data.chunks + ' parça)';
+          refreshSources();
+        }
+      } catch (err) {
+        chip.className = 'attach-chip error';
+        chip.textContent = '⚠️ ' + file.name;
+      }
+    }
+  }
+
+  // ------------------------------------------------------------------ olaylar
+
+  function bind() {
+    els.menuBtn.addEventListener('click', function () { openPanel(els.drawer); refreshProjects(); refreshMemory(); refreshSources(); });
+    els.settingsBtn.addEventListener('click', function () { openPanel(els.settings); loadSettings(); });
+    els.closeDrawer.addEventListener('click', closePanels);
+    els.closeSettings.addEventListener('click', closePanels);
+    els.overlay.addEventListener('click', closePanels);
+
+    // Dar telefon ekranlarında panel, örtünün neredeyse tamamını kaplar;
+    // Escape her zaman çalışan bir kaçış yolu bırakır.
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') closePanels();
+    });
+
+    els.sendBtn.addEventListener('click', send);
+    els.stopBtn.addEventListener('click', function () {
+      if (state.controller) state.controller.abort();
+    });
+
+    els.input.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter' && !event.shiftKey && window.innerWidth > 820) {
+        event.preventDefault();
+        send();
+      }
+    });
+    els.input.addEventListener('input', function () {
+      els.input.style.height = 'auto';
+      els.input.style.height = Math.min(els.input.scrollHeight, 190) + 'px';
+    });
+
+    els.fileInput.addEventListener('change', function () {
+      if (els.fileInput.files.length) uploadFiles(Array.from(els.fileInput.files));
+      els.fileInput.value = '';
+    });
+
+    els.newChatBtn.addEventListener('click', newChat);
+    els.downloadBtn.addEventListener('click', downloadProject);
+    els.themeBtn.addEventListener('click', function () {
+      state.dark = !state.dark;
+      localStorage.setItem('hf.dark', state.dark);
+      applyTheme();
+    });
+
+    els.exportChatBtn.addEventListener('click', async function () {
+      if (!state.messages.length) { toast('Dışa aktarılacak mesaj yok.', 'warn'); return; }
+      const response = await fetch('/api/export/conversation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: state.messages })
+      });
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'hermesforge-konusma.zip';
+      link.click();
+      URL.revokeObjectURL(url);
+    });
+
+    els.startHermesBtn.addEventListener('click', async function () {
+      els.startHermesBtn.disabled = true;
+      els.startHermesBtn.textContent = 'Başlatılıyor…';
+      const data = await fetch('/api/hermes/start', { method: 'POST' }).then(function (r) { return r.json(); });
+      toast(data.started ? 'Hermes gateway başlatıldı.' : (data.error || 'Başlatılamadı.'), data.started ? 'ok' : 'error');
+      setTimeout(function () {
+        refreshStatus();
+        els.startHermesBtn.disabled = false;
+        els.startHermesBtn.textContent = 'Hermes gateway başlat';
+        fetch('/api/hermes/log').then(function (r) { return r.json(); })
+          .then(function (d) { els.hermesLog.textContent = d.log || '(kayıt yok)'; });
+      }, 4000);
+    });
+
+    els.addMemoryBtn.addEventListener('click', async function () {
+      const text = els.memoryInput.value.trim();
+      if (!text) return;
+      await fetch('/api/memory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text, category: 'olgu', importance: 0.9 })
+      });
+      els.memoryInput.value = '';
+      refreshMemory();
+    });
+
+    els.clearMemoryBtn.addEventListener('click', async function () {
+      if (!confirm('Tüm bellek silinsin mi?')) return;
+      await fetch('/api/memory', { method: 'DELETE' });
+      refreshMemory();
+    });
+
+    els.clearSourcesBtn.addEventListener('click', async function () {
+      if (!confirm('Yüklenen dosyalar dizinden silinsin mi?')) return;
+      await fetch('/api/rag', { method: 'DELETE' });
+      refreshSources();
+      els.attachments.innerHTML = '';
+    });
+
+    els.saveSettingsBtn.addEventListener('click', saveSettings);
+
+    // Kod kartı düğmeleri, sohbet listesi, proje listesi: tek delege dinleyici.
+    document.addEventListener('click', function (event) {
+      const codeBtn = event.target.closest('.code-btn');
+      if (codeBtn) { handleCodeAction(codeBtn); return; }
+
+      const chatItem = event.target.closest('[data-chat]');
+      if (chatItem) { loadChat(chatItem.dataset.chat); return; }
+
+      const projectItem = event.target.closest('[data-project]');
+      if (projectItem) {
+        state.projectId = projectItem.dataset.project;
+        loadProjectFiles(state.projectId);
+        closePanels();
+        return;
+      }
+
+      const artifactFile = event.target.closest('.artifact-file');
+      if (artifactFile) { openProjectFile(artifactFile.dataset.path); return; }
+
+      const memDel = event.target.closest('[data-mem]');
+      if (memDel) {
+        fetch('/api/memory/' + memDel.dataset.mem, { method: 'DELETE' }).then(refreshMemory);
+      }
+    });
+  }
+
+  function handleCodeAction(button) {
+    const code = document.getElementById(button.dataset.target);
+    if (!code) return;
+    const text = code.textContent;
+    const card = button.closest('.code-card');
+    const path = (card && card.dataset.path) || '';
+
+    if (button.dataset.action === 'copy') {
+      copyText(text).then(function () {
+        button.textContent = 'Kopyalandı ✓';
+        setTimeout(function () { button.textContent = 'Kopyala'; }, 1600);
+      }).catch(function () { toast('Kopyalanamadı.', 'error'); });
+      return;
+    }
+
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = path ? path.split('/').pop() : 'kod.txt';
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text);
+    }
+    // Termux'ta http:// üzerinden açıldığında Clipboard API kapalıdır.
+    return new Promise(function (resolve, reject) {
+      const area = document.createElement('textarea');
+      area.value = text;
+      area.style.position = 'fixed';
+      area.style.opacity = '0';
+      document.body.appendChild(area);
+      area.select();
+      try {
+        document.execCommand('copy') ? resolve() : reject(new Error('copy failed'));
+      } catch (err) { reject(err); }
+      document.body.removeChild(area);
+    });
+  }
+
+  // ------------------------------------------------------------------ ayarlar
+
+  const SETTING_FIELDS = [
+    'hermes_base_url', 'hermes_api_key', 'hermes_model', 'hermes_repo_dir',
+    'fallback_base_url', 'fallback_model', 'fallback_api_key'
+  ];
+
+  async function loadSettings() {
+    const data = await fetch('/api/settings').then(function (r) { return r.json(); });
+    SETTING_FIELDS.forEach(function (field) {
+      const input = $(field);
+      if (!input) return;
+      const value = data[field];
+      if (typeof value === 'boolean') input.placeholder = value ? '•••• (kayıtlı)' : 'ayarlanmadı';
+      else input.value = value || '';
+    });
+    $('hermes_autostart').checked = !!data.hermes_autostart;
+    $('fallback_enabled').checked = !!data.fallback_enabled;
+  }
+
+  async function saveSettings() {
+    const payload = {};
+    SETTING_FIELDS.forEach(function (field) {
+      const input = $(field);
+      if (input && input.value.trim()) payload[field] = input.value.trim();
+    });
+    payload.hermes_autostart = $('hermes_autostart').checked;
+    payload.fallback_enabled = $('fallback_enabled').checked;
+
+    const data = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function (r) { return r.json(); });
+
+    toast(data.saved ? 'Ayarlar kaydedildi.' : (data.error || 'Kaydedilemedi.'), data.saved ? 'ok' : 'error');
+    if (data.saved) { refreshStatus(); closePanels(); }
+  }
+
+  // ------------------------------------------------------------------- açılış
+
+  applyTheme();
+  bind();
+  renderHistory();
+  refreshStatus();
+  refreshProjects();
+  setInterval(refreshStatus, 30000);
+})();
