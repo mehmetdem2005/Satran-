@@ -551,6 +551,8 @@
       const reachable = !!(data.hermes && data.hermes.health && data.hermes.health.reachable);
       engineIsHermes = reachable;
 
+      if (reachable || data.fallback.available) showSetup(false);
+
       if (reachable) {
         updateEngineBadge({
           engine: 'hermes',
@@ -570,7 +572,8 @@
             : 'Hermes kapalı — araçlar ve beceriler devre dışı'
         });
       } else {
-        // Motor yokken kullanıcıya GERÇEKTEN yapabileceği şeyi söyle.
+        // Motor yoksa kullanıcıyı menüde arattırma: kurulum kartını göster.
+        if (!state.messages.length) showSetup(true);
         updateEngineBadge({
           engine: 'none',
           label: 'Sağlayıcı ayarlanmadı',
@@ -816,6 +819,11 @@
     });
 
     els.saveSettingsBtn.addEventListener('click', saveSettings);
+    $('setupSaveBtn').addEventListener('click', runSetup);
+    $('setupPreset').addEventListener('change', function () { applySetupPreset(this.value); });
+    $('setupKey').addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') runSetup();
+    });
     $('fallback_preset').addEventListener('change', function () {
       $('fallback_base_url').value = '';
       applyPreset(this.value, '', $('reasoning_effort').value);
@@ -894,6 +902,143 @@
       } catch (err) { reject(err); }
       document.body.removeChild(area);
     });
+  }
+
+
+  // ------------------------------------------------------------ kurulum
+
+  /**
+   * İlk açılış kurulumu.
+   *
+   * Uygulamanın çalışması için gereken tek şey bir sağlayıcı anahtarı.
+   * Kullanıcıyı menüde arattırmak yerine sohbet alanında istiyoruz ve
+   * kaydetmeden ÖNCE sağlayıcıya karşı sınıyoruz — yanlış bir anahtar aksi
+   * hâlde ancak ilk sohbet denemesinde, akışın ortasında anlaşılıyor.
+   */
+  function setupPresetById(id) {
+    if (!catalog) return null;
+    return catalog.presets.find(function (p) { return p.id === id; }) || null;
+  }
+
+  function renderSetup() {
+    if (!catalog) return;
+    const presetSelect = $('setupPreset');
+    if (!presetSelect.options.length) {
+      presetSelect.innerHTML = catalog.presets.map(function (p) {
+        return '<option value="' + p.id + '">' + window.Markdown.escapeHtml(p.label) + '</option>';
+      }).join('');
+      presetSelect.value = catalog.default_preset;
+    }
+    applySetupPreset(presetSelect.value);
+  }
+
+  function applySetupPreset(presetId) {
+    const preset = setupPresetById(presetId);
+    if (!preset) return;
+
+    const modelSelect = $('setupModel');
+    if (preset.models.length) {
+      modelSelect.innerHTML = preset.models.map(function (m) {
+        return '<option value="' + m.id + '">' + window.Markdown.escapeHtml(m.label) + '</option>';
+      }).join('');
+      modelSelect.closest('.field').style.display = '';
+      $('setupBaseUrlField').style.display = 'none';
+    } else {
+      // Özel uçta model adını ve adresi kullanıcı verir. Model adı boş
+      // kalırsa kayıtlı DeepSeek modeli kullanılır ve uç onu tanımaz —
+      // bu yüzden ikisi de zorunlu.
+      modelSelect.innerHTML = '';
+      modelSelect.closest('.field').style.display = 'none';
+      $('setupBaseUrlField').style.display = '';
+      $('setupCustomModelField').style.display = '';
+    }
+    if (preset.models.length) $('setupCustomModelField').style.display = 'none';
+    $('setupKey').placeholder = preset.key_hint || 'sk-…';
+    $('setupKeyLink').style.display = presetId === 'deepseek' ? '' : 'none';
+  }
+
+  function showSetup(show) {
+    $('setupCard').style.display = show ? 'flex' : 'none';
+    if (els.empty) els.empty.style.display = show ? 'none' : '';
+    if (show) renderSetup();
+  }
+
+  async function runSetup() {
+    const button = $('setupSaveBtn');
+    const status = $('setupStatus');
+    const presetId = $('setupPreset').value;
+    const preset = setupPresetById(presetId);
+    const key = $('setupKey').value.trim();
+
+    if (!key) {
+      status.className = 'setup-status error';
+      status.textContent = 'Önce bir API anahtarı yapıştır.';
+      return;
+    }
+
+    const usingPreset = !!(preset && preset.models.length);
+    const model = usingPreset ? $('setupModel').value : $('setupCustomModel').value.trim();
+    const baseUrl = usingPreset ? preset.base_url : $('setupBaseUrl').value.trim();
+
+    if (!usingPreset && !baseUrl) {
+      status.className = 'setup-status error';
+      status.textContent = 'Özel sağlayıcı için taban adres gerekli.';
+      return;
+    }
+    if (!usingPreset && !model) {
+      status.className = 'setup-status error';
+      status.textContent = 'Özel sağlayıcı için model adı gerekli.';
+      return;
+    }
+
+    button.disabled = true;
+    status.className = 'setup-status busy';
+    status.textContent = 'Anahtar sınanıyor…';
+
+    try {
+      const test = await fetch('/api/provider/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preset: presetId, api_key: key, base_url: baseUrl, model: model })
+      }).then(function (r) { return r.json(); });
+
+      if (!test.ok) {
+        status.className = 'setup-status error';
+        status.textContent = test.error || 'Anahtar doğrulanamadı.';
+        return;
+      }
+
+      status.textContent = 'Kaydediliyor…';
+      const payload = {
+        fallback_preset: presetId,
+        fallback_api_key: key,
+        fallback_enabled: true
+      };
+      if (model) payload.fallback_model = model;
+      if (baseUrl) payload.fallback_base_url = baseUrl;
+
+      const saved = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(function (r) { return r.json(); });
+
+      if (!saved.saved) {
+        status.className = 'setup-status error';
+        status.textContent = saved.error || 'Kaydedilemedi.';
+        return;
+      }
+
+      status.className = 'setup-status ok';
+      status.textContent = test.warning || 'Hazır! Artık yazabilirsin.';
+      await refreshStatus();
+      setTimeout(function () { showSetup(false); els.input.focus(); }, test.warning ? 2600 : 900);
+    } catch (err) {
+      status.className = 'setup-status error';
+      status.textContent = 'Hata: ' + err.message;
+    } finally {
+      button.disabled = false;
+    }
   }
 
   // ------------------------------------------------------------------ ayarlar

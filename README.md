@@ -111,12 +111,18 @@ debug imzalı APK bırakır.
 | Python 3.11 + Flask + HermesForge'un tamamı (Chaquopy, MIT) | **Hermes Agent** — 176 MB'lık monorepo, kendi sanal ortamını ve alt süreç açmayı istiyor; APK'ya girmez |
 | Ajan hattı, pano, paralel dalgalar, RAG, bellek, kod kartları, zip/tar.gz indirme | |
 
-Yani APK **tek başına çalışır**: Ayarlar → Sağlayıcı bölümünden DeepSeek'i (ya
-da OpenAI uyumlu kendi ucunu) seçip anahtarını girersin. Model listesi
-sağlayıcının belgelerinden gelir; Android'de çalıştırılamayacak seçenekler
-(gateway başlatma gibi) gösterilmez. Hermes'in araçlarını ve becerilerini de istiyorsan Hermes'i Termux'ta
-ya da bir sunucuda çalıştırıp Ayarlar → Hermes Agent bölümüne adresini yaz;
-uygulama motoru kendiliğinden Hermes'e geçirir.
+Yani APK **tek başına çalışır**. İlk açılışta kurulum ekranı karşılar:
+sağlayıcıyı seç, modeli seç, anahtarı yapıştır, **Bağlan ve başla**. Menüde
+ayar aramana gerek yok.
+
+Anahtar **kaydedilmeden önce sağlayıcıya karşı sınanır** — yanlışsa orada
+söyler, ilk sohbetin ortasında patlamaz. Model listesi sağlayıcının kendi
+belgelerinden gelir; Android'de çalıştırılamayacak seçenekler (gateway
+başlatma gibi) hiç gösterilmez.
+
+Hermes **isteğe bağlıdır** ve ayarlarda öyle işaretlidir. İstemiyorsan hiç
+dokunma; uygulama eksiksiz çalışır. İstersen Termux'ta ya da bir sunucuda
+çalıştırıp adresini verirsin, motor kendiliğinden Hermes'e geçer.
 
 Sunucu bir **ön plan servisinde** yaşıyor: uzun süren bir yapım turu sırasında
 başka uygulamaya geçsen bile Android süreci öldürmüyor.

@@ -148,6 +148,94 @@ class DirectProvider:
         finally:
             response.close()
 
+
+    # ------------------------------------------------------------------
+    # Anahtar doğrulama
+    # ------------------------------------------------------------------
+    def test_credentials(
+        self,
+        *,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+        model: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Anahtarı sağlayıcıya karşı sınar, okunabilir bir sonuç döndürür.
+
+        Yanlış bir anahtar aksi hâlde ancak ilk sohbet denemesinde, akışın
+        ortasında anlaşılıyor. Burada önce ücretsiz olan model listesi
+        deneniyor; sağlayıcı onu sunmuyorsa tek tokenlık bir tamamlama ile
+        doğrulanıyor.
+        """
+        key = (api_key or self.config.fallback_api_key or "").strip()
+        base = (base_url or self.config.fallback_base_url or "").strip().rstrip("/")
+        target_model = (model or self.config.fallback_model or "").strip()
+
+        if not key:
+            return {"ok": False, "error": "API anahtarı boş."}
+        if not base:
+            return {"ok": False, "error": "Taban adres boş."}
+
+        headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+
+        # 1) Model listesi — ücretsiz ve kimlik doğrulamayı sınar.
+        try:
+            response = self._session.get(f"{base}/models", headers=headers, timeout=(10, 20))
+            if response.status_code == 200:
+                try:
+                    rows = response.json().get("data") or []
+                    models = [row.get("id") for row in rows if isinstance(row, dict) and row.get("id")]
+                except ValueError:
+                    models = []
+                result: Dict[str, Any] = {"ok": True, "models": models}
+                if target_model and models and target_model not in models:
+                    result["warning"] = (
+                        f"Anahtar geçerli ama '{target_model}' listede yok. "
+                        f"Sağlayıcının verdiği modeller: {', '.join(models[:8])}"
+                    )
+                return result
+            if response.status_code in (401, 403):
+                return {"ok": False, "error": self._auth_error_text(response)}
+            # 404/405: sağlayıcıda model listesi yok — tamamlamayla dene.
+        except requests.exceptions.RequestException as exc:
+            return {"ok": False, "error": f"Sağlayıcıya ulaşılamadı: {exc}"}
+
+        # 2) Tek tokenlık tamamlama.
+        try:
+            response = self._session.post(
+                f"{base}/chat/completions",
+                headers=headers,
+                json={
+                    "model": target_model or "gpt-3.5-turbo",
+                    "messages": [{"role": "user", "content": "ping"}],
+                    "max_tokens": 1,
+                    "stream": False,
+                },
+                timeout=(10, 40),
+            )
+        except requests.exceptions.RequestException as exc:
+            return {"ok": False, "error": f"Sağlayıcıya ulaşılamadı: {exc}"}
+
+        if response.status_code == 200:
+            return {"ok": True, "models": []}
+        if response.status_code in (401, 403):
+            return {"ok": False, "error": self._auth_error_text(response)}
+        return {"ok": False, "error": f"Sağlayıcı {response.status_code}: {response.text[:200]}"}
+
+    @staticmethod
+    def _auth_error_text(response: "requests.Response") -> str:
+        detail = ""
+        try:
+            payload = response.json()
+            error = payload.get("error")
+            if isinstance(error, dict):
+                detail = str(error.get("message") or "")
+            elif error:
+                detail = str(error)
+        except ValueError:
+            detail = (response.text or "")[:160]
+        base = "Anahtar reddedildi. Doğru kopyalandığından ve hesabında kredi olduğundan emin ol."
+        return f"{base} ({detail})" if detail else base
+
     def complete(self, messages: List[Dict[str, Any]], *, max_tokens: Optional[int] = None) -> str:
         if not self.available:
             raise DirectProviderError("Yedek sağlayıcı yapılandırılmamış.")

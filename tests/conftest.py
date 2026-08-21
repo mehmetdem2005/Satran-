@@ -59,3 +59,52 @@ def memory(tmp_path):
     from hermes.memory import HermesMemory
 
     return HermesMemory(tmp_path / "memory.sqlite3")
+
+
+@pytest.fixture()
+def sahte_saglayici():
+    """Kimlik doğrulaması yapan minik bir OpenAI-uyumlu sunucu.
+
+    Anahtar doğrulama yolunu gerçek HTTP üzerinden sınıyoruz; sağlayıcıyı
+    taklit eden bir mock, istemcinin gerçekten doğru istekleri attığını
+    göstermez.
+    """
+    import json
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def _send(self, obj, status=200):
+            body = json.dumps(obj).encode()
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def _authorized(self):
+            return self.headers.get("Authorization") == "Bearer sk-dogru"
+
+        def do_GET(self):
+            if not self._authorized():
+                return self._send({"error": {"message": "invalid api key"}}, 401)
+            if self.path.rstrip("/").endswith("/models"):
+                return self._send({"data": [{"id": "sahte-model"}, {"id": "sahte-pro"}]})
+            return self._send({"error": "not found"}, 404)
+
+        def do_POST(self):
+            if not self._authorized():
+                return self._send({"error": {"message": "invalid api key"}}, 401)
+            self._send({"choices": [{"message": {"role": "assistant", "content": "ok"}}]})
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}"
+    finally:
+        server.shutdown()
+        server.server_close()

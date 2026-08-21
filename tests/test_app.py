@@ -493,3 +493,54 @@ class TestDeepSeekPayload:
         """Alanı tanımayan sunucular bilinmeyen gövde alanında 400 dönüyor."""
         payload = self._payload(fallback_preset="custom", reasoning_effort="none")
         assert "thinking" not in payload
+
+
+class TestProviderValidation:
+    """Yanlış anahtar ilk sohbet denemesinde değil, hemen anlaşılmalı."""
+
+    def test_bos_anahtar_reddedilir(self, client):
+        response = client.post("/api/provider/test", json={"api_key": ""})
+        assert response.status_code == 400
+        assert "boş" in response.get_json()["error"]
+
+    def test_ulasilamayan_saglayici(self, client):
+        response = client.post("/api/provider/test", json={
+            "api_key": "sk-test",
+            "base_url": "http://127.0.0.1:9",
+            "preset": "custom",
+        })
+        assert response.status_code == 400
+        assert "ulaşılamadı" in response.get_json()["error"]
+
+    def test_gecerli_anahtar_kabul_edilir(self, client, sahte_saglayici):
+        response = client.post("/api/provider/test", json={
+            "api_key": "sk-dogru",
+            "base_url": sahte_saglayici,
+            "preset": "custom",
+            "model": "sahte-model",
+        })
+        assert response.status_code == 200
+        assert response.get_json()["ok"] is True
+
+    def test_reddedilen_anahtar_anlasilir_hata(self, client, sahte_saglayici):
+        response = client.post("/api/provider/test", json={
+            "api_key": "sk-yanlis",
+            "base_url": sahte_saglayici,
+            "preset": "custom",
+        })
+        assert response.status_code == 400
+        error = response.get_json()["error"]
+        assert "reddedildi" in error
+        assert "kredi" in error, "kullanıcıya ne yapacağını söylemeli"
+
+    def test_model_listede_yoksa_uyarir(self, client, sahte_saglayici):
+        """Anahtar geçerli ama model yanlışsa sessizce geçmemeli."""
+        response = client.post("/api/provider/test", json={
+            "api_key": "sk-dogru",
+            "base_url": sahte_saglayici,
+            "preset": "custom",
+            "model": "olmayan-model",
+        })
+        payload = response.get_json()
+        assert payload["ok"] is True
+        assert "listede yok" in payload["warning"]

@@ -88,6 +88,11 @@ def _validate_settings(updates: Dict[str, Any]) -> Optional[str]:
     return None
 
 
+
+def cfg_preset(services) -> str:
+    return getattr(services["config"], "fallback_preset", presets.DEFAULT_PRESET)
+
+
 def create_app() -> Flask:
     cfg = config_module.load_config()
 
@@ -431,6 +436,24 @@ def _register_routes(app: Flask) -> None:
             as_attachment=True,
             download_name=f"hermesforge-konusma-{utils.timestamp_slug()}.zip",
         )
+
+    # ------------------------------------------------------------------
+    # Sağlayıcı doğrulama
+    # ------------------------------------------------------------------
+    @app.route("/api/provider/test", methods=["POST"])
+    def provider_test():
+        """Girilen anahtarı kaydetmeden önce sağlayıcıya karşı sınar."""
+        payload = request.get_json(silent=True) or {}
+        services = _services()
+
+        preset = presets.get_preset(str(payload.get("preset") or cfg_preset(services)))
+        base_url = str(payload.get("base_url") or "").strip() or preset.get("base_url", "")
+        result = services["fallback"].test_credentials(
+            api_key=str(payload.get("api_key") or "").strip() or None,
+            base_url=base_url or None,
+            model=str(payload.get("model") or "").strip() or None,
+        )
+        return jsonify(result), (200 if result.get("ok") else 400)
 
     # ------------------------------------------------------------------
     # Ayarlar

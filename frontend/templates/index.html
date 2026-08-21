@@ -84,8 +84,15 @@
       <button class="icon-btn" id="closeSettingsBtn" aria-label="Kapat">×</button>
     </div>
     <div class="panel-body">
-      <section class="panel-section">
-        <div class="section-title">Hermes Agent</div>
+      <details class="panel-section advanced">
+        <summary class="section-title advanced-summary">
+          Hermes Agent <span class="optional-tag">isteğe bağlı</span>
+        </summary>
+        <p class="hint">
+          Uygulama Hermes olmadan da eksiksiz çalışır. Hermes yalnızca ek bir
+          <b>araç katmanı</b> getirir (terminal, dosya işlemleri, web arama) ve
+          ayrı bir bilgisayarda ya da Termux'ta çalışması gerekir.
+        </p>
         <label class="field">
           <span>API sunucusu adresi</span>
           <input type="text" id="hermes_base_url" placeholder="http://127.0.0.1:8642">
@@ -107,7 +114,7 @@
           <span>Uygulama açılırken gateway'i otomatik başlat</span>
         </label>
         <p class="hint" id="hermesPlatformHint" style="display:none"></p>
-      </section>
+      </details>
 
       <section class="panel-section">
         <div class="section-title">Sağlayıcı</div>
@@ -175,6 +182,58 @@
   <!-- Sohbet -->
   <main class="chat">
     <div class="messages" id="messages">
+      <!--
+        İlk açılış kurulumu. Sağlayıcı anahtarı yoksa kullanıcıyı menüde
+        arattırmak yerine doğrudan burada istiyoruz — uygulamanın çalışması
+        için gereken tek şey bu.
+      -->
+      <div class="setup" id="setupCard" style="display:none">
+        <div class="setup-icon">⚒️</div>
+        <h1>Başlamak için tek adım</h1>
+        <p class="setup-lead">
+          HermesForge modeli senin hesabından çalıştırır. Bir API anahtarı
+          yapıştır, gerisi hazır.
+        </p>
+
+        <label class="field">
+          <span>Sağlayıcı</span>
+          <select id="setupPreset"></select>
+        </label>
+
+        <label class="field">
+          <span>Model</span>
+          <select id="setupModel"></select>
+        </label>
+
+        <label class="field" id="setupBaseUrlField" style="display:none">
+          <span>Taban adres</span>
+          <input type="text" id="setupBaseUrl" placeholder="https://…/v1" autocomplete="off"
+                 autocapitalize="none" spellcheck="false">
+        </label>
+
+        <label class="field" id="setupCustomModelField" style="display:none">
+          <span>Model adı</span>
+          <input type="text" id="setupCustomModel" placeholder="model-adi" autocomplete="off"
+                 autocapitalize="none" spellcheck="false">
+        </label>
+
+        <label class="field">
+          <span>API anahtarı</span>
+          <input type="password" id="setupKey" placeholder="sk-…" autocomplete="off"
+                 autocapitalize="none" spellcheck="false">
+        </label>
+
+        <a class="setup-link" id="setupKeyLink" href="https://platform.deepseek.com/api_keys"
+           target="_blank" rel="noopener noreferrer">Anahtarı nereden alırım? →</a>
+
+        <button class="primary-btn setup-btn" id="setupSaveBtn">Bağlan ve başla</button>
+        <div class="setup-status" id="setupStatus"></div>
+
+        <p class="setup-note">
+          Anahtar yalnızca bu telefonda saklanır, hiçbir yere gönderilmez.
+        </p>
+      </div>
+
       <div class="empty" id="emptyState">
         <div class="empty-icon">⚒️</div>
         <h1>Uygulama üreten uygulama</h1>
