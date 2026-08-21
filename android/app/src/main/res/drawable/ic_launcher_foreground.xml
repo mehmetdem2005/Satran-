@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Örs simgesi: HermesForge'un "uygulama döven uygulama" kimliği -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#f59e0b"
+        android:pathData="M30,44 L78,44 C78,52 72,57 64,58 L64,64 L72,64 C74,64 76,66 76,68 L76,72 L32,72 L32,68 C32,66 34,64 36,64 L44,64 L44,58 C36,57 30,52 30,44 Z" />
+    <path
+        android:fillColor="#f59e0b"
+        android:pathData="M26,36 L54,36 L54,42 L26,42 C24,42 22,40 22,38 C22,36.9 24,36 26,36 Z" />
+</vector>

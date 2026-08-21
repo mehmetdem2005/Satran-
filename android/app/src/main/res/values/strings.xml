@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">HermesForge</string>
+    <string name="starting">Motor başlatılıyor…</string>
+    <string name="start_failed">Motor başlatılamadı</string>
+    <string name="retry">Yeniden dene</string>
+    <string name="service_channel">HermesForge motoru</string>
+    <string name="service_running">Uygulama üretim motoru çalışıyor</string>
+    <string name="download_saved">İndirildi: %1$s</string>
+    <string name="download_failed">İndirme başarısız: %1$s</string>
+</resources>

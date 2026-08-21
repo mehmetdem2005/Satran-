@@ -1,0 +1,7 @@
+<resources>
+    <!-- Arayüzün koyu temasıyla aynı tonlar (frontend/static/css/app.css) -->
+    <color name="background">#0b0e14</color>
+    <color name="surface">#131822</color>
+    <color name="accent">#f59e0b</color>
+    <color name="text">#e7ebf2</color>
+</resources>

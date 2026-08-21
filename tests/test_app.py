@@ -267,3 +267,133 @@ class TestModelSettings:
         data = client.get("/api/status").get_json()
         assert "xhigh" in data["reasoning_efforts"]
         assert data["max_parallel_agents"] >= 1
+
+
+class TestEmbeddedPaths:
+    """APK'da arayüz dosyaları uygulamanın özel dizininden servis ediliyor."""
+
+    def test_sablon_ve_statik_yolu_gecersiz_kilinabilir(self, tmp_path, monkeypatch):
+        templates = tmp_path / "tpl"
+        static = tmp_path / "st"
+        templates.mkdir()
+        (static / "css").mkdir(parents=True)
+        (templates / "index.html").write_text("<h1>gömülü</h1>", encoding="utf-8")
+        (static / "css" / "app.css").write_text("body{}", encoding="utf-8")
+
+        monkeypatch.setenv("HERMESFORGE_TEMPLATES", str(templates))
+        monkeypatch.setenv("HERMESFORGE_STATIC", str(static))
+
+        from app import create_app
+
+        application = create_app()
+        with application.test_client() as client:
+            assert b"g\xc3\xb6m\xc3\xbcl\xc3\xbc" in client.get("/").data
+            assert client.get("/static/css/app.css").status_code == 200
+
+    def test_gecersiz_kilma_yoksa_depo_klasoru_kullanilir(self, monkeypatch):
+        monkeypatch.delenv("HERMESFORGE_TEMPLATES", raising=False)
+        monkeypatch.delenv("HERMESFORGE_STATIC", raising=False)
+
+        from app import create_app
+
+        with create_app().test_client() as client:
+            assert b"HermesForge" in client.get("/").data
+
+
+class TestServeModule:
+    """serve.py hem masaüstünde hem APK içinde aynı yol."""
+
+    def test_bos_port_secilir_ve_sunucu_kalkar(self):
+        import serve
+
+        port, thread = serve.start_server("127.0.0.1", 0)
+        try:
+            assert port > 0
+            assert serve.wait_until_ready("127.0.0.1", port, timeout=20)
+            assert thread.daemon, "sunucu daemon olmalı, süreç kapanışını engellememeli"
+        finally:
+            pass
+
+    def test_find_free_port_farkli_portlar_verir(self):
+        import serve
+
+        assert serve.find_free_port() != 0
+
+    def test_hazir_olmayan_port_zaman_asimina_ugrar(self):
+        import serve
+
+        assert serve.wait_until_ready("127.0.0.1", 9, timeout=0.5) is False
+
+
+class TestAndroidEntrypoint:
+    """APK içindeki Python girişi (android/app/src/main/python/android_main.py)."""
+
+    @pytest.fixture()
+    def android_main(self):
+        import sys
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parents[1]
+        path = root / "android" / "app" / "src" / "main" / "python"
+        if str(path) not in sys.path:
+            sys.path.insert(0, str(path))
+        import android_main as module
+
+        return module
+
+    def _frontend_zip(self, tmp_path):
+        import zipfile
+
+        target = tmp_path / "frontend.zip"
+        with zipfile.ZipFile(target, "w") as archive:
+            archive.writestr("templates/index.html", "<h1>merhaba</h1>")
+            archive.writestr("static/css/app.css", "body{}")
+        return target
+
+    def test_arayuz_acilir(self, android_main, tmp_path):
+        target = android_main._install_frontend(tmp_path, str(self._frontend_zip(tmp_path)))
+        assert (target / "templates" / "index.html").exists()
+        assert (target / "static" / "css" / "app.css").exists()
+
+    def test_damga_gereksiz_acmayi_onler(self, android_main, tmp_path):
+        zip_path = str(self._frontend_zip(tmp_path))
+        target = android_main._install_frontend(tmp_path, zip_path)
+        marker = target / "templates" / "index.html"
+        before = marker.stat().st_mtime_ns
+
+        android_main._install_frontend(tmp_path, zip_path)
+        assert marker.stat().st_mtime_ns == before
+
+    def test_zip_slip_engellenir(self, android_main, tmp_path):
+        """Arşivdeki yollar hedef klasörün dışına çıkamamalı."""
+        import zipfile
+
+        evil = tmp_path / "evil.zip"
+        with zipfile.ZipFile(evil, "w") as archive:
+            archive.writestr("../../kacak.txt", "zarar")
+            archive.writestr("templates/index.html", "iyi")
+
+        target = android_main._install_frontend(tmp_path, str(evil))
+        assert (target / "templates" / "index.html").exists()
+        assert not (tmp_path.parent / "kacak.txt").exists()
+
+    def test_start_sunucuyu_ayaga_kaldirir(self, android_main, tmp_path, monkeypatch):
+        import urllib.request
+
+        monkeypatch.delenv("HERMESFORGE_HOME", raising=False)
+        monkeypatch.delenv("HERMESFORGE_TEMPLATES", raising=False)
+        monkeypatch.delenv("HERMESFORGE_STATIC", raising=False)
+
+        port = android_main.start(str(tmp_path / "files"), str(self._frontend_zip(tmp_path)))
+        assert port > 0, android_main.last_error()
+        assert android_main.port() == port
+
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/healthz", timeout=10) as response:
+            assert response.status == 200
+
+    def test_bozuk_zip_hata_dondurur(self, android_main, tmp_path):
+        """Çökmek yerine 0 ve okunabilir bir hata dönmeli."""
+        bad = tmp_path / "bozuk.zip"
+        bad.write_bytes(b"bu bir zip degil")
+        assert android_main.start(str(tmp_path / "f2"), str(bad)) == 0
+        assert android_main.last_error()

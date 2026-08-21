@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Gömülü sunucu 127.0.0.1'de HTTP konuşuyor; Android 9+ varsayılan olarak
+  cleartext HTTP'yi engelliyor. İzni SADECE localhost'a veriyoruz — dış
+  hedeflere cleartext yine kapalı, model sağlayıcısına HTTPS ile gidiliyor.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -85,10 +86,15 @@ def _validate_settings(updates: Dict[str, Any]) -> Optional[str]:
 def create_app() -> Flask:
     cfg = config_module.load_config()
 
+    # Android'de (APK) arayüz dosyaları uygulamanın özel dizinine açılıyor;
+    # masaüstünde depo içindeki frontend/ klasöründe duruyorlar.
+    templates = os.environ.get("HERMESFORGE_TEMPLATES", "").strip()
+    static = os.environ.get("HERMESFORGE_STATIC", "").strip()
+
     app = Flask(
         __name__,
-        template_folder=str(PROJECT_ROOT / "frontend" / "templates"),
-        static_folder=str(PROJECT_ROOT / "frontend" / "static"),
+        template_folder=templates or str(PROJECT_ROOT / "frontend" / "templates"),
+        static_folder=static or str(PROJECT_ROOT / "frontend" / "static"),
         static_url_path="/static",
     )
     app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES

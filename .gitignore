@@ -14,6 +14,16 @@ venv/
 .hermesforge/
 hermes-gateway.log
 
+# Android derleme çıktıları (scripts/build_apk.sh yeniden üretir)
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/app/src/main/assets/frontend.zip
+dist/
+*.apk
+*.keystore
+
 # Ortam
 .env
 .env.*

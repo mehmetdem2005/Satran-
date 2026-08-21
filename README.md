@@ -82,7 +82,37 @@ Gerçek bir turda ölçülen istem boyutları — ajan sayısıyla büyümüyor:
 
 ## Kurulum
 
-### Termux (Android)
+### Android APK (Termux gerekmez)
+
+`dist/hermesforge-debug.apk` dosyasını telefona kopyalayıp dokun; "bilinmeyen
+kaynaklardan kuruluma izin ver" sorulursa onayla. USB ile: `adb install -r dist/hermesforge-debug.apk`.
+
+APK'yı kendin derlemek istersen:
+
+```bash
+bash scripts/build_apk.sh
+```
+
+Betik Android SDK'yı gerekiyorsa indirir, arayüzü paketler ve `dist/` altına
+debug imzalı APK bırakır.
+
+**APK ne içeriyor, ne içermiyor:**
+
+| İçinde | Dışında |
+|---|---|
+| Python 3.11 + Flask + HermesForge'un tamamı (Chaquopy, MIT) | **Hermes Agent** — 176 MB'lık monorepo, kendi sanal ortamını ve alt süreç açmayı istiyor; APK'ya girmez |
+| Ajan hattı, pano, paralel dalgalar, RAG, bellek, kod kartları, zip/tar.gz indirme | |
+
+Yani APK **tek başına çalışır**: Ayarlar → Yedek sağlayıcı bölümüne bir
+OpenAI-uyumlu anahtar (DeepSeek, OpenRouter, kendi ucun) girip kullanmaya
+başlarsın. Hermes'in araçlarını ve becerilerini de istiyorsan Hermes'i Termux'ta
+ya da bir sunucuda çalıştırıp Ayarlar → Hermes Agent bölümüne adresini yaz;
+uygulama motoru kendiliğinden Hermes'e geçirir.
+
+Sunucu bir **ön plan servisinde** yaşıyor: uzun süren bir yapım turu sırasında
+başka uygulamaya geçsen bile Android süreci öldürmüyor.
+
+### Termux (Android, Hermes ile birlikte)
 
 ```bash
 pkg install -y git
@@ -183,6 +213,7 @@ aramaya düşer; uygulama çalışmaya devam eder.
 backend/
   app.py                Flask uçları ve SSE akışı
   config.py             ~/.hermesforge/config.json + ortam değişkenleri
+  serve.py              ortak sunucu girişi (masaüstü + APK aynı yol)
   utils.py              dosya çıkarma, SSE, güvenli yol
   hermes/
     client.py           Hermes API sunucusu istemcisi
@@ -202,7 +233,9 @@ frontend/
   static/css/app.css
   static/js/markdown.js CDN'siz markdown + kod kartı
   static/js/app.js      arayüz mantığı
+android/                Chaquopy tabanlı APK projesi (Kotlin + gömülü Python)
 scripts/
+  build_apk.sh          Android SDK'yı kurar ve APK derler
   install_hermes.sh     Hermes Agent'ı indirir ve kurar
   termux_setup.sh       Android tek komut kurulum
   start.sh              uygulamayı başlat
