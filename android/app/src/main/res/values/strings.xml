@@ -7,4 +7,7 @@
     <string name="service_running">Uygulama üretim motoru çalışıyor</string>
     <string name="download_saved">İndirildi: %1$s</string>
     <string name="download_failed">İndirme başarısız: %1$s</string>
+    <string name="connecting_hermes">Hermes bağlanıyor…</string>
+    <string name="connected_hermes">Hermes bağlandı — araçlar ve beceriler etkin</string>
+    <string name="connect_failed">Hermes bağlanamadı</string>
 </resources>

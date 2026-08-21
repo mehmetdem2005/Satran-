@@ -2,6 +2,7 @@ package com.hermesforge.app
 
 import android.Manifest
 import android.content.ContentValues
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -74,6 +75,65 @@ class MainActivity : AppCompatActivity() {
 
         ForgeService.start(this)
         bootEngine()
+        handleConnectLink(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleConnectLink(intent)
+    }
+
+    /**
+     * Termux betiğinin açtığı ``hermesforge://connect`` bağlantısını uygular.
+     *
+     * Sunucu daha kalkmamış olabilir; ayarları göndermeden önce hazır olmasını
+     * bekliyoruz, yoksa istek boşa gider ve kullanıcı yine elle uğraşır.
+     */
+    private fun handleConnectLink(intent: Intent?) {
+        val request = ConnectLink.parse(intent?.data?.toString()) ?: return
+
+        Toast.makeText(this, R.string.connecting_hermes, Toast.LENGTH_SHORT).show()
+        thread(name = "forge-connect") {
+            val port = PythonBridge.start(applicationContext)
+            if (port <= 0) {
+                runOnUiThread {
+                    Toast.makeText(this, R.string.start_failed, Toast.LENGTH_LONG).show()
+                }
+                return@thread
+            }
+
+            val ok = postSettings(port, request.toSettingsJson())
+            runOnUiThread {
+                Toast.makeText(
+                    this,
+                    if (ok) R.string.connected_hermes else R.string.connect_failed,
+                    Toast.LENGTH_LONG
+                ).show()
+                if (ok) webView.reload()
+            }
+        }
+    }
+
+    /** Ayarları gömülü sunucuya yazar. */
+    private fun postSettings(port: Int, json: String): Boolean {
+        return try {
+            val connection = (URL("http://127.0.0.1:$port/api/settings").openConnection()
+                    as HttpURLConnection).apply {
+                requestMethod = "POST"
+                doOutput = true
+                connectTimeout = 10_000
+                readTimeout = 20_000
+                setRequestProperty("Content-Type", "application/json")
+            }
+            connection.outputStream.use { it.write(json.toByteArray(Charsets.UTF_8)) }
+            val code = connection.responseCode
+            connection.disconnect()
+            code in 200..299
+        } catch (throwable: Throwable) {
+            Log.e("HermesForge", "Ayarlar yazılamadı", throwable)
+            false
+        }
     }
 
     private fun requestNotificationPermissionIfNeeded() {
@@ -129,7 +189,7 @@ class MainActivity : AppCompatActivity() {
                 // Yerel arayüz WebView'de kalsın; dış bağlantılar tarayıcıya.
                 if (url.host == "127.0.0.1" || url.host == "localhost") return false
                 return try {
-                    startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, url))
+                    startActivity(Intent(Intent.ACTION_VIEW, url))
                     true
                 } catch (throwable: Throwable) {
                     false

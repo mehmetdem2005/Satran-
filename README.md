@@ -121,7 +121,30 @@ uygulama motoru kendiliğinden Hermes'e geçirir.
 Sunucu bir **ön plan servisinde** yaşıyor: uzun süren bir yapım turu sırasında
 başka uygulamaya geçsen bile Android süreci öldürmüyor.
 
-### Termux (Android, Hermes ile birlikte)
+### Hermes'i telefona bağlamak — tek komut
+
+APK tek başına çalışır; Hermes yalnızca **araç ve beceri** katmanı ekler
+(terminal, dosya işlemleri, web arama). İstersen Termux'ta:
+
+```bash
+pkg install -y git
+git clone https://github.com/mehmetdem2005/Satran-.git
+cd Satran- && bash scripts/termux_hermes_baglat.sh
+```
+
+Betik sırasıyla: paketleri kurar → Hermes'i kurar → DeepSeek anahtarını bir kez
+sorup Hermes'i o modele bağlar → gateway'i başlatır → **uygulamayı açıp adresi
+ve anahtarı kendisi girer** (`hermesforge://connect` derin bağlantısıyla).
+Sen hiçbir şey kopyalamazsın.
+
+Telefon yeniden başlarsa betiği tekrar çalıştır; kurulu olanı atlar, yalnızca
+gateway'i açar.
+
+> Derin bağlantı yalnızca `127.0.0.1` / `localhost` adreslerini kabul eder —
+> bu bağlantıyı bir web sayfası da açabilir, uygulamanın Hermes anahtarını
+> yabancı bir sunucuya göndermesine izin verilmiyor (13 birim testiyle kilitli).
+
+### Termux (Android, elle kurulum)
 
 ```bash
 pkg install -y git

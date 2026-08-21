@@ -29,6 +29,19 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!--
+              Termux kurulum betiği Hermes'i kurup başlattıktan sonra bu
+              bağlantıyı açıyor; uygulama adresi ve anahtarı kendisi kaydediyor.
+              Kullanıcının hiçbir şey yazması gerekmiyor.
+                  hermesforge://connect?url=http://127.0.0.1:8642&key=...
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="hermesforge" android:host="connect" />
+            </intent-filter>
         </activity>
 
         <service
