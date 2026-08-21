@@ -111,9 +111,10 @@ debug imzalı APK bırakır.
 | Python 3.11 + Flask + HermesForge'un tamamı (Chaquopy, MIT) | **Hermes Agent** — 176 MB'lık monorepo, kendi sanal ortamını ve alt süreç açmayı istiyor; APK'ya girmez |
 | Ajan hattı, pano, paralel dalgalar, RAG, bellek, kod kartları, zip/tar.gz indirme | |
 
-Yani APK **tek başına çalışır**: Ayarlar → Yedek sağlayıcı bölümüne bir
-OpenAI-uyumlu anahtar (DeepSeek, OpenRouter, kendi ucun) girip kullanmaya
-başlarsın. Hermes'in araçlarını ve becerilerini de istiyorsan Hermes'i Termux'ta
+Yani APK **tek başına çalışır**: Ayarlar → Sağlayıcı bölümünden DeepSeek'i (ya
+da OpenAI uyumlu kendi ucunu) seçip anahtarını girersin. Model listesi
+sağlayıcının belgelerinden gelir; Android'de çalıştırılamayacak seçenekler
+(gateway başlatma gibi) gösterilmez. Hermes'in araçlarını ve becerilerini de istiyorsan Hermes'i Termux'ta
 ya da bir sunucuda çalıştırıp Ayarlar → Hermes Agent bölümüne adresini yaz;
 uygulama motoru kendiliğinden Hermes'e geçirir.
 
@@ -186,11 +187,35 @@ böylece transkript değişse bile Hermes aynı kullanıcıyı tanır.
 
 ## Model ayarları
 
-| Ayar | Hermes yolu | Yedek sağlayıcı |
+Model ve düşünme düzeyi listeleri **sağlayıcının kendi belgelerinden** gelir
+(`backend/providers/presets.py`), arayüzde sabit liste tutulmaz.
+
+### DeepSeek (varsayılan sağlayıcı)
+
+[Resmi belgelerden](https://api-docs.deepseek.com/) alınan gerçek sözleşme:
+
+| | |
+|---|---|
+| Modeller | `deepseek-v4-flash`, `deepseek-v4-pro`, `deepseek-v4-flash-vision-exp` |
+| Bağlam / çıktı | 1M / 384K token |
+| Düşünme açma-kapama | `{"thinking": {"type": "enabled"\|"disabled"}}` |
+| Düşünme düzeyi | `reasoning_effort`: **low, high, max** (varsayılan: açık, `high`) |
+| Düşünme açıkken | `temperature`, `top_p`, `presence_penalty`, `frequency_penalty` **yok sayılır** |
+
+Bu yüzden sıcaklık ve Top P yalnızca düşünme kapalıyken gönderiliyor, token
+sınırı 384K'ya kırpılıyor ve düzey listesinde DeepSeek'in tanımadığı değerler
+gösterilmiyor.
+
+### Motora göre değişen kısım
+
+| Ayar | Hermes yolu | Yedek sağlayıcı yolu |
 |---|---|---|
-| **Düşünme düzeyi** | Her istekte `model_options.reasoning_effort` olarak gider. Değerler Hermes'in kendi listesinden: `none, minimal, low, medium, high, xhigh, max, ultra`. `none` düşünmeyi tamamen kapatır. | gövdeye `reasoning_effort` |
-| **Maksimum token** | Hermes bunu **istek başına kabul etmiyor** — API sunucusu istek gövdesinden yalnız `provider`/`model`/`model_options` okuyor. Değer `~/.hermes/.env` içine `HERMES_MAX_TOKENS` olarak yazılır, gateway yeniden başlayınca geçerli olur. | gövdeye `max_tokens`, anında |
-| **Sıcaklık / Top P** | Hermes istek başına kabul etmiyor. | düşünme kapalıyken gövdeye eklenir |
+| **Düşünme düzeyi** | `model_options.reasoning_effort`; Hermes daha geniş bir küme kabul ediyor (`minimal`, `medium`, `xhigh`, `ultra` dahil) | Sağlayıcının kabul ettiği kümeye indirgenir — örneğin `ultra` → `max`, `xhigh` → `high` |
+| **Maksimum token** | Hermes bunu **istek başına kabul etmiyor**; `~/.hermes/.env` içine `HERMES_MAX_TOKENS` yazılır, gateway yeniden başlayınca geçerli olur | gövdeye `max_tokens`, anında |
+| **Sıcaklık / Top P** | Hermes istek başına kabul etmiyor | düşünme kapalıyken gövdeye eklenir |
+
+Arayüz hangi motor çalışıyorsa onun düzey listesini gösterir; ikisi aynı liste
+değil.
 
 Model davranış alanları yedek sağlayıcıya **yalnızca kullanıcı varsayılanı
 değiştirdiyse** gönderilir: katı OpenAI-uyumlu sunucular bilinmeyen alanlara
@@ -222,6 +247,7 @@ backend/
   app.py                Flask uçları ve SSE akışı
   config.py             ~/.hermesforge/config.json + ortam değişkenleri
   serve.py              ortak sunucu girişi (masaüstü + APK aynı yol)
+  providers/presets.py  sağlayıcı model/düzey listeleri (belgelerden)
   utils.py              dosya çıkarma, SSE, güvenli yol
   hermes/
     client.py           Hermes API sunucusu istemcisi

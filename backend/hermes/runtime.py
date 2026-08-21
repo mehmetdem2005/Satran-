@@ -136,9 +136,17 @@ class HermesRuntime:
             install = self.discover()
             command = self.gateway_command(install)
             if not command:
-                self._start_error = (
-                    "Hermes Agent kurulumu bulunamadı. 'bash scripts/install_hermes.sh' çalıştırın."
-                )
+                # Android'de kabuk yok; oradaki kullanıcıya çalıştıramayacağı
+                # bir komutu önermek yanlış yönlendirme olur.
+                if getattr(self.config, "platform", "desktop") == "android":
+                    self._start_error = (
+                        "Hermes bu uygulamanın içinde yok. Ayarlar'dan bir API anahtarı girin "
+                        "ya da Hermes'i Termux'ta/sunucuda çalıştırıp adresini yazın."
+                    )
+                else:
+                    self._start_error = (
+                        "Hermes Agent kurulumu bulunamadı. 'bash scripts/install_hermes.sh' çalıştırın."
+                    )
                 return {"started": False, "reason": "not_installed", "error": self._start_error}
 
             env = os.environ.copy()

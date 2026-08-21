@@ -25,8 +25,10 @@ def izole_ortam(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMESFORGE_HERMES_AUTOSTART", "false")
     monkeypatch.setenv("HERMESFORGE_HERMES_URL", UNUSED_PORT_URL)
     monkeypatch.setenv("HERMES_HOME", str(tmp_path / "hermes-home"))
+    # android_main.start() HERMESFORGE_PLATFORM'u süreç genelinde "android"
+    # yapıyor; temizlenmezse sonraki testler kendilerini Android sanıyor.
     for leaked in ("API_SERVER_KEY", "DEEPSEEK_API_KEY", "HERMESFORGE_FALLBACK_KEY",
-                   "HERMESFORGE_HERMES_REPO", "HERMES_REPO"):
+                   "HERMESFORGE_HERMES_REPO", "HERMES_REPO", "HERMESFORGE_PLATFORM"):
         monkeypatch.delenv(leaked, raising=False)
 
 

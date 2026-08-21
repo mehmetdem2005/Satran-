@@ -67,8 +67,11 @@ class Config:
 
     # --- Yedek (doğrudan sağlayıcı) ------------------------------------
     fallback_enabled: bool = True
+    # Sağlayıcı ön ayarı: model listesi, düşünme düzeyleri ve token sınırı
+    # buradan gelir (providers/presets.py — sağlayıcının kendi belgelerinden).
+    fallback_preset: str = "deepseek"
     fallback_base_url: str = "https://api.deepseek.com"
-    fallback_model: str = "deepseek-chat"
+    fallback_model: str = "deepseek-v4-flash"
     fallback_api_key: str = ""
 
     # --- Model davranışı ------------------------------------------------
@@ -79,6 +82,7 @@ class Config:
     # Hermes max_tokens'ı istek başına KABUL ETMİYOR (istek gövdesinden yalnız
     # provider/model/model_options okunuyor); bu değer yedek sağlayıcıya
     # doğrudan gider ve ~/.hermes/.env içine HERMES_MAX_TOKENS olarak yazılır.
+    # DeepSeek V4 ailesi 384K çıktıya kadar çıkıyor.
     max_tokens: int = 32768
     # Yalnızca yedek sağlayıcıya, yalnızca düşünme kapalıyken gönderilir.
     temperature: float = 1.0
@@ -87,6 +91,11 @@ class Config:
     # --- Depolama -------------------------------------------------------
     data_dir: str = ""
     workspace_dir: str = ""
+
+    # --- Çalışma ortamı ---------------------------------------------------
+    # "desktop" | "android" — arayüz buna göre kabuk komutu önerip önermeyeceğine
+    # karar veriyor. APK'da android_main.py bunu "android" olarak kuruyor.
+    platform: str = "desktop"
 
     # --- Sunucu ---------------------------------------------------------
     host: str = "127.0.0.1"
@@ -205,6 +214,7 @@ def load_config() -> Config:
         "hermes_repo_dir": "HERMESFORGE_HERMES_REPO",
         "fallback_base_url": "HERMESFORGE_FALLBACK_URL",
         "fallback_model": "HERMESFORGE_FALLBACK_MODEL",
+        "fallback_preset": "HERMESFORGE_FALLBACK_PRESET",
         "fallback_api_key": "HERMESFORGE_FALLBACK_KEY",
         "reasoning_effort": "HERMESFORGE_REASONING_EFFORT",
         "data_dir": "HERMESFORGE_DATA_DIR",
@@ -219,6 +229,7 @@ def load_config() -> Config:
     cfg.port = _env_int("HERMESFORGE_PORT", cfg.port)
     cfg.hermes_timeout = _env_int("HERMESFORGE_HERMES_TIMEOUT", cfg.hermes_timeout)
     cfg.max_tokens = _env_int("HERMESFORGE_MAX_TOKENS", cfg.max_tokens)
+    cfg.platform = (os.environ.get("HERMESFORGE_PLATFORM") or cfg.platform).strip().lower()
     cfg.max_parallel_agents = max(1, min(_env_int("HERMESFORGE_MAX_PARALLEL", cfg.max_parallel_agents), 6))
     cfg.debug = _env_bool("HERMESFORGE_DEBUG", cfg.debug)
     cfg.hermes_autostart = _env_bool("HERMESFORGE_HERMES_AUTOSTART", cfg.hermes_autostart)

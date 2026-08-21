@@ -263,9 +263,27 @@ class TestModelSettings:
         assert client.post("/api/settings", json={"max_parallel_agents": 3}).status_code == 200
         assert client.post("/api/settings", json={"max_parallel_agents": 99}).status_code == 400
 
-    def test_status_dusunme_duzeylerini_bildirir(self, client):
+    def test_status_gercek_katalogu_bildirir(self, client):
+        """Model ve düzey listeleri sağlayıcının belgelerinden gelmeli."""
         data = client.get("/api/status").get_json()
-        assert "xhigh" in data["reasoning_efforts"]
+        catalog = data["catalog"]
+
+        deepseek = next(p for p in catalog["presets"] if p["id"] == "deepseek")
+        model_ids = [m["id"] for m in deepseek["models"]]
+        assert model_ids == [
+            "deepseek-v4-flash", "deepseek-v4-pro", "deepseek-v4-flash-vision-exp"
+        ]
+
+        efforts = [e["id"] for e in deepseek["efforts"]]
+        assert efforts == ["default", "none", "low", "high", "max"]
+        # Hermes'e özgü düzeyler DeepSeek listesinde GÖRÜNMEMELİ
+        assert "ultra" not in efforts and "minimal" not in efforts and "xhigh" not in efforts
+
+        hermes_efforts = [e["id"] for e in catalog["hermes_efforts"]]
+        assert "ultra" in hermes_efforts and "xhigh" in hermes_efforts
+
+        assert deepseek["max_output_tokens"] == 384000
+        assert data["platform"] in ("desktop", "android")
         assert data["max_parallel_agents"] >= 1
 
 
@@ -397,3 +415,81 @@ class TestAndroidEntrypoint:
         bad.write_bytes(b"bu bir zip degil")
         assert android_main.start(str(tmp_path / "f2"), str(bad)) == 0
         assert android_main.last_error()
+
+
+class TestProviderPresets:
+    """Sağlayıcı ön ayarları — değerler sağlayıcının belgelerinden."""
+
+    def test_deepseek_varsayilan_model_gercek(self, client):
+        """Eskiden 'deepseek-chat' yazıyordu; belgelerdeki aile v4."""
+        assert client.get("/api/settings").get_json()["fallback_model"] == "deepseek-v4-flash"
+
+    def test_model_secilebilir(self, client):
+        assert client.post(
+            "/api/settings", json={"fallback_model": "deepseek-v4-pro"}
+        ).get_json()["saved"]
+        assert client.get("/api/settings").get_json()["fallback_model"] == "deepseek-v4-pro"
+
+    def test_deepseekte_hermes_duzeyi_reddedilmez_ama_eslenir(self, client):
+        """Kullanıcı motorlar arası geçerken ayarı yeniden girmek zorunda kalmasın."""
+        assert client.post(
+            "/api/settings", json={"reasoning_effort": "ultra", "fallback_preset": "deepseek"}
+        ).status_code == 200
+
+    def test_gecersiz_duzey_reddedilir(self, client):
+        response = client.post("/api/settings", json={"reasoning_effort": "uydurma-duzey"})
+        assert response.status_code == 400
+        assert "geçerli olanlar" in response.get_json()["error"]
+
+    def test_bilinmeyen_saglayici_reddedilir(self, client):
+        assert client.post("/api/settings", json={"fallback_preset": "yokboyle"}).status_code == 400
+
+    def test_ozel_saglayici_secilebilir(self, client):
+        assert client.post("/api/settings", json={
+            "fallback_preset": "custom",
+            "fallback_base_url": "http://127.0.0.1:1234/v1",
+            "fallback_model": "yerel-model",
+        }).status_code == 200
+
+
+class TestDeepSeekPayload:
+    """Yedek sağlayıcıya giden gövde DeepSeek sözleşmesine uymalı."""
+
+    def _payload(self, **overrides):
+        import config as config_module
+        from providers.direct import DirectProvider
+
+        cfg = config_module.load_config()
+        cfg.fallback_api_key = "test"
+        for key, value in overrides.items():
+            setattr(cfg, key, value)
+        return DirectProvider(cfg)._payload([], False, None)
+
+    def test_dusunme_kapatma_deepseek_bicimi(self):
+        """DeepSeek: {"thinking": {"type": "disabled"}}"""
+        payload = self._payload(reasoning_effort="none")
+        assert payload["thinking"] == {"type": "disabled"}
+        assert "reasoning_effort" not in payload
+
+    def test_belgelenmis_duzeyler_dogrudan_gider(self):
+        for effort in ("low", "high", "max"):
+            assert self._payload(reasoning_effort=effort)["reasoning_effort"] == effort
+
+    def test_hermes_duzeyleri_deepseeke_eslenir(self):
+        """DeepSeek 'ultra'yı tanımıyor; en yakın gerçek düzeye indiriyoruz."""
+        assert self._payload(reasoning_effort="ultra")["reasoning_effort"] == "max"
+        assert self._payload(reasoning_effort="xhigh")["reasoning_effort"] == "high"
+        assert self._payload(reasoning_effort="minimal")["reasoning_effort"] == "low"
+
+    def test_384k_ustu_kirpiliyor(self):
+        """Üst sınırın üstünü istemek isteğin tamamını reddettirir."""
+        assert self._payload(max_tokens=999_999)["max_tokens"] == 384_000
+
+    def test_ozel_uçta_kirpma_yok(self):
+        payload = self._payload(fallback_preset="custom", max_tokens=999_999)
+        assert payload["max_tokens"] == 999_999
+
+    def test_ozel_uçta_thinking_alani_gonderilmez(self):
+        """Alanı tanımayan sunucular bilinmeyen gövde alanında 400 dönüyor."""
+        payload = self._payload(fallback_preset="custom", reasoning_effort="none")
+        assert "thinking" not in payload

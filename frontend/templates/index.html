@@ -101,9 +101,42 @@
           <span>Hermes repo klasörü</span>
           <input type="text" id="hermes_repo_dir" placeholder="vendor/hermes-agent">
         </label>
-        <label class="check">
+        <label class="check" id="hermesAutostartRow">
           <input type="checkbox" id="hermes_autostart">
           <span>Uygulama açılırken gateway'i otomatik başlat</span>
+        </label>
+        <p class="hint" id="hermesPlatformHint" style="display:none"></p>
+      </section>
+
+      <section class="panel-section">
+        <div class="section-title">Sağlayıcı</div>
+        <p class="hint">
+          Model ve düşünme düzeyi listeleri sağlayıcının kendi belgelerinden
+          gelir. Uygulama bu sağlayıcıyı Hermes kapalıyken kullanır.
+        </p>
+        <label class="check">
+          <input type="checkbox" id="fallback_enabled">
+          <span>Bu sağlayıcıyı kullan</span>
+        </label>
+        <label class="field">
+          <span>Sağlayıcı</span>
+          <select id="fallback_preset"></select>
+        </label>
+        <label class="field">
+          <span>Model</span>
+          <select id="fallback_model_select"></select>
+        </label>
+        <label class="field" id="customModelField" style="display:none">
+          <span>Model adı</span>
+          <input type="text" id="fallback_model" placeholder="model-adi">
+        </label>
+        <label class="field" id="customBaseUrlField">
+          <span>Taban adres</span>
+          <input type="text" id="fallback_base_url" placeholder="https://api.deepseek.com">
+        </label>
+        <label class="field">
+          <span>API anahtarı</span>
+          <input type="password" id="fallback_api_key" placeholder="sk-…">
         </label>
       </section>
 
@@ -111,27 +144,14 @@
         <div class="section-title">Model davranışı</div>
         <label class="field">
           <span>Düşünme düzeyi</span>
-          <select id="reasoning_effort">
-            <option value="default">Varsayılan (sunucu ayarı)</option>
-            <option value="none">Kapalı (düşünme yok)</option>
-            <option value="minimal">Minimal</option>
-            <option value="low">Düşük</option>
-            <option value="medium">Orta</option>
-            <option value="high">Yüksek</option>
-            <option value="xhigh">Çok yüksek</option>
-            <option value="max">Maksimum</option>
-            <option value="ultra">Ultra</option>
-          </select>
+          <select id="reasoning_effort"></select>
         </label>
+        <p class="hint" id="effortHint"></p>
         <label class="field">
           <span>Maksimum token</span>
-          <input type="number" id="max_tokens" min="1" max="1000000" step="1024" placeholder="32768">
+          <input type="number" id="max_tokens" min="1" step="1024" placeholder="32768">
         </label>
-        <p class="hint" id="maxTokensHint">
-          Hermes token sınırını istek başına kabul etmiyor: bu değer
-          <code>~/.hermes/.env</code> dosyasına yazılır ve gateway yeniden
-          başlatılınca geçerli olur. Yedek sağlayıcıda anında etkindir.
-        </p>
+        <p class="hint" id="maxTokensHint"></p>
         <label class="field">
           <span>Sıcaklık (temperature): <b id="temperatureValue">1.00</b></span>
           <input type="range" id="temperature" min="0" max="2" step="0.05" value="1">
@@ -141,31 +161,10 @@
           <input type="range" id="top_p" min="0" max="1" step="0.05" value="1">
         </label>
         <p class="hint">
-          Sıcaklık ve Top P yalnızca <b>yedek sağlayıcıya</b> ve yalnızca
-          düşünme kapalıyken gönderilir — Hermes bunları istek başına kabul
-          etmiyor.
+          Sağlayıcının belgelerine göre düşünme <b>açıkken</b> sıcaklık ve
+          Top P yok sayılıyor; bu yüzden yalnızca düşünme kapalıyken
+          gönderiliyorlar.
         </p>
-      </section>
-
-      <section class="panel-section">
-        <div class="section-title">Yedek sağlayıcı</div>
-        <p class="hint">Hermes kapalıyken devreye girer. OpenAI uyumlu herhangi bir uç kullanılabilir.</p>
-        <label class="check">
-          <input type="checkbox" id="fallback_enabled">
-          <span>Yedek sağlayıcıyı kullan</span>
-        </label>
-        <label class="field">
-          <span>Taban adres</span>
-          <input type="text" id="fallback_base_url" placeholder="https://api.deepseek.com">
-        </label>
-        <label class="field">
-          <span>Model</span>
-          <input type="text" id="fallback_model" placeholder="deepseek-chat">
-        </label>
-        <label class="field">
-          <span>API anahtarı</span>
-          <input type="password" id="fallback_api_key" placeholder="sk-…">
-        </label>
       </section>
 
       <button class="primary-btn" id="saveSettingsBtn">Kaydet</button>

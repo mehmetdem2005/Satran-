@@ -340,8 +340,24 @@ class ForgePipeline:
             "engine": "none",
             "label": "Motor yok",
             "detail": health.get("error", ""),
-            "note": "Hermes kurulu değil ve yedek sağlayıcı ayarlanmamış.",
+            "note": self._no_engine_message(),
         }
+
+    def _no_engine_message(self) -> str:
+        """Kullanıcının gerçekten yapabileceği şeyi söyler.
+
+        Android'de kabuk yok: oradaki kullanıcıya ``install_hermes.sh``
+        önermek çalıştıramayacağı bir komutu önermektir.
+        """
+        if getattr(self.config, "platform", "desktop") == "android":
+            return (
+                "Henüz bir model sağlayıcısı ayarlanmadı. Menü → Ayarlar → "
+                "Sağlayıcı bölümünden bir API anahtarı girin."
+            )
+        return (
+            "Çalışan bir motor yok. 'bash scripts/install_hermes.sh' ile Hermes'i kurun "
+            "ya da Ayarlar'dan bir sağlayıcı anahtarı girin."
+        )
 
     def _completer(self, engine: Dict[str, Any]):
         """Yönlendirici için kısa, akışsız bir tamamlama işlevi döndürür."""
@@ -461,13 +477,7 @@ class ForgePipeline:
                 yield {"type": "status", "text": "Hermes yanıt vermedi, yedek sağlayıcıya geçiliyor…"}
 
         if engine["engine"] == "none" and not self.fallback.available:
-            yield {
-                "type": "error",
-                "text": (
-                    "Çalışan bir motor yok. 'bash scripts/install_hermes.sh' ile Hermes'i kurun "
-                    "ya da Ayarlar'dan yedek sağlayıcı anahtarı girin."
-                ),
-            }
+            yield {"type": "error", "text": self._no_engine_message()}
             return
 
         try:

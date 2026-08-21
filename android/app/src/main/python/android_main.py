@@ -69,6 +69,8 @@ def start(files_dir: str, frontend_zip: str) -> int:
         os.environ.setdefault("HERMES_HOME", str(base / "hermes"))
         # Hermes APK'nın içinde yok; gateway başlatmayı hiç denemesin.
         os.environ.setdefault("HERMESFORGE_HERMES_AUTOSTART", "false")
+        # Arayüz ve hata mesajları kabuk komutu önermesin.
+        os.environ["HERMESFORGE_PLATFORM"] = "android"
 
         frontend = _install_frontend(base, frontend_zip)
         os.environ["HERMESFORGE_TEMPLATES"] = str(frontend / "templates")

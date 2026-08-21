@@ -29,6 +29,7 @@ from hermes import HermesClient, HermesRuntime  # noqa: E402
 from hermes.memory import CATEGORIES, HermesMemory  # noqa: E402
 from hermes.rag import HermesRag  # noqa: E402
 from providers import DirectProvider  # noqa: E402
+from providers import presets  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -39,11 +40,8 @@ logger = logging.getLogger("hermesforge")
 MAX_UPLOAD_BYTES = 32 * 1024 * 1024
 DEFAULT_SCOPE = "default"
 
-# Hermes'in kabul ettiği düşünme düzeyleri (_REASONING_EFFORTS) + "default"
-# = hiçbir şey gönderme, sunucunun kendi ayarı geçerli olsun.
-REASONING_EFFORTS = (
-    "default", "none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra",
-)
+# Düşünme düzeyleri ve model listeleri sağlayıcının kendi belgelerinden
+# geliyor (providers/presets.py). Uydurma bir liste göstermiyoruz.
 
 
 def _validate_settings(updates: Dict[str, Any]) -> Optional[str]:
@@ -54,8 +52,15 @@ def _validate_settings(updates: Dict[str, Any]) -> Optional[str]:
     sayılırdı ve kullanıcı ayarın çalıştığını sanırdı.
     """
     effort = updates.get("reasoning_effort")
-    if effort is not None and str(effort).strip().lower() not in REASONING_EFFORTS:
-        return f"Geçersiz düşünme düzeyi. Seçenekler: {', '.join(REASONING_EFFORTS)}"
+    if effort is not None:
+        preset_id = str(updates.get("fallback_preset") or presets.DEFAULT_PRESET)
+        if not presets.is_valid_effort(str(effort), preset_id):
+            gecerli = ", ".join(presets.efforts_for(preset_id))
+            return f"Geçersiz düşünme düzeyi. Bu sağlayıcıda geçerli olanlar: {gecerli}"
+
+    preset_id = updates.get("fallback_preset")
+    if preset_id is not None and str(preset_id) not in presets.PRESETS:
+        return f"Bilinmeyen sağlayıcı. Seçenekler: {', '.join(presets.PRESETS)}"
 
     for key, low, high in (
         ("max_tokens", 1, 1_000_000),
@@ -193,6 +198,7 @@ def _register_routes(app: Flask) -> None:
                 },
                 "fallback": {
                     "available": services["fallback"].available,
+                    "preset": cfg.fallback_preset,
                     "model": cfg.fallback_model,
                     "base_url": cfg.fallback_base_url,
                 },
@@ -200,7 +206,8 @@ def _register_routes(app: Flask) -> None:
                 "rag": services["rag"].stats(),
                 "agents": public_roster(),
                 "formats": list(EXPORT_FORMATS),
-                "reasoning_efforts": list(REASONING_EFFORTS),
+                "catalog": presets.public_catalog(),
+                "platform": cfg.platform,
                 "max_parallel_agents": cfg.max_parallel_agents,
             }
         )
@@ -439,7 +446,7 @@ def _register_routes(app: Flask) -> None:
         allowed = {
             "hermes_base_url", "hermes_api_key", "hermes_model", "hermes_provider",
             "hermes_autostart", "hermes_repo_dir", "fallback_enabled", "fallback_base_url",
-            "fallback_model", "fallback_api_key", "rag_top_k", "memory_top_k",
+            "fallback_model", "fallback_api_key", "fallback_preset", "rag_top_k", "memory_top_k",
             "reasoning_effort", "max_tokens", "temperature", "top_p", "max_parallel_agents",
         }
         updates = {key: value for key, value in payload.items() if key in allowed}

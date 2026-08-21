@@ -167,6 +167,14 @@ class TestHataYollari:
         assert "install_hermes.sh" in hata["text"]
         assert events[-1]["ok"] is False
 
+    def test_androidde_kabuk_komutu_onerilmez(self, hat_kur, tmp_config):
+        """APK'da kabuk yok; çalıştırılamayacak bir komut önermek yanlış yönlendirme."""
+        tmp_config.platform = "android"
+        pipeline = hat_kur(SahteIstemci(reachable=False), SahteYedek(available=False))
+        hata = next(e for e in olaylar(pipeline) if e["type"] == "error")
+        assert "install_hermes.sh" not in hata["text"]
+        assert "API anahtarı" in hata["text"]
+
     def test_hermes_coktugunde_yedege_gecer(self, hat_kur):
         yedek = SahteYedek(available=True)
         pipeline = hat_kur(SahteIstemci(patlat="hemen"), yedek)

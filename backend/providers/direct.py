@@ -15,6 +15,8 @@ from typing import Any, Dict, Iterator, List, Optional
 
 import requests
 
+from . import presets
+
 logger = logging.getLogger(__name__)
 
 
@@ -45,25 +47,32 @@ class DirectProvider:
         OpenAI-uyumlu sunucular bilinmeyen alanlara 400 döndürüyor, bu yüzden
         dokunulmamış bir ayar yüzünden isteğin tamamı reddedilmemeli.
         """
+        preset_id = getattr(self.config, "fallback_preset", "") or presets.DEFAULT_PRESET
+        preset = presets.get_preset(preset_id)
+
         payload: Dict[str, Any] = {
             "model": self.config.fallback_model,
             "messages": messages,
-            "max_tokens": max_tokens or self.config.max_tokens,
+            "max_tokens": self._clamp_max_tokens(max_tokens or self.config.max_tokens, preset),
             "stream": stream,
         }
 
-        effort = (self.config.reasoning_effort or "").strip().lower()
-        thinking_off = effort == "none"
-        if effort and effort != "default":
-            if thinking_off:
-                # DeepSeek ailesi düşünmeyi bu alanla kapatıyor; alanı
-                # tanımayan sunucular için reasoning_effort da gönderilmez.
-                payload["thinking"] = {"type": "disabled"}
-            else:
-                payload["reasoning_effort"] = effort
+        raw_effort = (self.config.reasoning_effort or "").strip().lower()
+        thinking_off = raw_effort == presets.NONE
+        effort = presets.normalize_for_provider(raw_effort, preset_id)
 
-        # Örnekleme parametreleri düşünme kapalıyken anlamlı (eski uygulamanın
-        # davranışı); düşünme açıkken sağlayıcılar bunları zaten yok sayıyor.
+        if thinking_off:
+            # DeepSeek düşünmeyi bu alanla kapatıyor:
+            # {"thinking": {"type": "disabled"}}. Bu alanı tanımayan genel
+            # uçlara göndermiyoruz, onlarda reasoning_effort da atlanıyor.
+            if preset.get("thinking_style") == "deepseek":
+                payload["thinking"] = {"type": "disabled"}
+        elif effort:
+            payload["reasoning_effort"] = effort
+
+        # DeepSeek belgeleri: düşünme açıkken temperature/top_p yok sayılıyor
+        # (hata vermiyor ama etkisi de yok). Bu yüzden yalnızca düşünme
+        # kapalıyken ve kullanıcı varsayılanı değiştirdiyse gönderiyoruz.
         if thinking_off:
             if self.config.temperature != 1.0:
                 payload["temperature"] = self.config.temperature
@@ -71,6 +80,19 @@ class DirectProvider:
                 payload["top_p"] = self.config.top_p
 
         return payload
+
+    @staticmethod
+    def _clamp_max_tokens(requested: Optional[int], preset: Dict[str, Any]) -> int:
+        """Token sınırını sağlayıcının üst sınırına kırpar.
+
+        DeepSeek V4 ailesi 384K çıktıya kadar çıkıyor; üstünü istemek isteğin
+        tamamının reddedilmesine yol açar.
+        """
+        value = int(requested or 0) or 32768
+        ceiling = int(preset.get("max_output_tokens") or 0)
+        if ceiling:
+            value = min(value, ceiling)
+        return max(1, value)
 
     def stream(
         self,
@@ -88,7 +110,7 @@ class DirectProvider:
             response = self._session.post(
                 url,
                 headers=self._headers(),
-                json=self._payload(messages, True, max_tokens),
+                json=self._payload(messages, True, max_tokens or self.config.max_tokens),
                 stream=True,
                 timeout=(10, self.config.hermes_timeout),
             )
