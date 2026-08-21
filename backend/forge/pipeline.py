@@ -330,11 +330,18 @@ class ForgePipeline:
                 "detail": self.config.hermes_base_url,
             }
         if self.fallback.available:
+            # APK'da Hermes zaten yok; "kapalı" demek arıza varmış gibi okunuyor.
+            # Masaüstünde ise gerçekten kapatılabilir/açılabilir bir şey.
+            android = getattr(self.config, "platform", "desktop") == "android"
             return {
                 "engine": "fallback",
-                "label": "Doğrudan sağlayıcı",
-                "detail": self.config.fallback_model,
-                "note": "Hermes gateway kapalı; araçlar ve beceriler devre dışı.",
+                "label": self.config.fallback_model or "Doğrudan sağlayıcı",
+                "detail": self.config.fallback_base_url,
+                "note": (
+                    "Hermes bağlı değil (isteğe bağlı) — bağlarsan araçlar ve beceriler de gelir."
+                    if android
+                    else "Hermes gateway kapalı; araçlar ve beceriler devre dışı."
+                ),
             }
         return {
             "engine": "none",

@@ -552,13 +552,22 @@
       engineIsHermes = reachable;
 
       if (reachable) {
-        updateEngineBadge({ engine: 'hermes', label: 'Hermes Agent', detail: data.hermes.base_url });
+        updateEngineBadge({
+          engine: 'hermes',
+          label: 'Hermes Agent',
+          detail: data.hermes.base_url,
+          note: 'araçlar ve beceriler etkin'
+        });
       } else if (data.fallback.available) {
+        // APK'da Hermes zaten yok: "kapalı" demek arıza varmış gibi okunuyor.
+        // Motor çalışıyor; Hermes yalnızca isteğe bağlı bir ek.
         updateEngineBadge({
           engine: 'fallback',
           label: data.fallback.model,
           detail: data.fallback.base_url,
-          note: 'Hermes kapalı — araçlar ve beceriler devre dışı'
+          note: platform === 'android'
+            ? 'Hermes bağlı değil (isteğe bağlı)'
+            : 'Hermes kapalı — araçlar ve beceriler devre dışı'
         });
       } else {
         // Motor yokken kullanıcıya GERÇEKTEN yapabileceği şeyi söyle.
@@ -576,6 +585,22 @@
       // Hermes yok ve kabuk da yok, düğmeyi orada göstermek yanıltıcı olur.
       els.startHermesBtn.style.display = (!reachable && platform !== 'android') ? 'block' : 'none';
       els.hermesLog.style.display = platform === 'android' ? 'none' : '';
+
+      // Hermes bağlı değilken ne kaçırdığını ve nasıl bağlayacağını söyle —
+      // "kapalı" kelimesi tek başına arıza sanılıyor.
+      const optional = $('hermesOptionalHint');
+      if (optional) {
+        const show = !reachable && data.fallback.available;
+        optional.style.display = show ? '' : 'none';
+        if (show) {
+          optional.textContent = platform === 'android'
+            ? 'Uygulama çalışıyor. Hermes ek bir katman: Termux\'ta ya da bir sunucuda ' +
+              'çalıştırıp Ayarlar → Hermes Agent bölümüne adresini yazarsan terminal, ' +
+              'dosya araçları ve beceriler de devreye girer.'
+            : 'Hermes çalışmıyor; model doğrudan sağlayıcıdan geliyor. Gateway\'i ' +
+              'başlatırsan araçlar ve beceriler de gelir.';
+        }
+      }
 
       if (data.rag) $('ragStat').textContent = data.rag.documents + ' belge · ' + data.rag.chunks + ' parça';
       if (data.memory) $('memoryStat').textContent = data.memory.total + ' anı';

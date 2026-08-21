@@ -382,3 +382,36 @@ class TestModelOptions:
         istemci = KaydedenIstemci()
         olaylar(hat_kur(istemci))
         assert istemci.prompts[0]["model_options"] == {"reasoning_effort": "none"}
+
+
+class TestEngineWording:
+    """Motor notu, kullanıcının bulunduğu ortamda anlamlı olmalı."""
+
+    def test_androidde_hermes_kapali_denmez(self, hat_kur, tmp_config):
+        """APK'da Hermes zaten yok; 'kapalı' arıza varmış gibi okunuyor."""
+        tmp_config.platform = "android"
+        pipeline = hat_kur(SahteIstemci(reachable=False), SahteYedek(available=True))
+        engine = next(e for e in olaylar(pipeline) if e["type"] == "engine")
+
+        assert engine["engine"] == "fallback"
+        assert "kapalı" not in engine["note"]
+        assert "isteğe bağlı" in engine["note"]
+
+    def test_masaustunde_kapali_denir(self, hat_kur, tmp_config):
+        """Masaüstünde gerçekten açılabilir bir şey; öyle söylenmeli."""
+        tmp_config.platform = "desktop"
+        pipeline = hat_kur(SahteIstemci(reachable=False), SahteYedek(available=True))
+        engine = next(e for e in olaylar(pipeline) if e["type"] == "engine")
+        assert "kapalı" in engine["note"]
+
+    def test_motor_etiketi_model_adini_tasir(self, hat_kur, tmp_config):
+        """Menüde hangi modelin çalıştığı görünmeli."""
+        tmp_config.fallback_model = "deepseek-v4-pro"
+        pipeline = hat_kur(SahteIstemci(reachable=False), SahteYedek(available=True))
+        engine = next(e for e in olaylar(pipeline) if e["type"] == "engine")
+        assert engine["label"] == "deepseek-v4-pro"
+
+    def test_hermes_baglaninca_motor_hermes_olur(self, hat_kur):
+        pipeline = hat_kur(SahteIstemci(reachable=True))
+        engine = next(e for e in olaylar(pipeline) if e["type"] == "engine")
+        assert engine["engine"] == "hermes"
