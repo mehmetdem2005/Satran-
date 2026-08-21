@@ -1,5 +1,11 @@
-# Hermes Agent kurulumu (~176 MB monorepo) — scripts/install_hermes.sh indirir.
-vendor/
+# Hermes Agent kaynağı depoda (vendor/hermes-agent, MIT, bkz. vendor/README.md).
+# Yalnızca makineye özgü kurulum çıktıları dışarıda kalır.
+vendor/hermes-agent/venv/
+vendor/hermes-agent/.venv/
+vendor/hermes-agent/node_modules/
+vendor/**/__pycache__/
+vendor/**/*.pyc
+vendor/hermes-agent/log.txt
 
 # Python
 __pycache__/

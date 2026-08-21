@@ -17,7 +17,7 @@ altyapısı doğrudan bu uygulamanın arkasında çalışır.
 | Ajan seçimi menüden kaldırıldı | Kullanıcı "hangi ajan" değil "ne istediğini" bilir. Yönlendirici isteği okuyup hattı kendisi kurar. |
 | Başlık canlı | Üst başlık o an çalışan ajanın adını taşır; ilerlemeyi izlemek için ayrı bir panele gerek yok. |
 | Kod her zaman kart içinde | Model kodu düz metin akıtsa bile arayüz onu dosya adı başlıklı, kopyalanabilir ve indirilebilir bir karta çevirir. |
-| Hermes ayrı süreç | Hermes ~176 MB'lık bir monorepo ve kendi bağımlılık ağacı var. Onu bu depoya kopyalamak yerine kurup HTTP üzerinden konuşuyoruz — Termux'ta çalışabilmesinin tek pratik yolu bu. |
+| Hermes kaynağı depoda, süreci ayrı | Kaynak `vendor/hermes-agent/` altında (MIT, sürüm sabit) — klonlayan herkes aynı sürümü alır, çevrimdışı kurulum mümkün. Ama Hermes kendi sanal ortamında ayrı bir süreç olarak çalışır ve HTTP üzerinden konuşuruz; Termux'ta çalışabilmesinin tek pratik yolu bu. |
 | RAG ve bellek SQLite FTS5 | Hermes kendi oturum aramasını FTS5 + bm25 üzerine kurar; aynı zemini kullanıyoruz. Ek paket yok, Termux'ta derleme yok. |
 
 ---
@@ -171,9 +171,12 @@ Tarayıcıda `http://127.0.0.1:5000` adresini aç.
 git clone https://github.com/mehmetdem2005/Satran-.git
 cd Satran-
 python3 -m pip install -r requirements.txt
-bash scripts/install_hermes.sh
+bash scripts/install_hermes.sh    # kaynak depoda; yalnızca bağımlılıkları kurar
 bash scripts/start.sh
 ```
+
+Hermes kaynağı depoda geldiği için kurulum indirme yapmaz. Üst akıştan
+güncellemek istersen: `bash scripts/update_hermes.sh`
 
 ### Hermes olmadan denemek
 
@@ -291,9 +294,11 @@ frontend/
   static/js/markdown.js CDN'siz markdown + kod kartı
   static/js/app.js      arayüz mantığı
 android/                Chaquopy tabanlı APK projesi (Kotlin + gömülü Python)
+vendor/hermes-agent/    Hermes Agent kaynağı (MIT, üst akış — bkz. vendor/README.md)
 scripts/
   build_apk.sh          Android SDK'yı kurar ve APK derler
-  install_hermes.sh     Hermes Agent'ı indirir ve kurar
+  install_hermes.sh     Hermes bağımlılıklarını kurar (kaynak depoda)
+  update_hermes.sh      Hermes kaynağını üst akıştan günceller
   termux_setup.sh       Android tek komut kurulum
   start.sh              uygulamayı başlat
 tests/                  289 test (pytest)

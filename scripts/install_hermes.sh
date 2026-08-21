@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
-# Hermes Agent'ı (NousResearch/hermes-agent) indirir, kurar ve API sunucusunu
-# HermesForge'a bağlar.
+# Hermes Agent'ı kurar ve API sunucusunu HermesForge'a bağlar.
 #
-#   bash scripts/install_hermes.sh            # tam depoyu indir + kur
-#   bash scripts/install_hermes.sh --no-deps  # yalnızca kaynağı indir
-#   bash scripts/install_hermes.sh --zip      # git yerine zip arşivini kullan
+#   bash scripts/install_hermes.sh            # kur (kaynak depoda)
+#   bash scripts/install_hermes.sh --no-deps  # yalnızca kaynağı hazırla
+#   bash scripts/install_hermes.sh --force-download  # kaynağı yeniden indir
 #
-# Depo, projenin içindeki vendor/hermes-agent klasörüne açılır. Orası
-# .gitignore'da: Hermes ~176 MB'lık bir monorepo, kendi sürüm geçmişiyle
-# birlikte bu depoya kopyalanmaz — burada onun bir kurulumunu tutuyoruz.
+# Hermes kaynağı artık vendor/hermes-agent altında DEPODA. Betik onu bulunca
+# indirmeyi atlar ve doğrudan sanal ortamı kurar; böylece çevrimdışı da
+# çalışır ve herkes aynı sürümü alır (bkz. vendor/README.md).
 
 set -euo pipefail
 
@@ -21,11 +20,13 @@ HERMES_ENV_DIR="${HERMES_HOME:-$HOME/.hermes}"
 
 USE_ZIP=0
 INSTALL_DEPS=1
+FORCE_DOWNLOAD=0
 for arg in "$@"; do
   case "$arg" in
-    --zip) USE_ZIP=1 ;;
+    --zip) USE_ZIP=1; FORCE_DOWNLOAD=1 ;;
     --no-deps) INSTALL_DEPS=0 ;;
-    -h|--help) sed -n '2,14p' "$0"; exit 0 ;;
+    --force-download) FORCE_DOWNLOAD=1 ;;
+    -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
     *) echo "Bilinmeyen seçenek: $arg" >&2; exit 2 ;;
   esac
 done
@@ -75,7 +76,10 @@ fetch_with_zip() {
   rm -rf "$tmp"
 }
 
-if [ "$USE_ZIP" -eq 1 ] || ! command -v git >/dev/null 2>&1; then
+# Kaynak depoda geliyor; indirme yalnızca eksikse ya da açıkça istenirse.
+if [ -f "$VENDOR_DIR/pyproject.toml" ] && [ "$FORCE_DOWNLOAD" -eq 0 ]; then
+  log "Hermes kaynağı depoda bulundu, indirme atlanıyor."
+elif [ "$USE_ZIP" -eq 1 ] || ! command -v git >/dev/null 2>&1; then
   fetch_with_zip
 else
   fetch_with_git
