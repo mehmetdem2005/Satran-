@@ -195,11 +195,19 @@ class ArtifactStore:
         self.root.mkdir(parents=True, exist_ok=True)
 
     # ------------------------------------------------------------------
+    _PROJECT_ID_RE = re.compile(r"^[\w-]{1,80}$")
+
     def project_dir(self, project_id: str) -> Path:
-        safe_id = re.sub(r"[^\w\-]+", "", project_id)[:80]
-        if not safe_id:
-            raise ValueError("Geçersiz proje kimliği")
-        path = self.root / safe_id
+        """Proje klasörünü döndürür; kimliği temizlemek yerine doğrular.
+
+        Eskiden geçersiz karakterler ayıklanıyordu — bu, ``../../kacak``
+        gibi bir kimliği sessizce ``kacak`` projesine çeviriyordu. Yol
+        sızıntısı yoktu ama çağıran, istemediği bir projeyle çalışıyordu.
+        Sessiz yeniden yazma yerine reddediyoruz.
+        """
+        if not isinstance(project_id, str) or not self._PROJECT_ID_RE.match(project_id):
+            raise ValueError(f"Geçersiz proje kimliği: {project_id!r}")
+        path = self.root / project_id
         path.mkdir(parents=True, exist_ok=True)
         return path
 
@@ -302,9 +310,19 @@ class ArtifactStore:
         return False
 
     def list_projects(self) -> List[Dict[str, Any]]:
+        """Projeleri en son güncellenen başta olacak şekilde döndürür.
+
+        Ada göre sıralamak, kullanıcı adı "z" ile başlayan bir proje ürettiği
+        anda yanlış cevap verir; listede aranan şey her zaman en son
+        çalışılan projedir.
+        """
         projects: List[Dict[str, Any]] = []
-        for path in sorted(self.root.iterdir(), reverse=True):
+        for path in self.root.iterdir():
             if not path.is_dir():
+                continue
+            try:
+                updated_at = path.stat().st_mtime
+            except OSError:
                 continue
             files = self.list_files(path.name)
             projects.append(
@@ -312,9 +330,10 @@ class ArtifactStore:
                     "project_id": path.name,
                     "files": len(files),
                     "bytes": sum(item["bytes"] for item in files),
-                    "updated_at": path.stat().st_mtime,
+                    "updated_at": updated_at,
                 }
             )
+        projects.sort(key=lambda item: item["updated_at"], reverse=True)
         return projects
 
     # ------------------------------------------------------------------

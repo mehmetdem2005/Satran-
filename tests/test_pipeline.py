@@ -1,0 +1,203 @@
+"""ForgePipeline: ajan orkestrasyonu, dosya kaydı ve hata yolları."""
+
+import pytest
+
+from forge.artifacts import ArtifactStore
+from forge.pipeline import ForgePipeline
+from hermes.memory import HermesMemory
+from hermes.rag import HermesRag
+
+KOD_YANITI = """Dosyaları yazdım.
+
+```python path=app.py
+print("merhaba")
+```
+"""
+
+
+class SahteIstemci:
+    """HermesClient yerine geçen, akışı senaryoya göre üreten sahte."""
+
+    def __init__(self, *, reachable=True, yanit=KOD_YANITI, patlat=None, oturum_hatasi=False):
+        self._reachable = reachable
+        self._yanit = yanit
+        self._patlat = patlat
+        self._oturum_hatasi = oturum_hatasi
+        self.oturumlar = []
+        self.tur_sayisi = 0
+
+    def health(self):
+        return {"reachable": self._reachable}
+
+    def complete(self, messages, **kwargs):
+        return '{"mode":"build","title":"Sahte başlık","reason":"test"}'
+
+    def create_session(self, title=None, **kwargs):
+        if self._oturum_hatasi:
+            raise RuntimeError("oturum açılamadı")
+        sid = f"sess_{len(self.oturumlar)}"
+        self.oturumlar.append(sid)
+        return sid
+
+    def stream_session_turn(self, session_id, message, **kwargs):
+        self.tur_sayisi += 1
+        if self._patlat == "hemen":
+            raise RuntimeError("hermes çöktü")
+        yield {"type": "delta", "text": self._yanit[:20]}
+        if self._patlat == "ortada":
+            raise RuntimeError("akış yarıda kesildi")
+        yield {"type": "delta", "text": self._yanit[20:]}
+
+    def stream_chat_completion(self, messages, **kwargs):
+        self.tur_sayisi += 1
+        yield {"type": "delta", "text": self._yanit}
+
+
+class SahteYedek:
+    def __init__(self, available=False, yanit="yedek yanıtı yeterince uzun bir metin"):
+        self.available = available
+        self._yanit = yanit
+        self.cagrildi = 0
+
+    def complete(self, messages, **kwargs):
+        return '{"mode":"build","title":"Yedek","reason":"test"}'
+
+    def stream(self, messages, **kwargs):
+        self.cagrildi += 1
+        yield {"type": "delta", "text": self._yanit}
+
+
+@pytest.fixture()
+def hat_kur(tmp_path, tmp_config):
+    def kur(istemci=None, yedek=None):
+        return ForgePipeline(
+            config=tmp_config,
+            client=istemci or SahteIstemci(),
+            memory=HermesMemory(tmp_path / "mem.sqlite3"),
+            rag=HermesRag(tmp_path / "rag.sqlite3", workspace_dir=tmp_path / "ws"),
+            store=ArtifactStore(tmp_path / "projects"),
+            fallback=yedek or SahteYedek(),
+        )
+
+    return kur
+
+
+def olaylar(pipeline, **kwargs):
+    kwargs.setdefault("message", "Bana bir uygulama yap")
+    return list(pipeline.run(**kwargs))
+
+
+class TestMutluYol:
+    def test_tam_hat_calisir(self, hat_kur):
+        pipeline = hat_kur()
+        events = olaylar(pipeline)
+        tipler = [e["type"] for e in events]
+
+        assert tipler[-1] == "done"
+        assert events[-1]["ok"] is True
+        assert tipler.count("agent_start") == 5, "build modunda beş ajan çalışmalı"
+        assert "artifacts" in tipler
+
+    def test_baslik_calisan_ajani_gosterir(self, hat_kur):
+        """Arayüz başlığı bu olaydan besleniyor."""
+        events = olaylar(hat_kur())
+        baslangiclar = [e["agent"] for e in events if e["type"] == "agent_start"]
+        assert [a["id"] for a in baslangiclar] == [
+            "analyst", "architect", "builder", "reviewer", "packager"
+        ]
+        assert all(a["name"] and a["emoji"] for a in baslangiclar)
+
+    def test_dosyalar_diske_yazilir(self, hat_kur, tmp_path):
+        events = olaylar(hat_kur())
+        artifact = next(e for e in events if e["type"] == "artifacts")
+        assert "app.py" in [f["path"] for f in artifact["files"]]
+
+        yazilan = tmp_path / "projects" / artifact["project_id"] / "app.py"
+        assert yazilan.read_text(encoding="utf-8").strip() == 'print("merhaba")'
+
+    def test_dosya_uretmeyen_ajanlar_dosya_yazmaz(self, hat_kur):
+        events = olaylar(hat_kur())
+        bitisler = {e["agent_id"]: e["files"] for e in events if e["type"] == "agent_end"}
+        assert bitisler["analyst"] == []
+        assert bitisler["architect"] == []
+        assert bitisler["builder"]
+
+    def test_uretilen_kod_rage_indekslenir(self, hat_kur):
+        """Sonraki turda 'şunu düzelt' isteği ilgili kodu geri getirebilmeli."""
+        pipeline = hat_kur()
+        events = olaylar(pipeline)
+        pid = next(e for e in events if e["type"] == "artifacts")["project_id"]
+        assert pipeline.rag.search("merhaba", collection=f"project:{pid}")
+
+    def test_bellek_turdan_ogrenir(self, hat_kur):
+        pipeline = hat_kur()
+        olaylar(pipeline, message="Benim adım Mehmet, bana bir uygulama yap")
+        assert pipeline.memory.stats()["total"] >= 1
+
+
+class TestYonlendirme:
+    def test_paketleme_modeli_hic_cagirmaz(self, hat_kur, tmp_path):
+        istemci = SahteIstemci()
+        pipeline = hat_kur(istemci)
+        store = pipeline.store
+        pid = store.new_project_id("hazir")
+        store.write_files(pid, [{"path": "a.py", "content": "x\n"}])
+
+        events = olaylar(pipeline, message="bunu zip olarak ver", project_id=pid)
+        assert istemci.tur_sayisi == 0, "paketleme için model çalıştırılmamalı"
+
+        artifact = next(e for e in events if e["type"] == "artifacts")
+        assert artifact["suggested_format"] == "zip"
+
+    def test_soru_tek_ajanla_yanitlanir(self, hat_kur):
+        events = olaylar(hat_kur(), message="Flask nedir?")
+        baslangiclar = [e["agent"]["id"] for e in events if e["type"] == "agent_start"]
+        assert baslangiclar == ["advisor"]
+
+
+class TestHataYollari:
+    def test_bos_mesaj(self, hat_kur):
+        events = olaylar(hat_kur(), message="   ")
+        assert events[0]["type"] == "error"
+
+    def test_motor_yoksa_aciklayici_hata(self, hat_kur):
+        pipeline = hat_kur(SahteIstemci(reachable=False), SahteYedek(available=False))
+        events = olaylar(pipeline)
+        hata = next(e for e in events if e["type"] == "error")
+        assert "install_hermes.sh" in hata["text"]
+        assert events[-1]["ok"] is False
+
+    def test_hermes_coktugunde_yedege_gecer(self, hat_kur):
+        yedek = SahteYedek(available=True)
+        pipeline = hat_kur(SahteIstemci(patlat="hemen"), yedek)
+        events = olaylar(pipeline)
+        assert yedek.cagrildi > 0
+        assert any(e["type"] == "delta" for e in events)
+
+    def test_akis_ortada_kesilirse_metin_ikilenmez(self, hat_kur):
+        """Yedekle baştan başlamak aynı yanıtı iki kez yazdırırdı."""
+        yedek = SahteYedek(available=True)
+        pipeline = hat_kur(SahteIstemci(patlat="ortada"), yedek)
+        events = olaylar(pipeline)
+
+        assert yedek.cagrildi == 0, "yarıda kesilen tur yedekle tekrarlanmamalı"
+        assert any(e["type"] == "error" for e in events)
+
+    def test_bos_yanit_sessizce_gecmez(self, hat_kur):
+        pipeline = hat_kur(SahteIstemci(yanit=""))
+        events = olaylar(pipeline)
+        hata = next(e for e in events if e["type"] == "error")
+        assert "boş yanıt" in hata["text"]
+        assert events[-1]["ok"] is False
+
+    def test_oturum_acilamazsa_durumsuz_devam_eder(self, hat_kur):
+        pipeline = hat_kur(SahteIstemci(oturum_hatasi=True))
+        events = olaylar(pipeline)
+        assert not any(e["type"] == "session" for e in events)
+        assert any(e["type"] == "delta" for e in events)
+        assert events[-1]["ok"] is True
+
+    def test_bozuk_proje_kimligi_yeni_projeye_duser(self, hat_kur):
+        events = olaylar(hat_kur(), project_id="../../kacak")
+        assert any(e["type"] == "project" for e in events)
+        assert events[-1]["ok"] is True

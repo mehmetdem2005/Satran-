@@ -20,6 +20,9 @@ from __future__ import annotations
 
 import json
 import logging
+import re
+import uuid
+from datetime import datetime
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 import requests
@@ -29,6 +32,37 @@ logger = logging.getLogger(__name__)
 # Hermes tarafından yayımlanan olay adları → uygulama içi normalize tipler.
 _TOOL_START_EVENTS = {"tool.started"}
 _TOOL_END_EVENTS = {"tool.completed", "tool.failed"}
+
+
+_TITLE_CONFLICT_RE = re.compile(r"title already in use", re.I)
+
+
+def _is_title_conflict(exc: Exception) -> bool:
+    return bool(_TITLE_CONFLICT_RE.search(str(exc)))
+
+
+def _disambiguate_title(title: str) -> str:
+    """Çakışan bir başlığa kısa, okunabilir bir ayırt edici ekler."""
+    suffix = f" · {datetime.now():%H:%M:%S}-{uuid.uuid4().hex[:4]}"
+    return title[: 200 - len(suffix)] + suffix
+
+
+def _assistant_text_from_messages(messages: Any) -> str:
+    """``run.completed`` transkriptinden asistan metnini toparlar."""
+    if not isinstance(messages, list):
+        return ""
+    parts: List[str] = []
+    for message in messages:
+        if not isinstance(message, dict) or message.get("role") != "assistant":
+            continue
+        content = message.get("content")
+        if isinstance(content, str):
+            parts.append(content)
+        elif isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and isinstance(block.get("text"), str):
+                    parts.append(block["text"])
+    return "\n".join(part for part in parts if part.strip())
 
 
 class HermesError(RuntimeError):
@@ -46,6 +80,12 @@ def _sse_events(response: requests.Response) -> Iterator[Tuple[str, Any]]:
     yalnızca ``data:`` gelir ve akış ``[DONE]`` ile biter. İkisini de aynı
     ayrıştırıcı karşılar.
     """
+    # SSE her zaman UTF-8'dir (WHATWG: "Event streams are always decoded as
+    # UTF-8"). Hermes ``text/event-stream`` başlığını charset olmadan
+    # yolluyor; requests bu durumda ISO-8859-1 varsayar ve her Türkçe karakter
+    # bozulur ("Sayaç" → "SayaÃ§"). Kodlamayı açıkça sabitliyoruz.
+    response.encoding = "utf-8"
+
     event_name = "message"
     data_lines: List[str] = []
 
@@ -213,12 +253,56 @@ class HermesClient:
             body["title"] = title[:200]
         if system_prompt:
             body["system_prompt"] = system_prompt
-        response = self._request("POST", "/api/sessions", json_body=body, timeout=30)
-        payload = response.json()
-        resolved = payload.get("id") or payload.get("session_id") or session_id
+
+        try:
+            response = self._request("POST", "/api/sessions", json_body=body, timeout=30)
+        except HermesError as exc:
+            # Hermes oturum başlıklarını benzersiz tutar. Yönlendiricinin
+            # ürettiği başlık ("Not alma uygulaması") ikinci kez kullanılırsa
+            # 400 döner; bunu yutup oturumsuz moda düşmek Hermes belleğini
+            # sessizce kaybettirir. Başlığı ayrıştırıp bir kez daha deniyoruz.
+            if not _is_title_conflict(exc) or not title:
+                raise
+            body["title"] = _disambiguate_title(title)
+            logger.info("Oturum başlığı çakıştı, benzersizleştirildi: %s", body["title"])
+            response = self._request("POST", "/api/sessions", json_body=body, timeout=30)
+
+        resolved = self._session_id_from(response.json()) or session_id
         if not resolved:
             raise HermesError("Hermes oturum kimliği döndürmedi.")
         return str(resolved)
+
+    @staticmethod
+    def _session_id_from(payload: Any) -> Optional[str]:
+        """Oturum kimliğini yanıttan çıkarır.
+
+        Hermes oturum uçları gövdeyi bir zarfa sarar
+        (``{"object": "hermes.session", "session": {"id": …}}``); eski
+        sürümler kimliği doğrudan üst düzeyde döndürüyordu. İkisini de
+        kabul ediyoruz ki sunucu sürümü değişince istemci kırılmasın.
+        """
+        if not isinstance(payload, dict):
+            return None
+        session = payload.get("session")
+        if isinstance(session, dict) and session.get("id"):
+            return str(session["id"])
+        for key in ("id", "session_id"):
+            if payload.get(key):
+                return str(payload[key])
+        return None
+
+    def get_session(self, session_id: str) -> Dict[str, Any]:
+        """Oturum üstverisini döndürür (zarf açılmış olarak)."""
+        payload = self._request("GET", f"/api/sessions/{session_id}", timeout=20).json()
+        session = payload.get("session") if isinstance(payload, dict) else None
+        return session if isinstance(session, dict) else (payload or {})
+
+    def list_sessions(self, limit: int = 20) -> List[Dict[str, Any]]:
+        payload = self._request(
+            "GET", "/api/sessions", params={"limit": limit}, timeout=20
+        ).json()
+        data = payload.get("data") if isinstance(payload, dict) else payload
+        return data if isinstance(data, list) else []
 
     def session_messages(self, session_id: str, limit: int = 100) -> List[Dict[str, Any]]:
         response = self._request(
@@ -285,6 +369,13 @@ class HermesClient:
             response.close()
 
     def _normalize_session_stream(self, response: requests.Response) -> Iterator[Dict[str, Any]]:
+        # Her sağlayıcı token akıtmaz. Akıtmayanlarda Hermes tüm metni tek
+        # seferde ``assistant.completed`` içinde verir; sadece
+        # ``assistant.delta`` dinleyen bir istemci o turda boş ekran gösterir.
+        # Delta gördüysek tamamlanma olayını yok sayıyoruz, yoksa metni oradan
+        # alıyoruz — iki yol da aynı metni iki kez yazdırmıyor.
+        streamed_any = False
+
         for name, data in _sse_events(response):
             if name == "done" or (isinstance(data, dict) and name == "done"):
                 yield {"type": "done"}
@@ -295,7 +386,14 @@ class HermesClient:
             if name == "assistant.delta":
                 delta = data.get("delta") or ""
                 if delta:
+                    streamed_any = True
                     yield {"type": "delta", "text": delta}
+            elif name == "assistant.completed":
+                content = data.get("content") or ""
+                if content and not streamed_any:
+                    yield {"type": "delta", "text": content}
+                if data.get("interrupted") or data.get("partial"):
+                    yield {"type": "status", "text": "Tur yarıda kesildi."}
             elif name == "tool.progress":
                 tool = data.get("tool_name") or ""
                 delta = data.get("delta") or ""
@@ -317,6 +415,13 @@ class HermesClient:
                     "preview": data.get("preview") or "",
                 }
             elif name == "run.completed":
+                # Ne delta ne de assistant.completed metin verdiyse son çare:
+                # turun kalıcılaştırılmış transkripti.
+                if not streamed_any:
+                    recovered = _assistant_text_from_messages(data.get("messages"))
+                    if recovered:
+                        streamed_any = True
+                        yield {"type": "delta", "text": recovered}
                 yield {
                     "type": "final",
                     "session_id": data.get("session_id"),

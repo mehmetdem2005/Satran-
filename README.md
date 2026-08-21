@@ -148,6 +148,7 @@ scripts/
   install_hermes.sh     Hermes Agent'ı indirir ve kurar
   termux_setup.sh       Android tek komut kurulum
   start.sh              uygulamayı başlat
+tests/                  212 test (pytest)
 ```
 
 ---
@@ -164,6 +165,32 @@ Hepsi isteğe bağlıdır; `.env.example` dosyasına bakın.
 | `HERMESFORGE_HERMES_URL` | `http://127.0.0.1:8642` | Hermes API adresi |
 | `HERMESFORGE_HERMES_AUTOSTART` | `true` | Açılışta gateway'i başlat |
 | `HERMESFORGE_FALLBACK_KEY` | — | Yedek sağlayıcı anahtarı |
+
+---
+
+## Testler
+
+```bash
+python3 -m pip install -r requirements-dev.txt
+python3 -m pytest
+```
+
+212 test; hepsi yalıtılmış — makinede çalışan bir Hermes varsa bile testler
+ona bağlanmaz (`tests/conftest.py` erişilemez bir porta yönlendirir), yoksa
+"motor yok" senaryoları sessizce yeşile döner ve hiçbir şey doğrulamazdı.
+
+### Gerçek Hermes'e karşı doğrulama
+
+Entegrasyon, çalışan bir **Hermes Agent 0.20.4** kurulumuna karşı denendi ve
+sahte sunucunun yakalayamadığı dört gerçek hata çıktı. Her biri artık bir
+regresyon testiyle kilitli:
+
+| Bulgu | Belirti | Test |
+|---|---|---|
+| Oturum yanıtı `{"session": {...}}` zarfına sarılı | Oturum hiç açılamıyordu | `TestSessionEnvelope` |
+| Hermes oturum başlıklarını benzersiz tutuyor | Aynı konuda ikinci sohbet Hermes belleğini sessizce kaybediyordu | `TestTitleConflict` |
+| Sağlayıcı delta akıtmazsa metin `assistant.completed` içinde geliyor | Yanıt tamamen boş görünüyordu | `TestStreamNormalization` |
+| `text/event-stream` başlığında charset yok | `requests` ISO-8859-1 varsayıp her Türkçe karakteri bozuyordu (`Sayaç` → `SayaÃ§`) | `test_utf8_zorlanir_yoksa_turkce_bozulur` |
 
 ---
 

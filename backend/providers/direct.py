@@ -71,6 +71,10 @@ class DirectProvider:
         if response.status_code >= 400:
             raise DirectProviderError(f"Sağlayıcı hatası {response.status_code}: {response.text[:300]}")
 
+        # SSE UTF-8'dir; charset'siz ``text/event-stream`` başlığında requests
+        # ISO-8859-1'e düşer ve Türkçe karakterleri bozar.
+        response.encoding = "utf-8"
+
         try:
             for raw_line in response.iter_lines(decode_unicode=True):
                 if not raw_line or not raw_line.startswith("data:"):

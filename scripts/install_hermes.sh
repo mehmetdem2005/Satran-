@@ -107,10 +107,24 @@ if [ "$INSTALL_DEPS" -eq 1 ]; then
       || { log ".[termux] başarısız, çekirdek kuruluma düşülüyor"; \
            python -m pip install -e '.' -c constraints-termux.txt; }
   else
-    log "Hermes kuruluyor (aiohttp dahil — API sunucusu için gerekli)"
+    log "Hermes kuruluyor…"
     python -m pip install -e '.' || die "Hermes kurulumu başarısız."
-    python -m pip install aiohttp >/dev/null 2>&1 || true
   fi
+
+  # aiohttp, Hermes'in ilan edilen bağımlılıkları arasında DEĞİL; ama OpenAI
+  # uyumlu API sunucusu (gateway/platforms/api_server.py) onsuz hiç açılmıyor
+  # — HermesForge'un bağlandığı tek yüzey de o. Sessizce geçersek kullanıcı
+  # "Hermes'e ulaşılamıyor" hatasını görür ve sebebini asla bulamaz.
+  if ! python -c 'import aiohttp' 2>/dev/null; then
+    log "API sunucusu için aiohttp kuruluyor…"
+    python -m pip install aiohttp \
+      || die "aiohttp kurulamadı. Hermes'in API sunucusu onsuz açılmaz; \
+elle deneyin: $VENDOR_DIR/venv/bin/pip install aiohttp"
+  fi
+  python -c 'import aiohttp' 2>/dev/null \
+    || die "aiohttp içe aktarılamıyor — API sunucusu çalışmayacak."
+  log "API sunucusu gereksinimleri tamam."
+
   deactivate
   cd "$PROJECT_ROOT"
 fi

@@ -68,7 +68,11 @@ class ForgePipeline:
             yield {"type": "done"}
             return
 
-        existing_files = self.store.list_files(project_id) if project_id else []
+        try:
+            existing_files = self.store.list_files(project_id) if project_id else []
+        except ValueError:
+            # İstemci bozuk bir proje kimliği yolladı; yeni proje açarak devam et.
+            project_id, existing_files = None, []
         has_project = bool(existing_files)
 
         # 1) Yönlendirme -------------------------------------------------

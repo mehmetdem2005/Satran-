@@ -310,14 +310,22 @@ def _register_routes(app: Flask) -> None:
 
     @app.route("/api/projects/<project_id>/files")
     def project_files(project_id: str):
-        return jsonify({"project_id": project_id, "files": _services()["store"].list_files(project_id)})
+        try:
+            files = _services()["store"].list_files(project_id)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify({"project_id": project_id, "files": files})
 
     @app.route("/api/projects/<project_id>/file")
     def project_file(project_id: str):
-        content = _services()["store"].read_file(project_id, request.args.get("path", ""))
+        path = request.args.get("path", "")
+        try:
+            content = _services()["store"].read_file(project_id, path)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
         if content is None:
             return jsonify({"error": "Dosya bulunamadı."}), 404
-        return jsonify({"path": request.args.get("path"), "content": content})
+        return jsonify({"path": path, "content": content})
 
     @app.route("/api/projects/<project_id>/export")
     def project_export(project_id: str):
@@ -330,7 +338,11 @@ def _register_routes(app: Flask) -> None:
 
     @app.route("/api/projects/<project_id>", methods=["DELETE"])
     def project_delete(project_id: str):
-        return jsonify({"deleted": _services()["store"].delete_project(project_id)})
+        try:
+            deleted = _services()["store"].delete_project(project_id)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify({"deleted": deleted})
 
     # ------------------------------------------------------------------
     # Sohbet dışa aktarma
