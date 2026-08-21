@@ -117,3 +117,46 @@ class TestMisc:
             {"role": "user", "content": "   "},
         ]
         assert utils.iter_conversation(messages) == [("user", "iyi")]
+
+
+class TestDirectProviderPayload:
+    """Yedek sağlayıcıya giden model parametreleri."""
+
+    def _provider(self, **overrides):
+        import config as config_module
+        from providers.direct import DirectProvider
+
+        cfg = config_module.load_config()
+        cfg.fallback_api_key = "test"
+        for key, value in overrides.items():
+            setattr(cfg, key, value)
+        return DirectProvider(cfg)
+
+    def test_varsayilanda_ekstra_alan_gonderilmez(self):
+        """Katı OpenAI-uyumlu sunucular bilinmeyen alanlara 400 döner."""
+        payload = self._provider(reasoning_effort="default")._payload([], False, None)
+        assert "reasoning_effort" not in payload
+        assert "thinking" not in payload
+        assert "temperature" not in payload
+
+    def test_dusunme_duzeyi_gonderilir(self):
+        payload = self._provider(reasoning_effort="high")._payload([], False, None)
+        assert payload["reasoning_effort"] == "high"
+
+    def test_dusunme_kapaliyken_ornekleme_parametreleri_eklenir(self):
+        payload = self._provider(
+            reasoning_effort="none", temperature=0.3, top_p=0.8
+        )._payload([], False, None)
+        assert payload["thinking"] == {"type": "disabled"}
+        assert payload["temperature"] == 0.3
+        assert payload["top_p"] == 0.8
+        assert "reasoning_effort" not in payload
+
+    def test_dusunme_acikken_ornekleme_parametreleri_gonderilmez(self):
+        payload = self._provider(
+            reasoning_effort="high", temperature=0.3
+        )._payload([], False, None)
+        assert "temperature" not in payload
+
+    def test_max_token_gonderilir(self):
+        assert self._provider(max_tokens=4096)._payload([], False, None)["max_tokens"] == 4096

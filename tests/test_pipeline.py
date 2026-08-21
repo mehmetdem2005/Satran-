@@ -201,3 +201,176 @@ class TestHataYollari:
         events = olaylar(hat_kur(), project_id="../../kacak")
         assert any(e["type"] == "project" for e in events)
         assert events[-1]["ok"] is True
+
+
+# ======================================================================
+# Paralel hat: pano, dalgalar, fan-out ve model seçenekleri
+# ======================================================================
+
+ARCHITECT_REPLY = """Tasarım hazır.
+
+```dosya-plani
+app.py — giriş noktası
+db.py — veri katmanı
+ui.py — arayüz
+README.md — kurulum
+```
+"""
+
+
+class KaydedenIstemci(SahteIstemci):
+    """Kendisine gönderilen istemleri ve oturumları kaydeden sahte istemci."""
+
+    def __init__(self, yanitlar=None, **kwargs):
+        super().__init__(**kwargs)
+        self.prompts = []          # (session_id, prompt, system_message, model_options)
+        self.olusturulan_basliklar = []
+        self._yanitlar = yanitlar or {}
+
+    def create_session(self, title=None, **kwargs):
+        self.olusturulan_basliklar.append(title)
+        return super().create_session(title=title, **kwargs)
+
+    def stream_session_turn(self, session_id, message, **kwargs):
+        self.prompts.append(
+            {
+                "session_id": session_id,
+                "prompt": message,
+                "system": kwargs.get("system_message") or "",
+                "model_options": kwargs.get("model_options"),
+            }
+        )
+        # İstem içeriğine göre role özgü yanıt ver (Mimar dosya planı üretsin).
+        yanit = self._yanit
+        for anahtar, metin in self._yanitlar.items():
+            if anahtar in (kwargs.get("system_message") or ""):
+                yanit = metin
+                break
+        self.tur_sayisi += 1
+        yield {"type": "delta", "text": yanit}
+
+
+class TestNoReFeeding:
+    """'Ajanlar her turda baştan başlıyor' hatasının regresyon kilidi."""
+
+    def test_gecmis_yalnizca_cozumleyiciye_gider(self, hat_kur):
+        istemci = KaydedenIstemci()
+        pipeline = hat_kur(istemci)
+        gecmis = [
+            {"role": "user", "content": "ONCEKI_KULLANICI_MESAJI"},
+            {"role": "assistant", "content": "ONCEKI_ASISTAN_CEVABI"},
+        ]
+        olaylar(pipeline, message="Bana bir uygulama yap", history=gecmis)
+
+        cozumleyici = istemci.prompts[0]["prompt"]
+        assert "ONCEKI_KULLANICI_MESAJI" in cozumleyici
+
+        for kayit in istemci.prompts[1:]:
+            assert "ONCEKI_KULLANICI_MESAJI" not in kayit["prompt"], (
+                "Çözümleyici dışındaki ajanlar sohbet geçmişini almamalı"
+            )
+            assert "### Önceki konuşma ###" not in kayit["prompt"]
+
+    def test_onceki_ajanlarin_ham_ciktisi_tekrar_beslenmez(self, hat_kur):
+        istemci = KaydedenIstemci(yanit="AJAN_HAM_CIKTISI_" + "x" * 500)
+        pipeline = hat_kur(istemci)
+        olaylar(pipeline)
+
+        # Pano damıtılmış metni taşır; ham çıktı blok başlığıyla dolaşmaz.
+        for kayit in istemci.prompts:
+            assert "### Önceki ajanların çıktıları ###" not in kayit["prompt"]
+
+    def test_istem_boyutu_ajan_sayisiyla_patlamaz(self, hat_kur):
+        """Eskiden son ajan, öncekilerin toplamını taşıdığı için şişiyordu."""
+        istemci = KaydedenIstemci(yanit="y" * 3000)
+        pipeline = hat_kur(istemci)
+        olaylar(pipeline)
+
+        boyutlar = [len(k["prompt"]) for k in istemci.prompts]
+        assert max(boyutlar) < 4 * min(boyutlar) + 8000
+
+    def test_her_dugum_kendi_oturumunu_alir(self, hat_kur):
+        """Tek oturum paylaşmak hem paralelliği hem bağlamı bozuyordu."""
+        istemci = KaydedenIstemci()
+        pipeline = hat_kur(istemci)
+        olaylar(pipeline)
+
+        oturumlar = {k["session_id"] for k in istemci.prompts}
+        assert len(oturumlar) == len(istemci.prompts), "her düğüm ayrı oturumda olmalı"
+
+
+class TestWavesInPipeline:
+    def test_denetci_ve_paketleyici_ayni_dalgada(self, hat_kur):
+        events = olaylar(hat_kur())
+        dalgalar = [e for e in events if e["type"] == "wave"]
+        son = dalgalar[-1]
+        assert son["parallel"] is True
+        assert {a["id"] for a in son["agents"]} == {"reviewer", "packager"}
+
+    def test_dalga_olayi_ajanlari_bildirir(self, hat_kur):
+        events = olaylar(hat_kur())
+        ilk = next(e for e in events if e["type"] == "wave")
+        assert ilk["index"] == 1
+        assert [a["id"] for a in ilk["agents"]] == ["analyst"]
+        assert ilk["parallel"] is False
+
+
+class TestFanout:
+    def test_mimar_plani_verince_kodlayici_bolunur(self, hat_kur):
+        istemci = KaydedenIstemci(yanitlar={"Mimar": ARCHITECT_REPLY})
+        pipeline = hat_kur(istemci)
+        events = olaylar(pipeline)
+
+        kodlayici_dugumleri = [
+            e["agent"] for e in events
+            if e["type"] == "agent_start" and e["agent"]["id"] == "builder"
+        ]
+        assert len(kodlayici_dugumleri) == 2, "max_parallel_agents=2 → iki Kodlayıcı"
+        assert [n["label"] for n in kodlayici_dugumleri] == ["Kodlayıcı 1", "Kodlayıcı 2"]
+
+    def test_bolunmus_kodlayicilar_ayrik_dosyalar_alir(self, hat_kur):
+        istemci = KaydedenIstemci(yanitlar={"Mimar": ARCHITECT_REPLY})
+        events = olaylar(hat_kur(istemci))
+
+        atamalar = [
+            e["agent"]["paths"] for e in events
+            if e["type"] == "agent_start" and e["agent"]["id"] == "builder"
+        ]
+        duz = [p for grup in atamalar for p in grup]
+        assert len(duz) == len(set(duz)) == 4
+
+    def test_plan_okunamazsa_tek_kodlayiciya_duser(self, hat_kur):
+        """Biçim hatası tüm hattı çökertmemeli, sessizce de geçmemeli."""
+        istemci = KaydedenIstemci(yanitlar={"Mimar": "Tasarım var ama plan bloğu yok."})
+        events = olaylar(hat_kur(istemci))
+
+        kodlayicilar = [
+            e for e in events
+            if e["type"] == "agent_start" and e["agent"]["id"] == "builder"
+        ]
+        assert len(kodlayicilar) == 1
+        assert any(
+            e["type"] == "status" and "tek ajanla" in e.get("text", "")
+            for e in events
+        )
+
+
+class TestModelOptions:
+    def test_dusunme_duzeyi_hermese_gonderilir(self, hat_kur, tmp_config):
+        tmp_config.reasoning_effort = "xhigh"
+        istemci = KaydedenIstemci()
+        olaylar(hat_kur(istemci))
+        assert all(k["model_options"] == {"reasoning_effort": "xhigh"} for k in istemci.prompts)
+
+    def test_varsayilanda_hicbir_sey_gonderilmez(self, hat_kur, tmp_config):
+        """Kullanıcı dokunmadıysa sunucunun kendi ayarı geçerli kalmalı."""
+        tmp_config.reasoning_effort = "default"
+        istemci = KaydedenIstemci()
+        olaylar(hat_kur(istemci))
+        assert all(k["model_options"] is None for k in istemci.prompts)
+
+    def test_dusunme_kapatilabilir(self, hat_kur, tmp_config):
+        tmp_config.reasoning_effort = "none"
+        istemci = KaydedenIstemci()
+        olaylar(hat_kur(istemci))
+        assert istemci.prompts[0]["model_options"] == {"reasoning_effort": "none"}

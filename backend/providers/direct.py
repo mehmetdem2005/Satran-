@@ -38,12 +38,39 @@ class DirectProvider:
         }
 
     def _payload(self, messages: List[Dict[str, Any]], stream: bool, max_tokens: Optional[int]) -> Dict[str, Any]:
-        return {
+        """İstek gövdesini kurar.
+
+        Model davranış alanları (``reasoning_effort``, ``temperature``,
+        ``top_p``) yalnızca kullanıcı varsayılanı değiştirdiyse eklenir: katı
+        OpenAI-uyumlu sunucular bilinmeyen alanlara 400 döndürüyor, bu yüzden
+        dokunulmamış bir ayar yüzünden isteğin tamamı reddedilmemeli.
+        """
+        payload: Dict[str, Any] = {
             "model": self.config.fallback_model,
             "messages": messages,
-            "max_tokens": max_tokens or self.config.fallback_max_tokens,
+            "max_tokens": max_tokens or self.config.max_tokens,
             "stream": stream,
         }
+
+        effort = (self.config.reasoning_effort or "").strip().lower()
+        thinking_off = effort == "none"
+        if effort and effort != "default":
+            if thinking_off:
+                # DeepSeek ailesi düşünmeyi bu alanla kapatıyor; alanı
+                # tanımayan sunucular için reasoning_effort da gönderilmez.
+                payload["thinking"] = {"type": "disabled"}
+            else:
+                payload["reasoning_effort"] = effort
+
+        # Örnekleme parametreleri düşünme kapalıyken anlamlı (eski uygulamanın
+        # davranışı); düşünme açıkken sağlayıcılar bunları zaten yok sayıyor.
+        if thinking_off:
+            if self.config.temperature != 1.0:
+                payload["temperature"] = self.config.temperature
+            if self.config.top_p != 1.0:
+                payload["top_p"] = self.config.top_p
+
+        return payload
 
     def stream(
         self,

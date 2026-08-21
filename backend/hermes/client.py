@@ -439,6 +439,7 @@ class HermesClient:
         session_key: Optional[str] = None,
         model: Optional[str] = None,
         provider: Optional[str] = None,
+        model_options: Optional[Dict[str, Any]] = None,
     ) -> Iterator[Dict[str, Any]]:
         """Durumsuz OpenAI uyumlu akış (oturum açılamadığında yedek yol)."""
         body: Dict[str, Any] = {
@@ -448,6 +449,8 @@ class HermesClient:
         }
         if provider or self.config.hermes_provider:
             body["provider"] = provider or self.config.hermes_provider
+        if model_options:
+            body["model_options"] = model_options
 
         response = self._request(
             "POST",

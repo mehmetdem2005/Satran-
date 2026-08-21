@@ -108,6 +108,46 @@
       </section>
 
       <section class="panel-section">
+        <div class="section-title">Model davranışı</div>
+        <label class="field">
+          <span>Düşünme düzeyi</span>
+          <select id="reasoning_effort">
+            <option value="default">Varsayılan (sunucu ayarı)</option>
+            <option value="none">Kapalı (düşünme yok)</option>
+            <option value="minimal">Minimal</option>
+            <option value="low">Düşük</option>
+            <option value="medium">Orta</option>
+            <option value="high">Yüksek</option>
+            <option value="xhigh">Çok yüksek</option>
+            <option value="max">Maksimum</option>
+            <option value="ultra">Ultra</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Maksimum token</span>
+          <input type="number" id="max_tokens" min="1" max="1000000" step="1024" placeholder="32768">
+        </label>
+        <p class="hint" id="maxTokensHint">
+          Hermes token sınırını istek başına kabul etmiyor: bu değer
+          <code>~/.hermes/.env</code> dosyasına yazılır ve gateway yeniden
+          başlatılınca geçerli olur. Yedek sağlayıcıda anında etkindir.
+        </p>
+        <label class="field">
+          <span>Sıcaklık (temperature): <b id="temperatureValue">1.00</b></span>
+          <input type="range" id="temperature" min="0" max="2" step="0.05" value="1">
+        </label>
+        <label class="field">
+          <span>Top P: <b id="topPValue">1.00</b></span>
+          <input type="range" id="top_p" min="0" max="1" step="0.05" value="1">
+        </label>
+        <p class="hint">
+          Sıcaklık ve Top P yalnızca <b>yedek sağlayıcıya</b> ve yalnızca
+          düşünme kapalıyken gönderilir — Hermes bunları istek başına kabul
+          etmiyor.
+        </p>
+      </section>
+
+      <section class="panel-section">
         <div class="section-title">Yedek sağlayıcı</div>
         <p class="hint">Hermes kapalıyken devreye girer. OpenAI uyumlu herhangi bir uç kullanılabilir.</p>
         <label class="check">

@@ -238,3 +238,58 @@ class TestErrorMapping:
 
         monkeypatch.setattr(client._session, "request", boom)
         assert client.health()["reachable"] is False
+
+
+class TestModelOptionsPassthrough:
+    """Düşünme düzeyi Hermes'e gerçekten ulaşmalı."""
+
+    def test_oturum_turu_model_options_tasir(self, monkeypatch):
+        import config as config_module
+
+        client = HermesClient(config_module.load_config())
+        gonderilen = {}
+
+        class Resp:
+            status_code = 200
+            headers = {"Content-Type": "text/event-stream"}
+            encoding = "utf-8"
+
+            def iter_lines(self, decode_unicode=False):
+                return iter([])
+
+            def close(self):
+                pass
+
+        def sahte_istek(method, url, **kwargs):
+            gonderilen.update(kwargs.get("json") or {})
+            return Resp()
+
+        monkeypatch.setattr(client._session, "request", sahte_istek)
+        list(client.stream_session_turn(
+            "s1", "merhaba", model_options={"reasoning_effort": "max"}
+        ))
+        assert gonderilen["model_options"] == {"reasoning_effort": "max"}
+
+    def test_model_options_yoksa_alan_hic_gonderilmez(self, monkeypatch):
+        import config as config_module
+
+        client = HermesClient(config_module.load_config())
+        gonderilen = {}
+
+        class Resp:
+            status_code = 200
+            headers = {}
+            encoding = "utf-8"
+
+            def iter_lines(self, decode_unicode=False):
+                return iter([])
+
+            def close(self):
+                pass
+
+        monkeypatch.setattr(
+            client._session, "request",
+            lambda method, url, **kw: (gonderilen.update(kw.get("json") or {}), Resp())[1],
+        )
+        list(client.stream_session_turn("s1", "merhaba"))
+        assert "model_options" not in gonderilen

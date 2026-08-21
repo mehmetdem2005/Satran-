@@ -1,8 +1,13 @@
 """Uygulama üreten ajan kadrosu.
 
-Menüden ajan seçilmez: hangi ajanların çalışacağına ``router.py`` karar verir
-ve sohbet başlığı o an çalışan ajanın adını gösterir. Her ajan tek bir işten
-sorumludur ve bir öncekinin çıktısını girdi olarak alır.
+Menüden ajan seçilmez: hangi rollerin katılacağına ``router.py``, hangi sırayla
+çalışacaklarına ise buradaki **bağımlılık grafiği** karar verir. Ajanlar
+birbirini doğrusal olarak takip etmez — bağımlılığı karşılanan her düğüm aynı
+anda başlar (``scheduler.py``). Örneğin Denetçi ile Paketleyici ikisi de yalnız
+Kodlayıcı'ya bağlı olduğu için paralel çalışır.
+
+Hiçbir ajan bir öncekinin ham çıktısını almaz; ortak panodan (``board.py``)
+yalnızca kendi işine yarayan damıtılmış dilimleri okur.
 
 Kod üreten ajanlar için tek bir katı sözleşme var — dosya başlıklı çitli blok:
 
@@ -16,7 +21,7 @@ bloğu kopyalanabilir bir kod kartı olarak gösterir.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 # Kod üreten her ajanın sistem istemine eklenen ortak biçim sözleşmesi.
 FILE_BLOCK_CONTRACT = """
@@ -36,6 +41,26 @@ Kurallar:
 - Dosya yolları ASCII olsun, boşluk içermesin.
 """.strip()
 
+FILE_PLAN_CONTRACT = """
+## Dosya planı bloğu (zorunlu)
+
+Dosya ağacını serbest metin olarak değil, aşağıdaki blokla ver. Bu bloğu
+sistem ayrıştırıp işi birden çok Kodlayıcı'ya paylaştıracak:
+
+```dosya-plani
+src/app.py — giriş noktası ve rota tanımları
+src/db.py — SQLite şeması ve sorgular
+README.md — kurulum ve çalıştırma
+```
+
+Kurallar:
+- Her satır: `yol — tek cümlelik sorumluluk`. Ayraç uzun tire (—) veya çift tire (--).
+- Yollar proje köküne göreli, ASCII ve boşluksuz olsun.
+- Yalnızca gerçekten üretilecek dosyaları yaz; klasör satırı koyma.
+- Birbirine en sıkı bağlı dosyaları ardışık yaz — paylaştırma sırayı korur.
+""".strip()
+
+
 _SHARED_RULES = """
 Genel kurallar:
 - Kullanıcıyla Türkçe konuş. Kod, değişken ve dosya adları İngilizce olsun.
@@ -53,6 +78,8 @@ AGENTS: Dict[str, Dict[str, Any]] = {
         "title": "Gereksinim Analisti",
         "emoji": "🧭",
         "produces_files": False,
+        "deps": [],
+        "fanout": False,
         "description": "İsteği somut bir uygulama tanımına çevirir.",
         "system_prompt": f"""Sen App-Forge'un Çözümleyici ajanısın.
 
@@ -75,6 +102,8 @@ işaretle. Çıktın kısa, madde madde ve doğrudan uygulanabilir olsun.
         "title": "Sistem Tasarımcısı",
         "emoji": "🏛️",
         "produces_files": False,
+        "deps": ["analyst"],
+        "fanout": False,
         "description": "Teknoloji yığınını ve dosya ağacını belirler.",
         "system_prompt": f"""Sen App-Forge'un Mimar ajanısın.
 
@@ -89,6 +118,12 @@ işaretle. Çıktın kısa, madde madde ve doğrudan uygulanabilir olsun.
 Uygulama kodu YAZMA; sadece iskeleti tanımla. Bağımlılıkları minimumda tut —
 saf standart kütüphane çözülebilecek şeye paket ekleme.
 
+Dosyaları birden çok Kodlayıcı paralel yazacak: her modülün sorumluluğunu ve
+dışarıya verdiği fonksiyon/sınıf adlarını açıkça yaz ki ayrı ayrı yazılan
+dosyalar birbirine uysun.
+
+{FILE_PLAN_CONTRACT}
+
 {_SHARED_RULES}""",
     },
     "builder": {
@@ -97,6 +132,8 @@ saf standart kütüphane çözülebilecek şeye paket ekleme.
         "title": "Uygulama Geliştirici",
         "emoji": "💻",
         "produces_files": True,
+        "deps": ["architect"],
+        "fanout": True,
         "description": "Çalışan dosyaları baştan sona yazar.",
         "system_prompt": f"""Sen App-Forge'un Kodlayıcı ajanısın.
 
@@ -122,6 +159,8 @@ Hata yönetimini atlama; kullanıcıya görünen hata mesajları Türkçe olsun.
         "title": "Kalite ve Güvenlik",
         "emoji": "🔍",
         "produces_files": True,
+        "deps": ["builder"],
+        "fanout": False,
         "description": "Üretilen kodu denetler ve bozuk dosyaları düzeltir.",
         "system_prompt": f"""Sen App-Forge'un Denetçi ajanısın.
 
@@ -149,6 +188,8 @@ Bulgu yoksa bunu açıkça söyle ve hiç dosya yazma.
         "title": "Teslimat Sorumlusu",
         "emoji": "📦",
         "produces_files": True,
+        "deps": ["builder"],
+        "fanout": False,
         "description": "Kurulum, çalıştırma ve teslim dosyalarını hazırlar.",
         "system_prompt": f"""Sen App-Forge'un Paketleyici ajanısın.
 
@@ -171,6 +212,8 @@ Sonunda "Teslim özeti" başlığı altında dosya sayısını ve giriş noktas�
         "title": "Hızlı Yanıt",
         "emoji": "💬",
         "produces_files": True,
+        "deps": [],
+        "fanout": False,
         "description": "Uygulama üretmeyi gerektirmeyen sorulara doğrudan yanıt verir.",
         "system_prompt": f"""Sen App-Forge'un Danışman ajanısın.
 
@@ -186,8 +229,46 @@ kullanıcı kodu tek dokunuşla kopyalayabilir ve indirebilir.
     },
 }
 
-# Uygulama üretim hattının doğal sırası.
-AGENT_ORDER: List[str] = ["analyst", "architect", "builder", "reviewer", "packager"]
+def dependencies(agent_id: str) -> List[str]:
+    """Bir rolün beklemesi gereken roller."""
+    return list(AGENTS.get(agent_id, {}).get("deps", []))
+
+
+def supports_fanout(agent_id: str) -> bool:
+    """Bu rol dosya gruplarına bölünüp paralel çalıştırılabilir mi?"""
+    return bool(AGENTS.get(agent_id, {}).get("fanout", False))
+
+
+def plan_waves(agent_ids: Sequence[str]) -> List[List[str]]:
+    """Seçilen rolleri bağımlılık dalgalarına ayırır.
+
+    Aynı dalgadaki roller birbirini beklemez, paralel çalışır. Seçime dahil
+    olmayan bağımlılıklar yok sayılır (örneğin ``patch`` modunda Kodlayıcı,
+    Mimar olmadan da çalışır) — aksi hâlde eksik bir bağımlılık tüm hattı
+    kilitlerdi.
+
+    Grafikte bir döngü olursa (asla olmamalı) kalan roller tek bir son dalgada
+    toplanır; hat sessizce durmaz.
+    """
+    remaining = [agent_id for agent_id in agent_ids if agent_id in AGENTS]
+    selected = set(remaining)
+    done: set = set()
+    waves: List[List[str]] = []
+
+    while remaining:
+        wave = [
+            agent_id
+            for agent_id in remaining
+            if all(dep in done for dep in dependencies(agent_id) if dep in selected)
+        ]
+        if not wave:  # döngü koruması
+            waves.append(list(remaining))
+            break
+        waves.append(wave)
+        done.update(wave)
+        remaining = [agent_id for agent_id in remaining if agent_id not in done]
+
+    return waves
 
 
 def get_agent(agent_id: str) -> Optional[Dict[str, Any]]:
@@ -211,6 +292,8 @@ def public_roster() -> List[Dict[str, Any]]:
             "emoji": agent["emoji"],
             "description": agent["description"],
             "produces_files": agent["produces_files"],
+            "deps": list(agent["deps"]),
+            "fanout": agent["fanout"],
         }
         for agent in AGENTS.values()
     ]

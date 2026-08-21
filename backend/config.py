@@ -70,8 +70,19 @@ class Config:
     fallback_base_url: str = "https://api.deepseek.com"
     fallback_model: str = "deepseek-chat"
     fallback_api_key: str = ""
-    fallback_max_tokens: int = 32768
-    fallback_reasoning_effort: str = "high"
+
+    # --- Model davranışı ------------------------------------------------
+    # Düşünme düzeyi Hermes'e her istekte model_options ile gider; geçerli
+    # değerler Hermes'in _REASONING_EFFORTS kümesinden alınmıştır.
+    # "default" = hiçbir şey gönderme, sunucunun kendi ayarı geçerli olsun.
+    reasoning_effort: str = "default"
+    # Hermes max_tokens'ı istek başına KABUL ETMİYOR (istek gövdesinden yalnız
+    # provider/model/model_options okunuyor); bu değer yedek sağlayıcıya
+    # doğrudan gider ve ~/.hermes/.env içine HERMES_MAX_TOKENS olarak yazılır.
+    max_tokens: int = 32768
+    # Yalnızca yedek sağlayıcıya, yalnızca düşünme kapalıyken gönderilir.
+    temperature: float = 1.0
+    top_p: float = 1.0
 
     # --- Depolama -------------------------------------------------------
     data_dir: str = ""
@@ -83,7 +94,9 @@ class Config:
     debug: bool = False
 
     # --- Pipeline -------------------------------------------------------
-    max_agents_per_run: int = 5
+    # Aynı anda kaç ajan düğümü çalışabilir. Telefonda bellek ve eşzamanlı
+    # bağlantı sınırlı olduğu için varsayılan düşük tutuldu.
+    max_parallel_agents: int = 2
     rag_top_k: int = 6
     memory_top_k: int = 6
 
@@ -193,7 +206,7 @@ def load_config() -> Config:
         "fallback_base_url": "HERMESFORGE_FALLBACK_URL",
         "fallback_model": "HERMESFORGE_FALLBACK_MODEL",
         "fallback_api_key": "HERMESFORGE_FALLBACK_KEY",
-        "fallback_reasoning_effort": "HERMESFORGE_FALLBACK_EFFORT",
+        "reasoning_effort": "HERMESFORGE_REASONING_EFFORT",
         "data_dir": "HERMESFORGE_DATA_DIR",
         "workspace_dir": "HERMESFORGE_WORKSPACE_DIR",
         "host": "HERMESFORGE_HOST",
@@ -205,7 +218,8 @@ def load_config() -> Config:
 
     cfg.port = _env_int("HERMESFORGE_PORT", cfg.port)
     cfg.hermes_timeout = _env_int("HERMESFORGE_HERMES_TIMEOUT", cfg.hermes_timeout)
-    cfg.fallback_max_tokens = _env_int("HERMESFORGE_FALLBACK_MAX_TOKENS", cfg.fallback_max_tokens)
+    cfg.max_tokens = _env_int("HERMESFORGE_MAX_TOKENS", cfg.max_tokens)
+    cfg.max_parallel_agents = max(1, min(_env_int("HERMESFORGE_MAX_PARALLEL", cfg.max_parallel_agents), 6))
     cfg.debug = _env_bool("HERMESFORGE_DEBUG", cfg.debug)
     cfg.hermes_autostart = _env_bool("HERMESFORGE_HERMES_AUTOSTART", cfg.hermes_autostart)
     cfg.fallback_enabled = _env_bool("HERMESFORGE_FALLBACK_ENABLED", cfg.fallback_enabled)

@@ -26,15 +26,57 @@ altyapısı doğrudan bu uygulamanın arkasında çalışır.
 
 Hangilerinin çalışacağına yönlendirici karar verir:
 
-| Mod | Ne zaman | Hat |
+| Mod | Ne zaman | Roller |
 |---|---|---|
-| `build` | Sıfırdan yeni bir uygulama | 🧭 Çözümleyici → 🏛️ Mimar → 💻 Kodlayıcı → 🔍 Denetçi → 📦 Paketleyici |
-| `patch` | Mevcut projede değişiklik | 💻 Kodlayıcı → 🔍 Denetçi |
+| `build` | Sıfırdan yeni bir uygulama | 🧭 Çözümleyici, 🏛️ Mimar, 💻 Kodlayıcı, 🔍 Denetçi, 📦 Paketleyici |
+| `patch` | Mevcut projede değişiklik | 💻 Kodlayıcı, 🔍 Denetçi |
 | `package` | "zip olarak ver" | 📦 Paketleyici (model çağrısı yapılmaz) |
 | `answer` | Soru, sohbet, açıklama | 💬 Danışman |
 
 Paketleme istekleri ve tek satırlık sorular **deterministik** olarak
 tanınır — model burada yanılıp hazır projeyi baştan üretemez.
+
+### Ajanlar birbirini doğrusal takip etmez
+
+Sırayı bağımlılık grafiği belirler; bağımlılığı karşılanan her düğüm **aynı
+anda** başlar:
+
+```
+Çözümleyici → Mimar → ┌── Kodlayıcı 1 ─┐ → ┌── Denetçi ────┐
+                      └── Kodlayıcı 2 ─┘   └── Paketleyici ┘
+                          (dosya planına       (birbirini
+                           göre bölünür)        beklemezler)
+```
+
+- **Denetçi ‖ Paketleyici** — ikisi de yalnız Kodlayıcı'ya bağlı, paralel çalışır.
+- **Kodlayıcı bölünür** — Mimar'ın `dosya-plani` bloğu ayrık gruplara ayrılır,
+  her grubu ayrı bir Kodlayıcı aynı anda yazar. Yollar ayrık olduğu için diske
+  yazma çakışmaz; dosyalar arası uyuşmazlıkları Denetçi yakalar.
+- Eşzamanlılık `max_parallel_agents` ile sınırlı (varsayılan **2** — telefonda
+  bellek ve bağlantı sınırlı).
+
+### Hiçbir ajan konuşmayı yeniden açmaz
+
+Eskiden her ajan tüm sohbet geçmişini, kullanıcının ham mesajını ve kendinden
+önceki bütün ajanların çıktısını (ajan başına 14 KB'a kadar) yeniden alıyordu —
+üstelik hepsi tek Hermes oturumunu paylaştığı için aynı metin ikinci kez
+besleniyordu. Modelin gözünden her ajan turu konuşmanın baştan açılmasıydı.
+
+Şimdi ortak bir **pano** (`backend/forge/board.py`) var: ham transkript yerine
+damıtılmış durum taşır (gereksinim, tasarım, dosya planı, dosya listesi,
+bulgular) ve her rol yalnızca kendi dilimlerini görür. Sohbet geçmişi yalnızca
+Çözümleyici'ye gider. Her düğüm kendi Hermes oturumunda çalışır; uzun vadeli
+bellek ortak `X-Hermes-Session-Key` ile korunur.
+
+Gerçek bir turda ölçülen istem boyutları — ajan sayısıyla büyümüyor:
+
+| Ajan | İstem (karakter) |
+|---|---|
+| Çözümleyici | 213 |
+| Mimar | 443 |
+| Kodlayıcı | 1230 |
+| Denetçi | 621 |
+| Paketleyici | 621 |
 
 ---
 
@@ -104,6 +146,20 @@ böylece transkript değişse bile Hermes aynı kullanıcıyı tanır.
 
 ---
 
+## Model ayarları
+
+| Ayar | Hermes yolu | Yedek sağlayıcı |
+|---|---|---|
+| **Düşünme düzeyi** | Her istekte `model_options.reasoning_effort` olarak gider. Değerler Hermes'in kendi listesinden: `none, minimal, low, medium, high, xhigh, max, ultra`. `none` düşünmeyi tamamen kapatır. | gövdeye `reasoning_effort` |
+| **Maksimum token** | Hermes bunu **istek başına kabul etmiyor** — API sunucusu istek gövdesinden yalnız `provider`/`model`/`model_options` okuyor. Değer `~/.hermes/.env` içine `HERMES_MAX_TOKENS` olarak yazılır, gateway yeniden başlayınca geçerli olur. | gövdeye `max_tokens`, anında |
+| **Sıcaklık / Top P** | Hermes istek başına kabul etmiyor. | düşünme kapalıyken gövdeye eklenir |
+
+Model davranış alanları yedek sağlayıcıya **yalnızca kullanıcı varsayılanı
+değiştirdiyse** gönderilir: katı OpenAI-uyumlu sunucular bilinmeyen alanlara
+400 döndürüyor, dokunulmamış bir ayar yüzünden istek reddedilmemeli.
+
+---
+
 ## Bellek ve RAG
 
 Eski JSON tabanlı bellek ve saf-Python TF-IDF motoru kaldırıldı; yerlerine
@@ -134,8 +190,10 @@ backend/
     memory.py           kalıcı bellek (FTS5)
     rag.py              RAG motoru (FTS5 + bm25)
   forge/
-    agents.py           ajan kadrosu ve istemler
-    router.py           otomatik ajan seçimi
+    agents.py           ajan kadrosu, istemler ve bağımlılık grafiği
+    board.py            ortak pano (damıtılmış yapım durumu)
+    scheduler.py        dalga yürütücüsü, paralel düğümler, fan-out
+    router.py           otomatik rol seçimi
     pipeline.py         akış orkestrasyonu
     artifacts.py        kod bloğu → dosya → paket
   providers/direct.py   Hermes kapalıyken yedek sağlayıcı
@@ -148,7 +206,7 @@ scripts/
   install_hermes.sh     Hermes Agent'ı indirir ve kurar
   termux_setup.sh       Android tek komut kurulum
   start.sh              uygulamayı başlat
-tests/                  212 test (pytest)
+tests/                  289 test (pytest)
 ```
 
 ---
@@ -165,6 +223,9 @@ Hepsi isteğe bağlıdır; `.env.example` dosyasına bakın.
 | `HERMESFORGE_HERMES_URL` | `http://127.0.0.1:8642` | Hermes API adresi |
 | `HERMESFORGE_HERMES_AUTOSTART` | `true` | Açılışta gateway'i başlat |
 | `HERMESFORGE_FALLBACK_KEY` | — | Yedek sağlayıcı anahtarı |
+| `HERMESFORGE_REASONING_EFFORT` | `default` | Düşünme düzeyi |
+| `HERMESFORGE_MAX_TOKENS` | `32768` | Maksimum token |
+| `HERMESFORGE_MAX_PARALLEL` | `2` | Aynı anda çalışacak ajan sayısı |
 
 ---
 
@@ -175,7 +236,7 @@ python3 -m pip install -r requirements-dev.txt
 python3 -m pytest
 ```
 
-212 test; hepsi yalıtılmış — makinede çalışan bir Hermes varsa bile testler
+289 test; hepsi yalıtılmış — makinede çalışan bir Hermes varsa bile testler
 ona bağlanmaz (`tests/conftest.py` erişilemez bir porta yönlendirir), yoksa
 "motor yok" senaryoları sessizce yeşile döner ve hiçbir şey doğrulamazdı.
 

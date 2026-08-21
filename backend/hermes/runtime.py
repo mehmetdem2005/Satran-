@@ -201,6 +201,57 @@ class HermesRuntime:
             return ""
         return "\n".join(content.splitlines()[-lines:])
 
+
+    # ------------------------------------------------------------------
+    # Hermes'in kendi .env dosyası
+    # ------------------------------------------------------------------
+    @staticmethod
+    def env_path() -> Path:
+        raw = os.environ.get("HERMES_HOME", "").strip()
+        base = Path(raw).expanduser() if raw else Path.home() / ".hermes"
+        return base / ".env"
+
+    @classmethod
+    def write_env_var(cls, key: str, value: str) -> bool:
+        """``~/.hermes/.env`` içindeki bir anahtarı günceller ya da ekler.
+
+        Hermes bazı ayarları istek başına kabul etmiyor — ``max_tokens``
+        bunlardan biri: API sunucusu istek gövdesinden yalnızca
+        ``provider`` / ``model`` / ``model_options`` okuyor, token sınırını
+        ``HERMES_MAX_TOKENS`` ortam değişkeninden çözüyor. Böyle ayarların
+        tek yolu bu dosya; değişiklik gateway yeniden başlayınca geçerli olur.
+        """
+        if not key or "=" in key or any(ch in value for ch in "\r\n\x00"):
+            return False
+
+        path = cls.env_path()
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            lines = (
+                path.read_text(encoding="utf-8", errors="ignore").splitlines()
+                if path.exists()
+                else []
+            )
+            prefix = f"{key}="
+            replaced = False
+            for index, line in enumerate(lines):
+                if line.strip().startswith(prefix):
+                    lines[index] = f"{key}={value}"
+                    replaced = True
+                    break
+            if not replaced:
+                lines.append(f"{key}={value}")
+
+            path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            try:
+                path.chmod(0o600)
+            except OSError:
+                pass
+        except OSError as exc:
+            logger.warning("Hermes .env yazılamadı: %s", exc)
+            return False
+        return True
+
     @staticmethod
     def _port_from_url(url: str) -> Optional[int]:
         try:

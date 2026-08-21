@@ -62,9 +62,10 @@
     chatTitle: '',
     running: false,
     controller: null,
-    activeAgent: null,
-    currentBubble: null,
-    currentText: '',
+    // Ajanlar paralel çalıştığı için tek bir "aktif balon" yetmez: her düğüm
+    // (fan-out'ta aynı rolden birden çok olabilir) kendi balonunu tutar.
+    streams: new Map(),   // node anahtarı -> {bubble, text, card}
+    active: new Map(),    // o an çalışan düğümler -> card
     history: JSON.parse(localStorage.getItem('hf.history') || '[]'),
     chatId: null,
     dark: localStorage.getItem('hf.dark') !== 'false'
@@ -149,41 +150,92 @@
     return row;
   }
 
-  function renderCurrent() {
-    if (!state.currentBubble) return;
-    state.currentBubble.innerHTML = window.Markdown.render(state.currentText);
+  /** Bir düğüm için balon açar (yoksa) ve akış kaydını döndürür. */
+  function openStream(card) {
+    const key = card.node || card.id;
+    let stream = state.streams.get(key);
+    if (!stream) {
+      const row = addAgentMessage(card);
+      stream = { bubble: row.querySelector('.bubble'), text: '', card: card, row: row };
+      row.classList.add('streaming');
+      state.streams.set(key, stream);
+    }
+    return stream;
+  }
+
+  function renderStream(stream) {
+    stream.bubble.innerHTML = window.Markdown.render(stream.text);
     scrollToEnd();
   }
 
-  function finishBubble() {
-    if (state.currentBubble) {
-      const row = state.currentBubble.closest('.msg');
-      if (row) row.classList.remove('streaming');
-      renderCurrent();
-      if (state.currentText.trim() && state.activeAgent) {
-        state.messages.push({
-          role: 'assistant',
-          content: state.currentText,
-          agentId: state.activeAgent.id,
-          agentName: state.activeAgent.name
-        });
-      }
+  /** Tek bir düğümün balonunu kapatır; diğerleri akmaya devam eder. */
+  function closeStream(key) {
+    const stream = state.streams.get(key);
+    if (!stream) return;
+    stream.row.classList.remove('streaming');
+    renderStream(stream);
+    if (stream.text.trim()) {
+      state.messages.push({
+        role: 'assistant',
+        content: stream.text,
+        agentId: stream.card.id,
+        agentName: stream.card.label || stream.card.name
+      });
     }
-    state.currentBubble = null;
-    state.currentText = '';
+    state.streams.delete(key);
+  }
+
+  function closeAllStreams() {
+    Array.from(state.streams.keys()).forEach(closeStream);
+    state.active.clear();
+  }
+
+  /** Başlık: tek ajan varsa adı, birden fazlaysa kaç ajan çalıştığı. */
+  function refreshTitle() {
+    const cards = Array.from(state.active.values());
+    if (cards.length === 0) {
+      setTitle(state.chatTitle || 'HermesForge');
+    } else if (cards.length === 1) {
+      const card = cards[0];
+      setTitle(card.emoji + '  ' + (card.label || card.name), card.title);
+    } else {
+      setTitle(
+        cards.length + ' ajan çalışıyor',
+        cards.map(function (c) { return c.emoji + ' ' + (c.label || c.name); }).join(', ')
+      );
+    }
+  }
+
+  /** Alt başlığı geçici bir duruma çevirir (düşünüyor, araç çalıştırıyor…). */
+  function setStatusLine(text) {
+    const cards = Array.from(state.active.values());
+    if (cards.length === 1) {
+      const card = cards[0];
+      setTitle(card.emoji + '  ' + (card.label || card.name), text);
+    } else if (cards.length > 1) {
+      setTitle(cards.length + ' ajan çalışıyor', text);
+    } else {
+      setTitle(state.chatTitle || 'HermesForge', text);
+    }
   }
 
   // ------------------------------------------------------------ hat şeridi
 
-  function renderPipeline(agents, activeId) {
+  /**
+   * Hat şeridi. Ajanlar artık doğrusal ilerlemediği için birden çok çip aynı
+   * anda etkin olabilir; ok yerine dalga sınırlarını gösteriyoruz.
+   */
+  function renderPipeline(agents) {
     if (!agents || !agents.length) { els.pipeline.innerHTML = ''; els.pipeline.classList.remove('show'); return; }
     els.pipeline.classList.add('show');
+    const activeIds = new Set(Array.from(state.active.values()).map(function (c) { return c.id; }));
     els.pipeline.innerHTML = agents.map(function (agent) {
       let cls = 'pipe-chip';
-      if (agent.id === activeId) cls += ' active';
+      if (activeIds.has(agent.id)) cls += ' active';
       else if (agent.done) cls += ' done';
+      const count = agent.instances > 1 ? ' <small>×' + agent.instances + '</small>' : '';
       return '<span class="' + cls + '"><span>' + agent.emoji + '</span>' +
-        window.Markdown.escapeHtml(agent.name) + '</span>';
+        window.Markdown.escapeHtml(agent.name) + count + '</span>';
     }).join('<span class="pipe-arrow">→</span>');
   }
 
@@ -277,13 +329,14 @@
       if (err.name === 'AbortError') addNotice('Akış durduruldu.', 'warn');
       else addNotice('Hata: ' + err.message, 'error');
     } finally {
-      finishBubble();
+      // Akış bittiğinde/kesildiğinde açık kalan tüm balonları kapat —
+      // paralel çalışırken birden fazla olabilir.
+      closeAllStreams();
       state.running = false;
       state.controller = null;
-      state.activeAgent = null;
       els.sendBtn.style.display = 'flex';
       els.stopBtn.style.display = 'none';
-      renderPipeline(pipelineAgents.map(function (a) { return Object.assign({}, a, { done: true }); }), null);
+      renderPipeline(pipelineAgents.map(function (a) { return Object.assign({}, a, { done: true }); }));
       setTitle(state.chatTitle || 'HermesForge');
       persistChat();
     }
@@ -292,7 +345,7 @@
   function handleEvent(event, pipelineAgents) {
     switch (event.type) {
       case 'status':
-        setTitle(state.chatTitle || 'HermesForge', event.text);
+        setStatusLine(event.text);
         break;
 
       case 'engine':
@@ -301,10 +354,31 @@
         break;
 
       case 'route':
-        pipelineAgents = (event.agents || []).map(function (a) { return Object.assign({}, a, { done: false }); });
+        pipelineAgents = (event.agents || []).map(function (a) {
+          return Object.assign({}, a, { done: false, instances: 1 });
+        });
         if (event.title) { state.chatTitle = event.title; }
-        renderPipeline(pipelineAgents, null);
+        renderPipeline(pipelineAgents);
         addNotice('Yönlendirme: ' + event.mode + ' · ' + (event.reason || ''), 'info');
+        break;
+
+      case 'wave':
+        // Aynı dalgadaki ajanlar paralel çalışır. Fan-out'ta aynı rolden
+        // birden çok düğüm olur; şeritte "×2" olarak gösteriyoruz.
+        (event.agents || []).forEach(function (card) {
+          const row = pipelineAgents.find(function (a) { return a.id === card.id; });
+          if (row) row.instances = (event.agents || []).filter(function (c) {
+            return c.id === card.id;
+          }).length;
+        });
+        if (event.parallel) {
+          addNotice(
+            event.agents.length + ' ajan paralel başlıyor: ' +
+            event.agents.map(function (c) { return c.emoji + ' ' + (c.label || c.name); }).join(', '),
+            'info'
+          );
+        }
+        renderPipeline(pipelineAgents);
         break;
 
       case 'project':
@@ -315,51 +389,54 @@
         state.sessionId = event.session_id;
         break;
 
-      case 'agent_start':
-        finishBubble();
-        state.activeAgent = event.agent;
-        setTitle(event.agent.emoji + '  ' + event.agent.name, event.agent.title);
-        renderPipeline(pipelineAgents, event.agent.id);
-        state.currentBubble = addAgentMessage(event.agent).querySelector('.bubble');
-        state.currentBubble.closest('.msg').classList.add('streaming');
-        state.currentText = '';
+      case 'agent_start': {
+        const card = event.agent;
+        state.active.set(card.node || card.id, card);
+        openStream(card);
+        refreshTitle();
+        renderPipeline(pipelineAgents);
         break;
+      }
 
-      case 'delta':
-        if (!state.currentBubble) {
-          const agent = state.activeAgent || { id: 'advisor', name: 'Ajan', emoji: '🤖', title: '' };
-          state.activeAgent = agent;
-          state.currentBubble = addAgentMessage(agent).querySelector('.bubble');
+      case 'delta': {
+        // Paralel akışta hangi balona yazılacağını düğüm anahtarı belirler.
+        const key = event.node || event.agent_id;
+        let stream = state.streams.get(key);
+        if (!stream) {
+          stream = openStream(state.active.get(key) || {
+            id: event.agent_id || 'advisor', name: 'Ajan', emoji: '🤖', title: '', node: key
+          });
         }
-        state.currentText += event.text;
-        renderCurrent();
+        stream.text += event.text;
+        renderStream(stream);
         break;
+      }
 
       case 'reasoning':
-        setTitle(
-          state.activeAgent ? state.activeAgent.emoji + '  ' + state.activeAgent.name : 'HermesForge',
-          'düşünüyor…'
-        );
+        setStatusLine('düşünüyor…');
         break;
 
       case 'tool_start':
-        setTitle(
-          state.activeAgent ? state.activeAgent.emoji + '  ' + state.activeAgent.name : 'HermesForge',
-          '🔧 ' + event.tool
-        );
+        setStatusLine('🔧 ' + event.tool);
         break;
 
-      case 'agent_end':
-        pipelineAgents = pipelineAgents.map(function (a) {
-          return a.id === event.agent_id ? Object.assign({}, a, { done: true }) : a;
-        });
-        renderPipeline(pipelineAgents, null);
-        finishBubble();
+      case 'agent_end': {
+        const key = event.node || event.agent_id;
+        state.active.delete(key);
+        closeStream(key);
+        const row = pipelineAgents.find(function (a) { return a.id === event.agent_id; });
+        // Fan-out'ta rol, ancak tüm düğümleri bitince "tamam" sayılır.
+        if (row && !Array.from(state.active.values()).some(function (c) { return c.id === event.agent_id; })) {
+          row.done = true;
+        }
+        renderPipeline(pipelineAgents);
+        refreshTitle();
         if (event.files && event.files.length) {
-          addNotice(event.agent.name + ' ' + event.files.length + ' dosya yazdı: ' +
-            event.files.map(function (f) { return f.path; }).join(', '), 'ok');
+          addNotice((event.agent.label || event.agent.name) + ' ' + event.files.length +
+            ' dosya yazdı: ' + event.files.map(function (f) { return f.path; }).join(', '), 'ok');
         }
         break;
+      }
 
       case 'artifacts':
         renderArtifacts(event);
@@ -418,6 +495,8 @@
     state.projectId = chat.projectId || null;
     state.sessionId = chat.sessionId || null;
     state.chatTitle = chat.title;
+    state.streams.clear();
+    state.active.clear();
 
     els.messages.innerHTML = '';
     state.messages.forEach(function (message) {
@@ -437,6 +516,8 @@
 
   function newChat() {
     persistChat();
+    state.streams.clear();
+    state.active.clear();
     state.messages = [];
     state.projectId = null;
     state.sessionId = null;
@@ -673,6 +754,9 @@
     });
 
     els.saveSettingsBtn.addEventListener('click', saveSettings);
+    ['temperature', 'top_p'].forEach(function (field) {
+      $(field).addEventListener('input', syncSliderLabels);
+    });
 
     // Kod kartı düğmeleri, sohbet listesi, proje listesi: tek delege dinleyici.
     document.addEventListener('click', function (event) {
@@ -749,6 +833,7 @@
     'hermes_base_url', 'hermes_api_key', 'hermes_model', 'hermes_repo_dir',
     'fallback_base_url', 'fallback_model', 'fallback_api_key'
   ];
+  const NUMERIC_FIELDS = ['max_tokens', 'temperature', 'top_p'];
 
   async function loadSettings() {
     const data = await fetch('/api/settings').then(function (r) { return r.json(); });
@@ -756,11 +841,24 @@
       const input = $(field);
       if (!input) return;
       const value = data[field];
+      // Sırlar sunucudan boolean olarak gelir; düz metin asla dönmez.
       if (typeof value === 'boolean') input.placeholder = value ? '•••• (kayıtlı)' : 'ayarlanmadı';
       else input.value = value || '';
     });
     $('hermes_autostart').checked = !!data.hermes_autostart;
     $('fallback_enabled').checked = !!data.fallback_enabled;
+
+    $('reasoning_effort').value = data.reasoning_effort || 'default';
+    NUMERIC_FIELDS.forEach(function (field) {
+      const input = $(field);
+      if (input && data[field] !== undefined && data[field] !== null) input.value = data[field];
+    });
+    syncSliderLabels();
+  }
+
+  function syncSliderLabels() {
+    $('temperatureValue').textContent = parseFloat($('temperature').value).toFixed(2);
+    $('topPValue').textContent = parseFloat($('top_p').value).toFixed(2);
   }
 
   async function saveSettings() {
@@ -771,6 +869,11 @@
     });
     payload.hermes_autostart = $('hermes_autostart').checked;
     payload.fallback_enabled = $('fallback_enabled').checked;
+    payload.reasoning_effort = $('reasoning_effort').value;
+    NUMERIC_FIELDS.forEach(function (field) {
+      const raw = $(field).value.trim();
+      if (raw !== '') payload[field] = Number(raw);
+    });
 
     const data = await fetch('/api/settings', {
       method: 'POST',
@@ -778,8 +881,15 @@
       body: JSON.stringify(payload)
     }).then(function (r) { return r.json(); });
 
-    toast(data.saved ? 'Ayarlar kaydedildi.' : (data.error || 'Kaydedilemedi.'), data.saved ? 'ok' : 'error');
-    if (data.saved) { refreshStatus(); closePanels(); }
+    if (!data.saved) { toast(data.error || 'Kaydedilemedi.', 'error'); return; }
+
+    if (data.hermes_restart_required) {
+      toast('Kaydedildi. Token sınırı için Hermes gateway yeniden başlatılmalı.', 'warn');
+    } else {
+      toast('Ayarlar kaydedildi.', 'ok');
+    }
+    refreshStatus();
+    closePanels();
   }
 
   // ------------------------------------------------------------------- açılış

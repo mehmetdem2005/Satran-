@@ -11,7 +11,7 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from flask import Flask, Response, jsonify, request, send_file
 from werkzeug.exceptions import RequestEntityTooLarge
@@ -37,6 +37,49 @@ logger = logging.getLogger("hermesforge")
 
 MAX_UPLOAD_BYTES = 32 * 1024 * 1024
 DEFAULT_SCOPE = "default"
+
+# Hermes'in kabul ettiği düşünme düzeyleri (_REASONING_EFFORTS) + "default"
+# = hiçbir şey gönderme, sunucunun kendi ayarı geçerli olsun.
+REASONING_EFFORTS = (
+    "default", "none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra",
+)
+
+
+def _validate_settings(updates: Dict[str, Any]) -> Optional[str]:
+    """Ayar değerlerini doğrular; sorun varsa Türkçe hata mesajı döndürür.
+
+    Düşünme düzeyi listesi Hermes'in kendi ``_REASONING_EFFORTS`` kümesinden
+    alınmıştır; listede olmayan bir değer Hermes tarafından sessizce yok
+    sayılırdı ve kullanıcı ayarın çalıştığını sanırdı.
+    """
+    effort = updates.get("reasoning_effort")
+    if effort is not None and str(effort).strip().lower() not in REASONING_EFFORTS:
+        return f"Geçersiz düşünme düzeyi. Seçenekler: {', '.join(REASONING_EFFORTS)}"
+
+    for key, low, high in (
+        ("max_tokens", 1, 1_000_000),
+        ("max_parallel_agents", 1, 6),
+    ):
+        if key in updates:
+            try:
+                value = int(updates[key])
+            except (TypeError, ValueError):
+                return f"{key} bir tam sayı olmalı."
+            if not low <= value <= high:
+                return f"{key} {low}-{high} aralığında olmalı."
+            updates[key] = value
+
+    for key, low, high in (("temperature", 0.0, 2.0), ("top_p", 0.0, 1.0)):
+        if key in updates:
+            try:
+                value = float(updates[key])
+            except (TypeError, ValueError):
+                return f"{key} bir sayı olmalı."
+            if not low <= value <= high:
+                return f"{key} {low}-{high} aralığında olmalı."
+            updates[key] = value
+
+    return None
 
 
 def create_app() -> Flask:
@@ -151,6 +194,8 @@ def _register_routes(app: Flask) -> None:
                 "rag": services["rag"].stats(),
                 "agents": public_roster(),
                 "formats": list(EXPORT_FORMATS),
+                "reasoning_efforts": list(REASONING_EFFORTS),
+                "max_parallel_agents": cfg.max_parallel_agents,
             }
         )
 
@@ -388,16 +433,35 @@ def _register_routes(app: Flask) -> None:
         allowed = {
             "hermes_base_url", "hermes_api_key", "hermes_model", "hermes_provider",
             "hermes_autostart", "hermes_repo_dir", "fallback_enabled", "fallback_base_url",
-            "fallback_model", "fallback_api_key", "fallback_max_tokens", "rag_top_k",
-            "memory_top_k",
+            "fallback_model", "fallback_api_key", "rag_top_k", "memory_top_k",
+            "reasoning_effort", "max_tokens", "temperature", "top_p", "max_parallel_agents",
         }
         updates = {key: value for key, value in payload.items() if key in allowed}
         if not updates:
             return jsonify({"error": "Güncellenecek geçerli alan yok."}), 400
 
+        invalid = _validate_settings(updates)
+        if invalid:
+            return jsonify({"error": invalid}), 400
+
         cfg = config_module.save_config(services["config"], updates)
         services["client"]._capabilities = None  # yetenek önbelleğini tazele
-        return jsonify({"saved": True, "settings": cfg.to_public_dict()})
+
+        # Hermes token sınırını istek başına kabul etmiyor; kendi .env'ine
+        # yazıp kullanıcıya gateway'i yeniden başlatması gerektiğini söylüyoruz.
+        restart_required = False
+        if "max_tokens" in updates:
+            restart_required = services["runtime"].write_env_var(
+                "HERMES_MAX_TOKENS", str(cfg.max_tokens)
+            )
+
+        return jsonify(
+            {
+                "saved": True,
+                "settings": cfg.to_public_dict(),
+                "hermes_restart_required": restart_required,
+            }
+        )
 
     # ------------------------------------------------------------------
     # Hatalar

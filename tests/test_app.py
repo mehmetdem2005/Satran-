@@ -214,3 +214,56 @@ class TestConversationExport:
 
     def test_bos_konusma_reddedilir(self, client):
         assert client.post("/api/export/conversation", json={"messages": []}).status_code == 400
+
+
+class TestModelSettings:
+    """Kaldırılıp geri getirilen model ayarları."""
+
+    def test_dusunme_duzeyi_kaydedilir(self, client):
+        assert client.post("/api/settings", json={"reasoning_effort": "xhigh"}).get_json()["saved"]
+        assert client.get("/api/settings").get_json()["reasoning_effort"] == "xhigh"
+
+    def test_gecersiz_dusunme_duzeyi_reddedilir(self, client):
+        """Hermes bilinmeyen değeri sessizce yok sayardı; kullanıcı ayarın
+        çalıştığını sanırdı."""
+        response = client.post("/api/settings", json={"reasoning_effort": "uydurma"})
+        assert response.status_code == 400
+        assert "Geçersiz düşünme düzeyi" in response.get_json()["error"]
+
+    def test_hermesin_kabul_ettigi_tum_duzeyler_gecerli(self, client):
+        for effort in ("default", "none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"):
+            assert client.post("/api/settings", json={"reasoning_effort": effort}).status_code == 200
+
+    def test_max_token_kaydedilir_ve_env_yazilir(self, client, tmp_path):
+        from hermes.runtime import HermesRuntime
+
+        response = client.post("/api/settings", json={"max_tokens": 65536})
+        payload = response.get_json()
+        assert payload["saved"] is True
+        assert payload["hermes_restart_required"] is True, (
+            "Hermes max_tokens'ı istek başına kabul etmiyor; .env'e yazılmalı"
+        )
+        assert "HERMES_MAX_TOKENS=65536" in HermesRuntime.env_path().read_text(encoding="utf-8")
+
+    @pytest.mark.parametrize("value", [0, -5, 2_000_000, "abc"])
+    def test_gecersiz_max_token(self, client, value):
+        assert client.post("/api/settings", json={"max_tokens": value}).status_code == 400
+
+    def test_temperature_ve_top_p(self, client):
+        assert client.post("/api/settings", json={"temperature": 0.3, "top_p": 0.8}).status_code == 200
+        data = client.get("/api/settings").get_json()
+        assert data["temperature"] == 0.3
+        assert data["top_p"] == 0.8
+
+    @pytest.mark.parametrize("payload", [{"temperature": 5}, {"top_p": 2}, {"temperature": "x"}])
+    def test_araligi_asan_degerler(self, client, payload):
+        assert client.post("/api/settings", json=payload).status_code == 400
+
+    def test_paralel_ajan_siniri(self, client):
+        assert client.post("/api/settings", json={"max_parallel_agents": 3}).status_code == 200
+        assert client.post("/api/settings", json={"max_parallel_agents": 99}).status_code == 400
+
+    def test_status_dusunme_duzeylerini_bildirir(self, client):
+        data = client.get("/api/status").get_json()
+        assert "xhigh" in data["reasoning_efforts"]
+        assert data["max_parallel_agents"] >= 1
