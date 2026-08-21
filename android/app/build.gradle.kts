@@ -22,6 +22,18 @@ android {
         }
     }
 
+    // Mimariye göre ayrı APK'lar. Tek APK 34 MB oluyor çünkü iki mimarinin
+    // Python çalışma zamanını birden taşıyor; telefonun yalnızca birine
+    // ihtiyacı var. Bölünce arm64 sürümü ~20 MB'a düşüyor.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a")
+            isUniversalApk = true   // hepsini içeren sürüm de üretilsin
+        }
+    }
+
     buildTypes {
         getByName("debug") {
             isMinifyEnabled = false

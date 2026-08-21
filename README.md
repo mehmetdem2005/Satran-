@@ -84,8 +84,16 @@ Gerçek bir turda ölçülen istem boyutları — ajan sayısıyla büyümüyor:
 
 ### Android APK (Termux gerekmez)
 
-`dist/hermesforge-debug.apk` dosyasını telefona kopyalayıp dokun; "bilinmeyen
-kaynaklardan kuruluma izin ver" sorulursa onayla. USB ile: `adb install -r dist/hermesforge-debug.apk`.
+Derleme mimariye göre üç APK üretir:
+
+| Dosya | Boyut | Kime |
+|---|---|---|
+| `hermesforge-arm64-debug.apk` | ~28 MB | 2017 sonrası neredeyse tüm telefonlar |
+| `hermesforge-arm32-debug.apk` | ~24 MB | eski 32-bit cihazlar |
+| `hermesforge-universal-debug.apk` | ~34 MB | emin değilsen; her cihazda çalışır |
+
+Telefona kopyalayıp dokun; "bilinmeyen kaynaklardan kuruluma izin ver"
+sorulursa onayla. USB ile: `adb install -r dist/hermesforge-arm64-debug.apk`.
 
 APK'yı kendin derlemek istersen:
 

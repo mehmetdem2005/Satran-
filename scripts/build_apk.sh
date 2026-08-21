@@ -89,22 +89,36 @@ log "APK derleniyor (ilk derleme bağımlılıkları indirir, uzun sürebilir)�
 $GRADLE_CMD assembleDebug --no-daemon --console=plain || die "Gradle derlemesi başarısız."
 
 # --------------------------------------------------------------- 5. Çıktı
-APK="$(find "$PROJECT_ROOT/android/app/build/outputs/apk/debug" -name "*.apk" | head -1)"
-[ -n "$APK" ] || die "APK üretilmedi."
+OUT_DIR="$PROJECT_ROOT/android/app/build/outputs/apk/debug"
+[ -d "$OUT_DIR" ] || die "APK üretilmedi."
 
 mkdir -p "$PROJECT_ROOT/dist"
-OUT="$PROJECT_ROOT/dist/hermesforge-debug.apk"
-cp "$APK" "$OUT"
+rm -f "$PROJECT_ROOT/dist"/*.apk
+
+# Mimariye göre bölünmüş APK'lar + hepsini içeren evrensel sürüm.
+for apk in "$OUT_DIR"/*.apk; do
+  [ -f "$apk" ] || continue
+  case "$(basename "$apk")" in
+    *arm64-v8a*)   name="hermesforge-arm64-debug.apk" ;;
+    *armeabi-v7a*) name="hermesforge-arm32-debug.apk" ;;
+    *universal*)   name="hermesforge-universal-debug.apk" ;;
+    *)             name="hermesforge-debug.apk" ;;
+  esac
+  cp "$apk" "$PROJECT_ROOT/dist/$name"
+done
 
 cat <<SUMMARY
 
-  APK hazır: $OUT
-  Boyut    : $(du -h "$OUT" | cut -f1)
+  APK'lar hazır: $PROJECT_ROOT/dist/
+$(cd "$PROJECT_ROOT/dist" && for f in *.apk; do printf "    %-36s %s\n" "$f" "$(du -h "$f" | cut -f1)"; done)
+
+  Hangisini kuracaksın: 2017 sonrası neredeyse tüm telefonlar **arm64**.
+  Emin değilsen universal sürümü her cihazda çalışır (ama daha büyük).
 
   Telefona kurmak için:
     - Dosyayı telefona kopyala ve dokun
     - "Bilinmeyen kaynaklardan kuruluma izin ver" sorulursa onayla
-    - Ya da USB ile: adb install -r "$OUT"
+    - Ya da USB ile: adb install -r dist/hermesforge-arm64-debug.apk
 
   İlk açılışta bir model sağlayıcısı anahtarı gir (Ayarlar → Yedek sağlayıcı).
   Hermes'in araçlarını da istiyorsan Termux'ta Hermes'i çalıştırıp
