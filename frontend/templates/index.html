@@ -84,7 +84,30 @@
       <button class="icon-btn" id="closeSettingsBtn" aria-label="Kapat">×</button>
     </div>
     <div class="panel-body">
-      <section class="panel-section">
+      <section class="panel-section" id="embeddedSection" style="display:none">
+        <div class="section-title">Model (gömülü Hermes)</div>
+        <p class="hint">
+          Hermes bu uygulamanın içinde çalışıyor. Modeli ve anahtarı burada
+          ayarlıyorsun; ikisi de telefondan çıkmıyor.
+        </p>
+        <label class="field">
+          <span>DeepSeek API anahtarı</span>
+          <input type="password" id="modelKey" placeholder="değiştirmek için yapıştır"
+                 autocomplete="off" autocapitalize="none" spellcheck="false">
+        </label>
+        <label class="field">
+          <span>Model</span>
+          <select id="modelName">
+            <option value="deepseek-v4-pro">V4 Pro — derin akıl yürütme</option>
+            <option value="deepseek-v4-flash">V4 Flash — hızlı, genel amaçlı</option>
+            <option value="deepseek-v4-flash-vision-exp">V4 Flash Vision (deneysel)</option>
+          </select>
+        </label>
+        <button class="ghost-btn" id="saveModelBtn">Modeli kaydet</button>
+        <div class="setup-status" id="modelStatus"></div>
+      </section>
+
+      <section class="panel-section" id="remoteSection">
         <div class="section-title">Hermes sunucusu</div>
         <p class="hint">
           Uygulama <b>yalnızca</b> Hermes Agent ile çalışır. Hermes senin
@@ -159,37 +182,74 @@
       -->
       <div class="setup" id="setupCard" style="display:none">
         <div class="setup-icon">⚒️</div>
-        <h1>Hermes'e bağlan</h1>
-        <p class="setup-lead">
-          Bu uygulama tüm işi <b>Hermes Agent</b>'a yaptırır. Hermes'in
-          çalıştığı bilgisayarda <code>bash scripts/hermes_sunucu.sh</code>
-          komutunu çalıştır; ekrana çıkan <b>QR kodu telefonunun kamerasıyla
-          okut</b>, bağlantı kendiliğinden kurulur.
-        </p>
 
-        <div class="setup-found" id="setupFound" style="display:none"></div>
+        <!-- Gömülü motor: Hermes telefonun içinde. Tek gereken model anahtarı. -->
+        <div id="setupEmbedded" style="display:none">
+          <h1>Tek adım kaldı</h1>
+          <p class="setup-lead">
+            Hermes uygulamanın içinde çalışıyor. Modeli senin hesabından
+            çalıştırıyor; bir <b>DeepSeek API anahtarı</b> yapıştır, gerisi hazır.
+          </p>
 
-        <p class="setup-lead setup-or">Ya da adresi elle gir:</p>
+          <label class="field">
+            <span>DeepSeek API anahtarı</span>
+            <input type="password" id="setupModelKey" placeholder="sk-…" autocomplete="off"
+                   autocapitalize="none" spellcheck="false">
+          </label>
 
-        <label class="field">
-          <span>Hermes adresi</span>
-          <input type="text" id="setupBaseUrl" placeholder="http://192.168.1.20:8642"
-                 autocomplete="off" autocapitalize="none" spellcheck="false">
-        </label>
+          <label class="field">
+            <span>Model</span>
+            <select id="setupModelName">
+              <option value="deepseek-v4-pro">V4 Pro — derin akıl yürütme</option>
+              <option value="deepseek-v4-flash">V4 Flash — hızlı, genel amaçlı</option>
+              <option value="deepseek-v4-flash-vision-exp">V4 Flash Vision (deneysel)</option>
+            </select>
+          </label>
 
-        <label class="field">
-          <span>API_SERVER_KEY</span>
-          <input type="password" id="setupKey" placeholder="hermes_sunucu.sh ekranda yazar"
-                 autocomplete="off" autocapitalize="none" spellcheck="false">
-        </label>
+          <a class="setup-link" href="https://platform.deepseek.com/api_keys"
+             target="_blank" rel="noopener noreferrer">Anahtarı nereden alırım? →</a>
 
-        <button class="primary-btn setup-btn" id="setupSaveBtn">Bağlan ve başla</button>
-        <div class="setup-status" id="setupStatus"></div>
+          <button class="primary-btn setup-btn" id="setupModelBtn">Kaydet ve başla</button>
+          <div class="setup-status" id="setupModelStatus"></div>
 
-        <p class="setup-note">
-          Anahtar yalnızca bu telefonda saklanır. Hermes'in çalıştığı makine
-          açık olmalı ve telefonla aynı ağda bulunmalı.
-        </p>
+          <p class="setup-note">
+            Anahtar yalnızca bu telefonda saklanır, başka hiçbir yere gönderilmez.
+          </p>
+        </div>
+
+        <!-- Gömülü motor yoksa: ağdaki bir Hermes'e bağlan. -->
+        <div id="setupRemote" style="display:none">
+          <h1>Hermes'e bağlan</h1>
+          <p class="setup-lead">
+            Bu yapıda gömülü motor yok. Hermes'in çalıştığı bilgisayarda
+            <code>bash scripts/hermes_sunucu.sh</code> komutunu çalıştır ve
+            ekrandaki <b>QR kodu telefonun kamerasıyla okut</b>.
+          </p>
+
+          <div class="setup-found" id="setupFound" style="display:none"></div>
+
+          <p class="setup-lead setup-or">Ya da adresi elle gir:</p>
+
+          <label class="field">
+            <span>Hermes adresi</span>
+            <input type="text" id="setupBaseUrl" placeholder="http://192.168.1.20:8642"
+                   autocomplete="off" autocapitalize="none" spellcheck="false">
+          </label>
+
+          <label class="field">
+            <span>API_SERVER_KEY</span>
+            <input type="password" id="setupKey" placeholder="hermes_sunucu.sh ekranda yazar"
+                   autocomplete="off" autocapitalize="none" spellcheck="false">
+          </label>
+
+          <button class="primary-btn setup-btn" id="setupSaveBtn">Bağlan ve başla</button>
+          <div class="setup-status" id="setupStatus"></div>
+
+          <p class="setup-note">
+            Anahtar yalnızca bu telefonda saklanır. Hermes'in çalıştığı makine
+            açık olmalı ve telefonla aynı ağda bulunmalı.
+          </p>
+        </div>
       </div>
 
       <div class="empty" id="emptyState">

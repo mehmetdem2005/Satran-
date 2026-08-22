@@ -1,10 +1,15 @@
 """APK içindeki Python girişi.
 
 Kotlin tarafı burayı çağırır: ortamı kurar, arayüz dosyalarını uygulamanın
-özel dizinine açar, Flask sunucusunu başlatır ve seçilen portu döndürür.
+özel dizinine açar, **gömülü Hermes gateway'ini** ve Flask sunucusunu
+başlatır, seçilen portu döndürür.
 
 Android'e özgü tek fark yollardır. Uygulama mantığının tamamı ``backend/``
 altındaki modüllerden gelir — masaüstünde çalışan kodun aynısı.
+
+Gömülü Hermes başlamazsa uygulama açılmaya devam eder: kullanıcı ağdaki bir
+Hermes'e bağlanabilir. Sessizce çökmek yerine sebebini ``/api/status``
+üzerinden arayüze bildiriyoruz.
 """
 
 from __future__ import annotations
@@ -12,6 +17,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+import threading
 import zipfile
 from pathlib import Path
 
@@ -57,6 +63,34 @@ def _install_frontend(files_dir: Path, assets_zip: str) -> Path:
     return target
 
 
+def _start_embedded_hermes(hermes_home: Path) -> None:
+    """Gömülü Hermes gateway'ini başlatır; başaramazsa uygulamayı durdurmaz.
+
+    Gateway ilk açılışta SQLite şemalarını kuruyor ve bu telefonda saniyeler
+    sürebiliyor. Beklemeyi bloklamıyoruz: arayüz açılır, motor hazır olunca
+    ``/api/status`` bunu bildirir.
+    """
+    try:
+        from hermes import embedded
+    except Exception as exc:
+        logger.warning("Gömülü Hermes modülü yüklenemedi: %s", exc)
+        return
+
+    if not embedded.available():
+        logger.info("Bu yapıda Hermes kaynağı yok; ağdaki Hermes'e bağlanılabilir.")
+        return
+
+    os.environ.setdefault("HERMESFORGE_HERMES_URL", f"http://127.0.0.1:{embedded.DEFAULT_PORT}")
+
+    def _boot() -> None:
+        try:
+            embedded.start(hermes_home, timeout=180)
+        except Exception:
+            logger.exception("Gömülü Hermes başlatılamadı")
+
+    threading.Thread(target=_boot, name="hermes-boot", daemon=True).start()
+
+
 def start(files_dir: str, frontend_zip: str) -> int:
     """Sunucuyu başlatır ve dinlenen portu döndürür. Hata olursa 0."""
     try:
@@ -66,8 +100,9 @@ def start(files_dir: str, frontend_zip: str) -> int:
         # HermesForge tüm verisini (ayarlar, SQLite, üretilen projeler) burada
         # tutsun — Android'de ev dizini yazılabilir değil.
         os.environ.setdefault("HERMESFORGE_HOME", str(base / "hermesforge"))
-        os.environ.setdefault("HERMES_HOME", str(base / "hermes"))
-        # Hermes APK'nın içinde yok; gateway başlatmayı hiç denemesin.
+        hermes_home = Path(os.environ.setdefault("HERMES_HOME", str(base / "hermes")))
+        # Gömülü gateway'i biz başlatıyoruz; HermesRuntime alt süreç açmasın
+        # (Android'de alt süreçle venv çalıştırmak zaten mümkün değil).
         os.environ.setdefault("HERMESFORGE_HERMES_AUTOSTART", "false")
         # Arayüz ve hata mesajları kabuk komutu önermesin.
         os.environ["HERMESFORGE_PLATFORM"] = "android"
@@ -75,6 +110,8 @@ def start(files_dir: str, frontend_zip: str) -> int:
         frontend = _install_frontend(base, frontend_zip)
         os.environ["HERMESFORGE_TEMPLATES"] = str(frontend / "templates")
         os.environ["HERMESFORGE_STATIC"] = str(frontend / "static")
+
+        _start_embedded_hermes(hermes_home)
 
         import serve
 

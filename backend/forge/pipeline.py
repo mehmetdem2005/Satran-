@@ -34,7 +34,7 @@ from typing import Any, Dict, Iterator, List, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from utils import trim  # noqa: E402
+from hf_utils import trim  # noqa: E402
 
 from .agents import AGENTS, plan_waves, supports_fanout  # noqa: E402
 from .artifacts import EXPORT_FORMATS, detect_requested_format, extract_files  # noqa: E402

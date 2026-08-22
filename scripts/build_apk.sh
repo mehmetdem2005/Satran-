@@ -120,14 +120,10 @@ $(cd "$PROJECT_ROOT/dist" && for f in *.apk; do printf "    %-36s %s\n" "$f" "$(
     - "Bilinmeyen kaynaklardan kuruluma izin ver" sorulursa onayla
     - Ya da USB ile: adb install -r dist/hermesforge-arm64-debug.apk
 
-  Uygulama yalnızca Hermes ile çalışır. Kurduktan sonra bu bilgisayarda:
+  Hermes APK'nın İÇİNDE. Kurduktan sonra uygulamayı aç, DeepSeek API
+  anahtarını yapıştır, yazmaya başla. Bilgisayarda hiçbir komut gerekmez.
 
-    bash scripts/hermes_sunucu.sh
-
-  komutunu çalıştır ve ekrana çıkan QR kodu telefonun kamerasıyla okut.
-  Uygulama adresi ve anahtarı kendisi kaydeder.
-
-  QR okutamazsan uygulamayı aç: açılış ekranı ev ağını kendisi tarar ve
-  Hermes'i bulunca tek dokunuşluk bir düğme olarak gösterir.
+  Telefonun pilini yormak istemezsen Hermes'i bilgisayarda da çalıştırabilirsin:
+    bash scripts/hermes_sunucu.sh   (QR basar, telefonun kamerasıyla okut)
 
 SUMMARY

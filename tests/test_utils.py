@@ -7,7 +7,7 @@ import zipfile
 
 import pytest
 
-import utils
+import hf_utils as utils
 
 
 class TestSafeRelpath:

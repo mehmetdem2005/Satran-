@@ -22,12 +22,13 @@ PROJECT_ROOT = BACKEND_DIR.parent
 sys.path.insert(0, str(BACKEND_DIR))
 
 import config as config_module  # noqa: E402
-import utils  # noqa: E402
+import hf_utils as utils  # noqa: E402
 from forge import ArtifactStore, ForgePipeline, public_roster  # noqa: E402
 from forge.artifacts import EXPORT_FORMATS  # noqa: E402
 import presets  # noqa: E402
 from hermes import HermesClient, HermesRuntime  # noqa: E402
 from hermes import discovery  # noqa: E402
+from hermes import embedded  # noqa: E402
 from hermes.client import probe as hermes_probe  # noqa: E402
 from hermes.memory import CATEGORIES, HermesMemory  # noqa: E402
 from hermes.rag import HermesRag  # noqa: E402
@@ -187,6 +188,11 @@ def _register_routes(app: Flask) -> None:
                     "models": models,
                     "base_url": cfg.hermes_base_url,
                     "managed_pid": runtime.managed_pid(),
+                },
+                "embedded": {
+                    "available": embedded.available(),
+                    **embedded.status(),
+                    "model_configured": embedded.model_configured(),
                 },
                 "memory": services["memory"].stats(scope=DEFAULT_SCOPE),
                 "rag": services["rag"].stats(),
@@ -421,6 +427,36 @@ def _register_routes(app: Flask) -> None:
     # ------------------------------------------------------------------
     # Bağlantı doğrulama
     # ------------------------------------------------------------------
+    @app.route("/api/hermes/model", methods=["POST"])
+    def hermes_model():
+        """Gömülü Hermes'in model sağlayıcısını ayarlar.
+
+        Telefonda ``hermes model`` TUI'si yok; kullanıcı anahtarı ilk açılış
+        ekranına yapıştırıyor, biz Hermes'in kendi config.yaml/.env dosyalarına
+        yazıyoruz. Anahtar cihazdan çıkmıyor.
+        """
+        if not embedded.available():
+            return jsonify({"error": "Bu yapıda gömülü Hermes yok."}), 400
+
+        payload = request.get_json(silent=True) or {}
+        api_key = str(payload.get("api_key") or "").strip()
+        model = str(payload.get("model") or "deepseek-v4-pro").strip()
+        if not api_key:
+            return jsonify({"error": "API anahtarı boş olamaz."}), 400
+        if any(ch.isspace() for ch in api_key):
+            return jsonify({"error": "Anahtarda boşluk var; tamamını kopyaladığından emin ol."}), 400
+
+        try:
+            embedded.set_model(api_key, model=model)
+        except Exception as exc:
+            return jsonify({"error": f"Ayar yazılamadı: {exc}"}), 500
+
+        return jsonify({
+            "saved": True,
+            "model": model,
+            "restart_required": embedded.status().get("running", False),
+        })
+
     @app.route("/api/hermes/discover", methods=["POST"])
     def hermes_discover():
         """Ev ağında Hermes arar.

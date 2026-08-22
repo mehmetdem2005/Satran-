@@ -543,6 +543,33 @@
     els.engineDetail.textContent = [info.detail, info.note].filter(Boolean).join(' — ');
   }
 
+  /** Motor durumuna bağlı yan öğeler (düğme, günlük, ipucu). */
+  function applyEngineExtras(reachable, data) {
+    // Gateway'i yalnızca aynı makinede başlatabiliriz; telefonda kabuk yok.
+    els.startHermesBtn.style.display =
+      (!reachable && platform !== 'android' && !embeddedAvailable) ? 'block' : 'none';
+    els.hermesLog.style.display = platform === 'android' ? 'none' : '';
+
+    const optional = $('hermesOptionalHint');
+    if (!optional) return;
+    optional.style.display = reachable ? 'none' : '';
+    if (reachable) return;
+
+    if (embeddedAvailable) {
+      const embedded = (data && data.embedded) || {};
+      optional.textContent = embedded.error
+        ? 'Gömülü motor açılamadı: ' + embedded.error +
+          ' Ağdaki bir Hermes\'e de bağlanabilirsin.'
+        : 'Hermes uygulamanın içinde açılıyor.';
+    } else {
+      optional.textContent = platform === 'android'
+        ? 'Uygulama tüm işi Hermes\'e yaptırır. Hermes\'in çalıştığı bilgisayarda ' +
+          'scripts/hermes_sunucu.sh komutunu çalıştır, ekrandaki QR kodu telefonun ' +
+          'kamerasıyla okut.'
+        : 'Hermes çalışmıyor; uygulama Hermes olmadan iş üretemez.';
+    }
+  }
+
   async function refreshStatus() {
     try {
       const data = await fetch('/api/status').then(function (r) { return r.json(); });
@@ -551,6 +578,36 @@
 
       const reachable = !!(data.hermes && data.hermes.health && data.hermes.health.reachable);
       engineIsHermes = reachable;
+
+      const embedded = data.embedded || {};
+      embeddedAvailable = !!embedded.available;
+      $('embeddedSection').style.display = embeddedAvailable ? '' : 'none';
+      $('remoteSection').style.display = embeddedAvailable ? 'none' : '';
+
+      // Motor içeride ama model anahtarı yoksa iş üretemez; kurulumu göster.
+      if (embeddedAvailable && !embedded.model_configured) {
+        if (!state.messages.length) showSetup(true);
+        updateEngineBadge({
+          engine: 'none',
+          label: 'Model ayarlanmadı',
+          detail: '',
+          note: 'Menü → Ayarlar → Model bölümünden bir DeepSeek anahtarı gir.'
+        });
+        applyEngineExtras(false, data);
+        return;
+      }
+
+      if (embeddedAvailable && !reachable) {
+        // Gateway ilk açılışta şema kuruyor; bu saniyeler sürebilir.
+        updateEngineBadge({
+          engine: 'none',
+          label: 'Motor başlatılıyor…',
+          detail: '',
+          note: embedded.error || 'Hermes uygulamanın içinde açılıyor, birkaç saniye.'
+        });
+        applyEngineExtras(false, data);
+        return;
+      }
 
       if (reachable) {
         showSetup(false);
@@ -573,22 +630,7 @@
         });
       }
 
-      // Gateway'i yalnızca aynı makinede başlatabiliriz; APK'nın içinde
-      // Hermes yok ve kabuk da yok, düğmeyi orada göstermek yanıltıcı olur.
-      els.startHermesBtn.style.display = (!reachable && platform !== 'android') ? 'block' : 'none';
-      els.hermesLog.style.display = platform === 'android' ? 'none' : '';
-
-      const optional = $('hermesOptionalHint');
-      if (optional) {
-        optional.style.display = reachable ? 'none' : '';
-        if (!reachable) {
-          optional.textContent = platform === 'android'
-            ? 'Uygulama tüm işi Hermes\'e yaptırır. Hermes\'in çalıştığı bilgisayarda ' +
-              'scripts/hermes_sunucu.sh komutunu çalıştır, ekrandaki QR kodu telefonun ' +
-              'kamerasıyla okut.'
-            : 'Hermes çalışmıyor; uygulama Hermes olmadan iş üretemez.';
-        }
-      }
+      applyEngineExtras(reachable, data);
 
       if (data.rag) $('ragStat').textContent = data.rag.documents + ' belge · ' + data.rag.chunks + ' parça';
       if (data.memory) $('memoryStat').textContent = data.memory.total + ' anı';
@@ -805,6 +847,18 @@
 
     els.saveSettingsBtn.addEventListener('click', saveSettings);
     $('setupSaveBtn').addEventListener('click', runSetup);
+    $('setupModelBtn').addEventListener('click', function () {
+      saveModelKey($('setupModelKey'), $('setupModelName'), $('setupModelStatus'), function () {
+        showSetup(false);
+        els.input.focus();
+      });
+    });
+    $('setupModelKey').addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') $('setupModelBtn').click();
+    });
+    $('saveModelBtn').addEventListener('click', function () {
+      saveModelKey($('modelKey'), $('modelName'), $('modelStatus'), null);
+    });
     $('setupKey').addEventListener('keydown', function (event) {
       if (event.key === 'Enter') runSetup();
     });
@@ -907,10 +961,52 @@
     const wasHidden = card.style.display === 'none';
     card.style.display = show ? 'flex' : 'none';
     if (els.empty) els.empty.style.display = show ? 'none' : '';
-    // Kurulum ekranı ilk açıldığında ağı kendimiz tarayalım; kullanıcı
-    // 192.168.x.x adresini aramak zorunda kalmasın.
-    if (show && wasHidden && !state.discovering) {
+    if (!show) return;
+
+    // İki kurulum yolu var: motor telefonun içindeyse yalnızca model anahtarı
+    // gerekiyor; değilse ağdaki bir Hermes'e bağlanmak gerekiyor.
+    $('setupEmbedded').style.display = embeddedAvailable ? '' : 'none';
+    $('setupRemote').style.display = embeddedAvailable ? 'none' : '';
+
+    // Uzak yolda kurulum ekranı ilk açıldığında ağı kendimiz tarayalım;
+    // kullanıcı 192.168.x.x adresini aramak zorunda kalmasın.
+    if (!embeddedAvailable && wasHidden && !state.discovering) {
       discoverHermes({ status: $('setupStatus'), fill: true, quiet: true });
+    }
+  }
+
+  /** Gömülü Hermes'in model sağlayıcısını kaydeder. */
+  async function saveModelKey(keyInput, modelInput, status, onDone) {
+    const key = keyInput.value.trim();
+    if (!key) {
+      status.className = 'setup-status error';
+      status.textContent = 'Önce anahtarı yapıştır.';
+      return;
+    }
+    status.className = 'setup-status busy';
+    status.textContent = 'Kaydediliyor…';
+    try {
+      const data = await fetch('/api/hermes/model', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_key: key, model: modelInput.value })
+      }).then(function (r) { return r.json(); });
+
+      if (!data.saved) {
+        status.className = 'setup-status error';
+        status.textContent = data.error || 'Kaydedilemedi.';
+        return;
+      }
+      keyInput.value = '';
+      status.className = 'setup-status ok';
+      status.textContent = data.restart_required
+        ? 'Kaydedildi. Yeni ayarın geçerli olması için uygulamayı kapatıp aç.'
+        : 'Kaydedildi! Artık yazabilirsin.';
+      await refreshStatus();
+      if (onDone) setTimeout(onDone, data.restart_required ? 2600 : 900);
+    } catch (err) {
+      status.className = 'setup-status error';
+      status.textContent = 'Hata: ' + err.message;
     }
   }
 
@@ -1080,6 +1176,7 @@
   let catalog = null;
   let platform = 'desktop';      // 'android' ise kabuk komutu önerilmez
   let engineIsHermes = false;
+  let embeddedAvailable = false;   // Hermes APK'nın içinde mi?
 
   /** Düşünme düzeyi listesini ve token ipucunu kurar. */
   function applyCatalog(currentEffort) {

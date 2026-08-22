@@ -5,9 +5,9 @@
 (zip, tar.gz, markdown, json, tek dosya) teslim eder.
 
 Motor olarak **yalnızca** [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent)
-kullanılır — Hermes'in kendi araçları, becerileri, oturum belleği ve arama
-altyapısı doğrudan bu uygulamanın arkasında çalışır. Hermes'siz çalışan bir
-yedek yol yoktur.
+kullanılır ve **APK'nın içinde çalışır** — Hermes'in kendi araçları,
+becerileri, oturum belleği ve arama altyapısı doğrudan bu uygulamanın
+arkasında. Hermes'siz çalışan bir yedek yol yoktur.
 
 ---
 
@@ -19,7 +19,7 @@ yedek yol yoktur.
 | Başlık canlı | Üst başlık o an çalışan ajanın adını taşır; ilerlemeyi izlemek için ayrı bir panele gerek yok. |
 | Kod her zaman kart içinde | Model kodu düz metin akıtsa bile arayüz onu dosya adı başlıklı, kopyalanabilir ve indirilebilir bir karta çevirir. |
 | Hermes olmadan çalışan yol yok | Doğrudan sağlayıcıya giden yedek yol kaldırıldı. Modeli, anahtarı, araçları ve becerileri Hermes yönetir; telefonda hiçbir sağlayıcı anahtarı durmaz. |
-| Hermes kaynağı depoda, süreci ayrı | Kaynak `vendor/hermes-agent/` altında (MIT, sürüm sabit) — klonlayan herkes aynı sürümü alır, çevrimdışı kurulum mümkün. Ama Hermes kendi sanal ortamında ayrı bir süreç olarak çalışır ve HTTP üzerinden konuşuruz; APK'ya girmemesinin sebebi de bu (bkz. "Nasıl çalışır"). |
+| Hermes kaynağı depoda | Kaynak `vendor/hermes-agent/` altında (MIT, sürüm sabit) — klonlayan herkes aynı sürümü alır, çevrimdışı kurulum mümkün. APK'ya kırpılmış hâli gömülür (bkz. "Nasıl çalışır"). |
 | Bağlanma QR ile | Ev ağı adresini ve 35 karakterlik anahtarı telefonda elle yazmak, "beni uğraştırma" isteğinin tam tersi. Kamera QR'ı okur, uygulama kendi kaydeder. |
 | RAG ve bellek SQLite FTS5 | Hermes kendi oturum aramasını FTS5 + bm25 üzerine kurar; aynı zemini kullanıyoruz. Ek paket yok, Termux'ta derleme yok. |
 
@@ -83,196 +83,126 @@ Gerçek bir turda ölçülen istem boyutları — ajan sayısıyla büyümüyor:
 
 ---
 
-## Nasıl çalışır: iki parça
+## Nasıl çalışır
+
+Hermes Agent **APK'nın içinde** çalışıyor. Telefonda başka bir uygulama,
+bilgisayarda bir sunucu, terminalde bir komut gerekmiyor:
 
 ```
-   TELEFON                                 BİLGİSAYAR (ya da VPS)
- ┌────────────────────┐   ev ağı        ┌──────────────────────────┐
- │ HermesForge APK    │  ───────────▶   │ Hermes Agent gateway     │
- │ arayüz + ajan hattı│   HTTP :8642    │ model, araçlar, beceriler│
- └────────────────────┘                 └──────────────────────────┘
+ ┌─────────────────────────────────────────┐
+ │ HermesForge APK                         │
+ │  ┌───────────────┐   ┌────────────────┐ │
+ │  │ Arayüz + ajan │◀─▶│ Hermes gateway │ │──▶ DeepSeek API
+ │  │ hattı (Flask) │   │ (aynı süreçte) │ │
+ │  └───────────────┘   └────────────────┘ │
+ └─────────────────────────────────────────┘
 ```
 
-Uygulama **yalnızca Hermes ile çalışır.** Doğrudan sağlayıcıya giden bir yedek
-yol yoktur: modeli, API anahtarını ve araçları Hermes'in kendisi yönetir.
-Telefonda hiçbir sağlayıcı anahtarı durmaz.
+Kur, aç, DeepSeek anahtarını yapıştır, yazmaya başla.
 
-Karşılığı açık: **Hermes'in çalıştığı makine açık olmalı** ve telefonla aynı
-ağda bulunmalı (ya da erişilebilir bir sunucuda olmalı).
+### Bu nasıl mümkün oldu
 
-> Neden Hermes APK'nın içine gömülmedi: denendi ve ölçüldü. Chaquopy `jiter`
-> için saf-Python bir gölge paketle ikna edilebiliyor (denendi, gerçek bir ajan
-> turu tamamlandı) ama `pydantic-core` Android için hiç derlenmemiş — depoda
-> yalnızca 0.0.1 yer tutucusu var, bu yüzden `pip` pydantic 1.10'a düşüyor.
-> Hermes, openai SDK'sı ve FastAPI'nin üçü de pydantic 2 istiyor. `jiter`'in
-> aksine `pydantic-core` bir Rust doğrulama motoru; gölgelenemez.
+Hermes'in Android'de çalışmasının önündeki engel bağımlılıklardı; her biri
+tek tek ölçülüp çözüldü:
+
+| Engel | Çözüm |
+|---|---|
+| `pydantic-core` — Chaquopy deposunda yalnızca 0.0.1 yer tutucusu var, pip `pydantic 1.10`'a düşüyordu | Android NDK ile **çapraz derlendi** (arm64 + arm32), `android/wheels/` altında |
+| `jiter` — Rust, Android yapısı yok | openai SDK'sı onu tek bir satırda kullanıyor; **saf Python gölge paket** yazıldı |
+| `uvloop`, `httptools`, `watchfiles`, `nemo_relay` | Ölçüldü: gateway bunlar olmadan da açılıyor (saf Python yedekleri var ya da tembel yükleniyorlar) |
+| `aiohttp`, `cryptography`, `pillow`, `psutil`, `pyyaml` | Chaquopy'nin kendi deposunda hazır Android wheel'leri var |
+| Hermes'in `utils` modülü bizimkiyle çakışıyordu | Bizimki `hf_utils` olarak yeniden adlandırıldı; derlemede çakışma denetimi var |
+
+**Doğrulandı:** yalnızca bu paket kümesiyle (gerçek jiter yok, uvloop yok)
+Hermes 0.20.4'ün gateway'i açıldı ve HermesForge'un tam ajan hattı bir tur
+tamamlayıp dosya üretti.
+
+**Doğrulanamadı:** bu ortamda `/dev/kvm` yok, Android emülatörü
+çalıştırılamıyor. APK'nın derlendiği, doğru kodu taşıdığı ve içindeki Python
+yolunun masaüstünde çalıştığı kanıtlandı; **telefonda açıldığı kanıtlanamadı**.
+Gömülü motor açılmazsa uygulama kapanmıyor: sebebi arayüzde yazıyor ve
+ağdaki bir Hermes'e bağlanma yolu açık kalıyor.
 
 ---
 
 ## Kurulum
 
-### 1) Bilgisayarda: tek komut
+### Telefon (tek yol)
+
+1. APK'yı indir ve kur ("bilinmeyen kaynaklardan kuruluma izin ver" sorulursa onayla)
+2. Aç, **DeepSeek API anahtarını** yapıştır ([nereden alınır](https://platform.deepseek.com/api_keys))
+3. Yaz
+
+| Dosya | Boyut | Kime |
+|---|---|---|
+| `hermesforge-arm64-debug.apk` | ~93 MB | 2017 sonrası neredeyse tüm telefonlar |
+| `hermesforge-arm32-debug.apk` | ~89 MB | eski 32-bit cihazlar |
+
+APK'yı kendin derlemek istersen `bash scripts/build_apk.sh` — betik Android
+SDK'yı ve NDK'yı gerekiyorsa indirir, arayüzü paketler, Hermes kaynağını
+kırpıp gömer ve `dist/` altına debug imzalı APK bırakır.
+
+Anahtar yalnızca telefonda, Hermes'in kendi `config.yaml`/`.env` dosyalarında
+saklanır. Uygulama arayüzü `/api/settings` üzerinden hiçbir sırrı düz metin
+döndürmez.
+
+Sunucu bir **ön plan servisinde** yaşıyor: uzun süren bir yapım turu sırasında
+başka uygulamaya geçsen bile Android süreci öldürmüyor.
+
+### Bilgisayarda Hermes çalıştırmak (isteğe bağlı)
+
+Telefonun pilini yormak istemiyorsan ya da gömülü motor açılmazsa, Hermes'i
+bilgisayarda çalıştırıp uygulamayı ona bağlayabilirsin:
 
 ```bash
 git clone https://github.com/mehmetdem2005/Satran-.git
 cd Satran- && bash scripts/hermes_sunucu.sh
 ```
 
-Betik sırasıyla: Hermes kurulu değilse **kurar** → model sağlayıcısı
-ayarlanmamışsa DeepSeek anahtarını **bir kez sorar** ve `~/.hermes/config.yaml`
-ile `.env` dosyasına yazar → API sunucusunu ev ağına açar
-(`API_SERVER_HOST=0.0.0.0`) → gateway anahtarı yoksa **üretir** → gateway'i
-başlatır → terminale bir **QR kod** basar.
+Betik Hermes'i kurar, model anahtarını bir kez sorar, sunucuyu ev ağına açar
+ve terminale bir **QR kod** basar. Telefonun kamerasıyla okut — uygulama
+adresi ve anahtarı kendisi kaydeder. Hiç soru sorulmasını istemiyorsan:
+`bash scripts/hermes_sunucu.sh --model-anahtari sk-...`
 
-Hiç soru sorulmasını istemiyorsan anahtarı komutta ver:
-
-```bash
-bash scripts/hermes_sunucu.sh --model-anahtari sk-... --model deepseek-v4-flash
-```
-
-Sağlayıcı kimliği (`deepseek`) ve anahtar değişkeni (`DEEPSEEK_API_KEY`)
-Hermes'in kendi `hermes_cli/auth.py` dosyasındaki kayıttan alındı; uydurma
-değil. Üretilen yapılandırmayla gerçek bir Hermes turu çalıştırılarak
-doğrulandı.
-
-QR kodun içinde `hermesforge://connect?url=…&key=…` bağlantısı var; ekstra
-paket gerekmez, QR'ı `scripts/qr.py` (bağımlılıksız, saf Python) üretir.
-
-### 2) Telefonda: APK'yı kur ve QR'ı okut
-
-Derleme mimariye göre üç APK üretir:
-
-| Dosya | Boyut | Kime |
-|---|---|---|
-| `hermesforge-arm64-debug.apk` | ~30 MB | 2017 sonrası neredeyse tüm telefonlar |
-| `hermesforge-arm32-debug.apk` | ~26 MB | eski 32-bit cihazlar |
-| `hermesforge-universal-debug.apk` | ~37 MB | emin değilsen; her cihazda çalışır |
-
-Telefona kopyalayıp dokun; "bilinmeyen kaynaklardan kuruluma izin ver"
-sorulursa onayla. USB ile: `adb install -r dist/hermesforge-arm64-debug.apk`.
-
-Kurulduktan sonra **telefonun kamerasını QR koda tut** → çıkan bildirime dokun
-→ uygulama açılır, adresi ve anahtarı kendisi kaydeder.
-
-Kamera özel bağlantıyı açmıyorsa uygulamayı aç: **açılış ekranı ev ağını
-kendisi tarar** ve Hermes'i bulunca "Hermes bulundu: 192.168.1.20:8642" diye
-gösterir; dokun, yalnızca anahtarı yapıştır.
-
-### Adresi bir daha yazmazsın
-
-Bilgisayarın IP'si değişince (DHCP kirası, yeniden başlatma) uygulama eskiden
-"bağlanamadı" derdi ve nedenini kimse bilmezdi. Artık:
-
-- kayıtlı adres çalışıyorsa hiçbir şey taranmaz (boşuna pil harcanmaz),
-- çalışmıyorsa cihazın kendi `/24` ağı taranır, `GET /health` ile
-  **gerçekten Hermes mi** diye bakılır (aynı portta başka servis olabilir),
-- bulunan sunucu ekranda tek dokunuşluk bir düğme olarak çıkar.
-
-Ayarlar → Hermes sunucusu → **Ağda Hermes ara** ile elle de tetiklenebilir.
-Gerçek Hermes 0.20.4 kurulumunda tam `/24` taraması **1,5 saniye** sürdü.
-
-APK'yı kendin derlemek istersen:
-
-```bash
-bash scripts/build_apk.sh
-```
-
-Betik Android SDK'yı gerekiyorsa indirir, arayüzü paketler ve `dist/` altına
-debug imzalı APK bırakır.
-
-**APK ne içeriyor:** Python 3.11 + Flask + HermesForge'un tamamı (Chaquopy,
-MIT) — ajan hattı, pano, paralel dalgalar, RAG, bellek, kod kartları,
-zip/tar.gz indirme. Sunucu bir **ön plan servisinde** yaşıyor: uzun süren bir
-yapım turu sırasında başka uygulamaya geçsen bile Android süreci öldürmüyor.
+Uygulama ayrıca ev ağını kendisi tarayıp Hermes'i bulabiliyor (Ayarlar →
+**Ağda Hermes ara**); bilgisayarın IP'si değişse bile adresi yeniden yazman
+gerekmiyor. Gerçek kurulumda tam `/24` taraması 1,5 saniye sürdü.
 
 ### Derin bağlantı güvenliği
 
 `hermesforge://connect` bağlantısını kötü niyetli bir web sayfası da açabilir.
-Kural şöyle kilitlendi (17 birim testi, `ConnectLinkTest`):
+Kural (17 birim testi, `ConnectLinkTest`): yalnızca `http`/`https`; adreste
+kullanıcı adı/parola varsa reddedilir; anahtarda kontrol karakteri varsa
+reddedilir; **aynı cihazda değilse kullanıcıya onay penceresi gösterilir**
+(ev ağı ile internetteki sunucu ayrı sertlikte uyarılır).
 
-- yalnızca `http`/`https`; `file:` ve diğer şemalar reddedilir
-- adreste kullanıcı adı/parola varsa (`http://guvenli@saldirgan`) reddedilir —
-  onay penceresinde yanlış makine adı gösterilirdi
-- anahtarda kontrol karakteri varsa reddedilir (HTTP başlığı enjeksiyonu)
-- **aynı cihazda değilse kullanıcıya onay penceresi gösterilir**; ev ağı
-  (RFC1918) adresi ile internetteki bir sunucu ayrı ayrı, farklı sertlikte
-  uyarılır. Onay gelmeden anahtar hiçbir yere yazılmaz.
-
-### Telefonda Termux ile (isteğe bağlı)
-
-Hermes'i telefonun kendisinde çalıştırmak istersen — bilgisayara ihtiyaç
-kalmaz ama telefon ısınır ve pil biter:
-
-```bash
-pkg install -y git
-git clone https://github.com/mehmetdem2005/Satran-.git
-cd Satran- && bash scripts/termux_hermes_baglat.sh
-```
-
-Adres `127.0.0.1` olduğu için onay penceresi çıkmaz, doğrudan bağlanır.
-
-### Masaüstünde tarayıcıyla kullanmak
+### Masaüstünde tarayıcıyla
 
 ```bash
 python3 -m pip install -r requirements.txt
-bash scripts/install_hermes.sh    # kaynak depoda; yalnızca bağımlılıkları kurar
+bash scripts/install_hermes.sh
 bash scripts/start.sh
 ```
 
-Tarayıcıda `http://127.0.0.1:5000`. Hermes kaynağı depoda geldiği için kurulum
-indirme yapmaz. Üst akıştan güncellemek istersen: `bash scripts/update_hermes.sh`
-
----
-
-## Hermes bağlantısı nasıl kuruluyor?
-
-`scripts/install_hermes.sh` deponun tamamını `vendor/hermes-agent/` altına
-indirir ve `~/.hermes/.env` dosyasına şunları yazar:
-
-```bash
-API_SERVER_ENABLED=true
-API_SERVER_KEY=hf-…        # otomatik üretilir, HermesForge kendisi okur
-```
-
-`scripts/hermes_sunucu.sh` buna ek olarak `API_SERVER_HOST=0.0.0.0` yazar —
-telefonun görebilmesi için. Bu bir *dinleme* adresi; uygulama ona bağlanırken
-`127.0.0.1`e çevirir (0.0.0.0'a bağlanmak Linux'ta tesadüfen çalışır, macOS ve
-Windows'ta çalışmaz).
-
-Bağlanılan uçlar:
-
-| Uç | Kullanım |
-|---|---|
-| `GET /health` | Ayakta mı? Kimlik istemez — ağ taraması bunu kullanır, `platform: hermes-agent` imzasına bakar |
-| `GET /v1/capabilities` | Anahtarı doğrular; "Bağlantıyı sına" bunu kullanır |
-| `POST /api/sessions` | Kalıcı oturum — Hermes'in belleği bu oturumda yaşar |
-| `POST /api/sessions/{id}/chat/stream` | Turun SSE akışı: `assistant.delta`, `tool.started`, `run.completed` |
-| `POST /v1/chat/completions` | Oturum açılamadığında durumsuz yedek yol |
-
-`X-Hermes-Session-Key` başlığı uzun vadeli belleği tek kapsamda tutar;
-böylece transkript değişse bile Hermes aynı kullanıcıyı tanır.
+Tarayıcıda `http://127.0.0.1:5000`.
 
 ---
 
 ## Model ayarları
 
-Modeli ve sağlayıcıyı **Hermes tarafında** seçersin:
+Telefonda modeli ve anahtarı **uygulamanın içinden** ayarlıyorsun (Ayarlar →
+Model); uygulama bunları Hermes'in kendi `config.yaml` ve `.env` dosyalarına
+yazıyor. Sağlayıcı kimliği (`deepseek`) ve anahtar değişkeni
+(`DEEPSEEK_API_KEY`) Hermes'in `hermes_cli/auth.py` dosyasındaki kayıttan
+alındı — uydurulmadı.
 
-```bash
-vendor/hermes-agent/venv/bin/hermes model
-```
-
-Uygulamadan istek başına gönderilebilen tek model ayarı düşünme düzeyidir.
+İstek başına gönderilebilen tek model ayarı düşünme düzeyi:
 
 | Ayar | Nasıl gider |
 |---|---|
-| **Düşünme düzeyi** | `model_options.reasoning_effort`. Geçerli değerler Hermes'in kendi `_REASONING_EFFORTS` kümesinden okundu: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, `ultra`. "Varsayılan" seçiliyken **hiçbir şey gönderilmez** — Hermes kendi ayarını kullanır. |
-| **Maksimum token** | Hermes bunu **istek başına kabul etmiyor** (istek gövdesinden yalnız `provider`, `model`, `model_options` okunuyor). `~/.hermes/.env` içine `HERMES_MAX_TOKENS` yazılır ve gateway yeniden başlayınca geçerli olur — yani yalnızca uygulama Hermes ile aynı makinedeyse işe yarar. |
-| **Sıcaklık / Top P** | Hermes istek başına kabul etmiyor; arayüzde de yok. Hermes'in kendi yapılandırmasından ayarlanır. |
-
-Liste arayüzde sabit tutulmuyor; `backend/presets.py` üzerinden sunucudan
-geliyor ve kaydedilmeden önce doğrulanıyor — listede olmayan bir değeri Hermes
-sessizce yok sayardı ve kullanıcı ayarın çalıştığını sanırdı.
+| **Düşünme düzeyi** | `model_options.reasoning_effort`. Geçerli değerler Hermes'in kendi `_REASONING_EFFORTS` kümesinden: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, `ultra`. "Varsayılan" seçiliyken **hiçbir şey gönderilmez**. |
+| **Maksimum token** | Hermes bunu istek başına kabul etmiyor; `~/.hermes/.env` içine `HERMES_MAX_TOKENS` yazılır, gateway yeniden başlayınca geçerli olur. |
+| **Sıcaklık / Top P** | Hermes istek başına kabul etmiyor; arayüzde de yok. |
 
 ---
 
@@ -301,13 +231,14 @@ backend/
   config.py             ~/.hermesforge/config.json + ortam değişkenleri
   serve.py              ortak sunucu girişi (masaüstü + APK aynı yol)
   presets.py            Hermes'in kabul ettiği düşünme düzeyleri (kaynağından)
-  utils.py              dosya çıkarma, SSE, güvenli yol
+  hf_utils.py           dosya çıkarma, SSE, güvenli yol (Hermes'in utils'iyle çakışmasın)
   hermes/
     client.py           Hermes API sunucusu istemcisi
     runtime.py          kurulumu bul, gateway'i başlat
     memory.py           kalıcı bellek (FTS5)
     rag.py              RAG motoru (FTS5 + bm25)
     discovery.py        ev ağında Hermes arar (/24 tarama + /health imzası)
+    embedded.py         APK'nın içindeki gateway'i başlatır ve ayarlar
   forge/
     agents.py           ajan kadrosu, istemler ve bağımlılık grafiği
     board.py            ortak pano (damıtılmış yapım durumu)
@@ -320,7 +251,8 @@ frontend/
   static/css/app.css
   static/js/markdown.js CDN'siz markdown + kod kartı
   static/js/app.js      arayüz mantığı
-android/                Chaquopy tabanlı APK projesi (Kotlin + gömülü Python)
+android/                Chaquopy tabanlı APK projesi (Kotlin + gömülü Python + Hermes)
+android/wheels/         Android için elde üretilen wheel'ler (bkz. wheels/README.md)
 vendor/hermes-agent/    Hermes Agent kaynağı (MIT, üst akış — bkz. vendor/README.md)
 scripts/
   hermes_sunucu.sh      Hermes'i kurar, modeli ayarlar, başlatır, QR kodu basar
@@ -331,7 +263,7 @@ scripts/
   update_hermes.sh      Hermes kaynağını üst akıştan günceller
   termux_setup.sh       Android tek komut kurulum
   start.sh              uygulamayı başlat
-tests/                  334 test (pytest)
+tests/                  348 test (pytest)
 ```
 
 ---
@@ -360,7 +292,7 @@ python3 -m pip install -r requirements-dev.txt
 python3 -m pytest
 ```
 
-334 test; hepsi yalıtılmış — makinede çalışan bir Hermes varsa bile testler
+348 test; hepsi yalıtılmış — makinede çalışan bir Hermes varsa bile testler
 ona bağlanmaz (`tests/conftest.py` erişilemez bir porta yönlendirir), yoksa
 "motor yok" senaryoları sessizce yeşile döner ve hiçbir şey doğrulamazdı.
 

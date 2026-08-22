@@ -26,7 +26,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from utils import safe_relpath, slugify, timestamp_slug  # noqa: E402
+from hf_utils import safe_relpath, slugify, timestamp_slug  # noqa: E402
 
 logger = logging.getLogger(__name__)
 

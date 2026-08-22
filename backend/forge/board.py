@@ -34,7 +34,7 @@ from typing import Any, Dict, List, Optional, Sequence
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from utils import safe_relpath  # noqa: E402
+from hf_utils import safe_relpath  # noqa: E402
 
 # Pano dilimi başına karakter bütçeleri. Eski hattaki 14.000'lik ajan-başına
 # devir bütçesinin yerini alıyorlar: toplam istem boyutu ajan sayısıyla değil,
