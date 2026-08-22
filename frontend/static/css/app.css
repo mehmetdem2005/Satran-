@@ -733,6 +733,34 @@ button { cursor: pointer; background: none; border: none; }
   overflow-wrap: anywhere;
 }
 
+/* Ağda bulunan Hermes: tek dokunuşla seçilebilsin. */
+.setup-found { display: flex; flex-direction: column; gap: 8px; }
+
+.found-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  text-align: left;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--ok);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.found-btn:hover { background: var(--panel-hover, var(--panel)); }
+
+.found-dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
 /* "Ya da elle gir" ayıracı: QR yolu asıl yol, bu ikincil. */
 .setup-or {
   display: flex;

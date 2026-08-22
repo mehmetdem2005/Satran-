@@ -127,4 +127,7 @@ $(cd "$PROJECT_ROOT/dist" && for f in *.apk; do printf "    %-36s %s\n" "$f" "$(
   komutunu çalıştır ve ekrana çıkan QR kodu telefonun kamerasıyla okut.
   Uygulama adresi ve anahtarı kendisi kaydeder.
 
+  QR okutamazsan uygulamayı aç: açılış ekranı ev ağını kendisi tarar ve
+  Hermes'i bulunca tek dokunuşluk bir düğme olarak gösterir.
+
 SUMMARY

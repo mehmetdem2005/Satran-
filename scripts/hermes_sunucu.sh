@@ -2,14 +2,17 @@
 # Hermes'i bu bilgisayarda başlatır ve telefonun okutacağı QR kodu basar.
 #
 #   bash scripts/hermes_sunucu.sh
+#   bash scripts/hermes_sunucu.sh --model-anahtari sk-...   # etkileşimsiz
+#   bash scripts/hermes_sunucu.sh --model deepseek-v4-flash
 #
 # HermesForge APK'sı Hermes olmadan iş üretmez: tüm ajanlar, araçlar ve
 # beceriler Hermes tarafında çalışır. Bu betik o tarafı ayağa kaldırır:
 #
 #   1) Hermes kurulu değilse kurar (scripts/install_hermes.sh)
-#   2) API sunucusunu ev ağına açar (API_SERVER_HOST=0.0.0.0)
-#   3) Gateway'i başlatır ve hazır olmasını bekler
-#   4) hermesforge://connect bağlantısını QR kod olarak basar
+#   2) Model sağlayıcısı seçilmemişse anahtarı bir kez sorup yazar
+#   3) API sunucusunu ev ağına açar (API_SERVER_HOST=0.0.0.0)
+#   4) Gateway'i başlatır ve hazır olmasını bekler
+#   5) hermesforge://connect bağlantısını QR kod olarak basar
 #
 # Telefon kamerasıyla QR'ı okut; uygulama adresi ve anahtarı kendisi yazar.
 # Bu makine açık kaldığı ve telefonla aynı ağda olduğu sürece çalışır.
@@ -22,6 +25,20 @@ HERMES_ENV_DIR="${HERMES_HOME:-$HOME/.hermes}"
 ENV_FILE="$HERMES_ENV_DIR/.env"
 PORT="${API_SERVER_PORT:-8642}"
 LOG_FILE="$HERMES_ENV_DIR/gateway.log"
+CONFIG_FILE="$HERMES_ENV_DIR/config.yaml"
+
+MODEL_KEY="${HERMESFORGE_MODEL_KEY:-}"
+MODEL_NAME="${HERMESFORGE_MODEL:-deepseek-v4-pro}"
+RESET_MODEL=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --model-anahtari) MODEL_KEY="${2:-}"; shift 2 ;;
+    --model) MODEL_NAME="${2:-}"; shift 2 ;;
+    --model-yenile) RESET_MODEL=1; shift ;;
+    -h|--help) sed -n '2,22p' "$0"; exit 0 ;;
+    *) echo "Bilinmeyen seçenek: $1" >&2; exit 2 ;;
+  esac
+done
 
 log()  { printf '\033[1;33m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;35m!!\033[0m %s\n' "$*"; }
@@ -72,12 +89,39 @@ API_KEY="$(grep "^API_SERVER_KEY=" "$ENV_FILE" | tail -n1 | cut -d= -f2- | tr -d
 
 # ------------------------------------------------- 3. model sağlayıcısı
 
-# Model anahtarı artık Hermes tarafında yaşıyor; telefonda hiçbir sağlayıcı
-# anahtarı tutulmuyor. Yapılandırılmamışsa ajanlar ilk turda hata verir.
-if [ ! -f "$HERMES_ENV_DIR/config.yaml" ]; then
-  warn "Hermes'te henüz bir model sağlayıcısı seçilmemiş."
-  warn "Şimdi seç:  $VENDOR_DIR/venv/bin/hermes model"
-  warn "Sonra bu betiği yeniden çalıştır."
+# Model anahtarı Hermes tarafında yaşıyor; telefonda hiçbir sağlayıcı anahtarı
+# tutulmuyor. Yapılandırılmamışsa ajanlar ilk turda hata verir — o yüzden
+# burada bir kez soruyoruz. "hermes model" etkileşimli bir TUI; onu açmak
+# betiğin tek komut olma amacını bozardı.
+
+model_configured() {
+  [ "$RESET_MODEL" -eq 1 ] && return 1
+  [ -f "$CONFIG_FILE" ] || return 1
+  "$VENDOR_DIR/venv/bin/python" "$PROJECT_ROOT/scripts/hermes_model_ayarla.py" \
+    --kontrol --config "$CONFIG_FILE"
+}
+
+if ! model_configured; then
+  log "Hermes'te model sağlayıcısı ayarlanmamış."
+  if [ -z "$MODEL_KEY" ]; then
+    if [ -t 0 ]; then
+      echo
+      echo "  DeepSeek API anahtarını gir (platform.deepseek.com/api_keys)."
+      echo "  Anahtar yalnızca bu bilgisayardaki ~/.hermes/.env dosyasına yazılır."
+      printf "  Anahtar: "
+      read -r MODEL_KEY
+      echo
+    else
+      die "Model anahtarı yok. --model-anahtari sk-... ile ver ya da HERMESFORGE_MODEL_KEY ayarla."
+    fi
+  fi
+  [ -n "$MODEL_KEY" ] || die "Anahtar boş; model ayarlanamadı."
+
+  force_env_var DEEPSEEK_API_KEY "$MODEL_KEY"
+  "$VENDOR_DIR/venv/bin/python" "$PROJECT_ROOT/scripts/hermes_model_ayarla.py" \
+    --config "$CONFIG_FILE" --model "$MODEL_NAME" || die "config.yaml yazılamadı."
+  log "Model ayarlandı: $MODEL_NAME (deepseek)"
+  RESTART_NEEDED=1
 fi
 
 # ------------------------------------------------------- 4. gateway başlat
@@ -85,6 +129,10 @@ fi
 healthy() { curl -fsS -m 3 "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; }
 
 STARTED_HERE=0
+if healthy && [ "${RESTART_NEEDED:-0}" -eq 1 ]; then
+  warn "Model ayarı yeni yazıldı ama gateway zaten çalışıyor; yeni ayarı"
+  warn "okuması için Hermes'i durdurup bu betiği tekrar çalıştır."
+fi
 if healthy; then
   log "Gateway zaten çalışıyor (port $PORT)."
 else

@@ -68,6 +68,7 @@
     active: new Map(),    // o an çalışan düğümler -> card
     history: JSON.parse(localStorage.getItem('hf.history') || '[]'),
     chatId: null,
+    discovering: false,   // ağ taraması aynı anda iki kez başlamasın
     dark: localStorage.getItem('hf.dark') !== 'false'
   };
 
@@ -811,11 +812,21 @@
       if (event.key === 'Enter') runSetup();
     });
     $('testHermesBtn').addEventListener('click', testHermesFromSettings);
+    $('discoverHermesBtn').addEventListener('click', function () {
+      discoverHermes({ rescan: true, status: $('hermesTestStatus'), fill: true });
+    });
 
     // Kod kartı düğmeleri, sohbet listesi, proje listesi: tek delege dinleyici.
     document.addEventListener('click', function (event) {
       const codeBtn = event.target.closest('.code-btn');
       if (codeBtn) { handleCodeAction(codeBtn); return; }
+
+      const foundBtn = event.target.closest('[data-hermes]');
+      if (foundBtn) {
+        $('setupBaseUrl').value = foundBtn.dataset.hermes;
+        $('setupKey').focus();
+        return;
+      }
 
       const chatItem = event.target.closest('[data-chat]');
       if (chatItem) { loadChat(chatItem.dataset.chat); return; }
@@ -892,8 +903,87 @@
    * aksi hâlde ancak ilk sohbet denemesinde, akışın ortasında anlaşılıyor.
    */
   function showSetup(show) {
-    $('setupCard').style.display = show ? 'flex' : 'none';
+    const card = $('setupCard');
+    const wasHidden = card.style.display === 'none';
+    card.style.display = show ? 'flex' : 'none';
     if (els.empty) els.empty.style.display = show ? 'none' : '';
+    // Kurulum ekranı ilk açıldığında ağı kendimiz tarayalım; kullanıcı
+    // 192.168.x.x adresini aramak zorunda kalmasın.
+    if (show && wasHidden && !state.discovering) {
+      discoverHermes({ status: $('setupStatus'), fill: true, quiet: true });
+    }
+  }
+
+  /**
+   * Hermes'i ev ağında arar.
+   *
+   * Bilgisayarın IP'si değiştiğinde uygulama bir sabah "bağlanamadı" diyordu
+   * ve kullanıcı neyin bozulduğunu bilmiyordu. Artık kendi buluyor.
+   */
+  async function discoverHermes(options) {
+    const opts = options || {};
+    const status = opts.status;
+    if (state.discovering) return null;
+    state.discovering = true;
+    if (status) {
+      status.className = 'setup-status busy';
+      status.textContent = 'Ev ağında Hermes aranıyor…';
+    }
+    try {
+      const data = await fetch('/api/hermes/discover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rescan: !!opts.rescan })
+      }).then(function (r) { return r.json(); });
+
+      const found = data.found || [];
+      renderFound(found);
+
+      if (!found.length) {
+        if (status) {
+          status.className = opts.quiet ? 'setup-status' : 'setup-status error';
+          status.textContent = opts.quiet
+            ? 'Ağda Hermes bulunamadı — adresi elle girebilirsin.'
+            : 'Ağda Hermes bulunamadı. Bilgisayarda hermes_sunucu.sh çalışıyor mu?';
+        }
+        return null;
+      }
+
+      if (opts.fill) {
+        const target = found[0].base_url;
+        if ($('setupBaseUrl') && !$('setupBaseUrl').value.trim()) $('setupBaseUrl').value = target;
+        if ($('hermes_base_url') && opts.rescan) $('hermes_base_url').value = target;
+      }
+      if (status) {
+        status.className = 'setup-status ok';
+        status.textContent = 'Hermes bulundu: ' + found[0].base_url +
+          (found[0].version ? ' (sürüm ' + found[0].version + ')' : '');
+      }
+      return found[0];
+    } catch (err) {
+      if (status) {
+        status.className = 'setup-status error';
+        status.textContent = 'Arama başarısız: ' + err.message;
+      }
+      return null;
+    } finally {
+      state.discovering = false;
+    }
+  }
+
+  function renderFound(found) {
+    const box = $('setupFound');
+    if (!box) return;
+    if (!found.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    box.style.display = '';
+    box.innerHTML = found.map(function (hit) {
+      return '<button class="found-btn" data-hermes="' +
+        window.Markdown.escapeHtml(hit.base_url) + '">' +
+        '<span class="found-dot"></span>' +
+        '<span><b>Hermes bulundu</b><br>' + window.Markdown.escapeHtml(hit.base_url) +
+        (hit.version ? ' · sürüm ' + window.Markdown.escapeHtml(hit.version) : '') +
+        '</span></button>';
+    }).join('');
   }
 
   /** Adresi/anahtarı sınar, sonucu verilen durum kutusuna yazar. */

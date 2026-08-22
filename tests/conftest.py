@@ -62,6 +62,18 @@ def memory(tmp_path):
 
 
 @pytest.fixture()
+def client():
+    """Test istemcisi (iki test dosyası da kullanıyor)."""
+    from app import create_app
+
+    application = create_app()
+    application.config["TESTING"] = True
+    with application.test_client() as test_client:
+        test_client.application = application
+        yield test_client
+
+
+@pytest.fixture()
 def http_sunucu():
     """Hermes olmayan, ama HTTP konuşan bir sunucu (yanlış port senaryosu)."""
     import threading

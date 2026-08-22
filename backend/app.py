@@ -27,6 +27,7 @@ from forge import ArtifactStore, ForgePipeline, public_roster  # noqa: E402
 from forge.artifacts import EXPORT_FORMATS  # noqa: E402
 import presets  # noqa: E402
 from hermes import HermesClient, HermesRuntime  # noqa: E402
+from hermes import discovery  # noqa: E402
 from hermes.client import probe as hermes_probe  # noqa: E402
 from hermes.memory import CATEGORIES, HermesMemory  # noqa: E402
 from hermes.rag import HermesRag  # noqa: E402
@@ -420,6 +421,23 @@ def _register_routes(app: Flask) -> None:
     # ------------------------------------------------------------------
     # Bağlantı doğrulama
     # ------------------------------------------------------------------
+    @app.route("/api/hermes/discover", methods=["POST"])
+    def hermes_discover():
+        """Ev ağında Hermes arar.
+
+        Kullanıcının 192.168.x.x adresini bulması bizim işimiz. Kayıtlı adres
+        çalışıyorsa tarama yapılmaz; çalışmıyorsa (bilgisayarın IP'si değişmiş
+        olabilir) /24 ağı taranır ve bulunan sunucu döndürülür.
+        """
+        services = _services()
+        cfg = services["config"]
+        payload = request.get_json(silent=True) or {}
+        rescan = bool(payload.get("rescan"))
+
+        extra = [] if rescan else [cfg.hermes_base_url]
+        found = discovery.discover(extra_urls=[url for url in extra if url])
+        return jsonify({"found": found, "current": cfg.hermes_base_url})
+
     @app.route("/api/hermes/test", methods=["POST"])
     def hermes_test():
         """Girilen Hermes adresini/anahtarını kaydetmeden önce sınar."""

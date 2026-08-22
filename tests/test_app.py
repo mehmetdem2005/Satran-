@@ -7,17 +7,6 @@ import zipfile
 import pytest
 
 
-@pytest.fixture()
-def client():
-    from app import create_app
-
-    application = create_app()
-    application.config["TESTING"] = True
-    with application.test_client() as test_client:
-        test_client.application = application
-        yield test_client
-
-
 def sse_events(response):
     events = []
     for frame in response.get_data(as_text=True).split("\n\n"):

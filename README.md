@@ -111,18 +111,29 @@ ağda bulunmalı (ya da erişilebilir bir sunucuda olmalı).
 
 ## Kurulum
 
-### 1) Bilgisayarda: Hermes'i başlat ve QR'ı bas
+### 1) Bilgisayarda: tek komut
 
 ```bash
 git clone https://github.com/mehmetdem2005/Satran-.git
-cd Satran-
-vendor/hermes-agent/venv/bin/hermes model   # bir model sağlayıcısı seç (ilk sefer)
-bash scripts/hermes_sunucu.sh
+cd Satran- && bash scripts/hermes_sunucu.sh
 ```
 
-Betik sırasıyla: Hermes kurulu değilse kurar → API sunucusunu ev ağına açar
-(`API_SERVER_HOST=0.0.0.0`) → anahtar yoksa üretir → gateway'i başlatır →
-terminale bir **QR kod** basar.
+Betik sırasıyla: Hermes kurulu değilse **kurar** → model sağlayıcısı
+ayarlanmamışsa DeepSeek anahtarını **bir kez sorar** ve `~/.hermes/config.yaml`
+ile `.env` dosyasına yazar → API sunucusunu ev ağına açar
+(`API_SERVER_HOST=0.0.0.0`) → gateway anahtarı yoksa **üretir** → gateway'i
+başlatır → terminale bir **QR kod** basar.
+
+Hiç soru sorulmasını istemiyorsan anahtarı komutta ver:
+
+```bash
+bash scripts/hermes_sunucu.sh --model-anahtari sk-... --model deepseek-v4-flash
+```
+
+Sağlayıcı kimliği (`deepseek`) ve anahtar değişkeni (`DEEPSEEK_API_KEY`)
+Hermes'in kendi `hermes_cli/auth.py` dosyasındaki kayıttan alındı; uydurma
+değil. Üretilen yapılandırmayla gerçek bir Hermes turu çalıştırılarak
+doğrulandı.
 
 QR kodun içinde `hermesforge://connect?url=…&key=…` bağlantısı var; ekstra
 paket gerekmez, QR'ı `scripts/qr.py` (bağımlılıksız, saf Python) üretir.
@@ -141,8 +152,24 @@ Telefona kopyalayıp dokun; "bilinmeyen kaynaklardan kuruluma izin ver"
 sorulursa onayla. USB ile: `adb install -r dist/hermesforge-arm64-debug.apk`.
 
 Kurulduktan sonra **telefonun kamerasını QR koda tut** → çıkan bildirime dokun
-→ uygulama açılır, adresi ve anahtarı kendisi kaydeder. Kamera özel bağlantıyı
-açmıyorsa uygulamayı aç ve terminaldeki adres ile anahtarı ilk ekrana elle gir.
+→ uygulama açılır, adresi ve anahtarı kendisi kaydeder.
+
+Kamera özel bağlantıyı açmıyorsa uygulamayı aç: **açılış ekranı ev ağını
+kendisi tarar** ve Hermes'i bulunca "Hermes bulundu: 192.168.1.20:8642" diye
+gösterir; dokun, yalnızca anahtarı yapıştır.
+
+### Adresi bir daha yazmazsın
+
+Bilgisayarın IP'si değişince (DHCP kirası, yeniden başlatma) uygulama eskiden
+"bağlanamadı" derdi ve nedenini kimse bilmezdi. Artık:
+
+- kayıtlı adres çalışıyorsa hiçbir şey taranmaz (boşuna pil harcanmaz),
+- çalışmıyorsa cihazın kendi `/24` ağı taranır, `GET /health` ile
+  **gerçekten Hermes mi** diye bakılır (aynı portta başka servis olabilir),
+- bulunan sunucu ekranda tek dokunuşluk bir düğme olarak çıkar.
+
+Ayarlar → Hermes sunucusu → **Ağda Hermes ara** ile elle de tetiklenebilir.
+Gerçek Hermes 0.20.4 kurulumunda tam `/24` taraması **1,5 saniye** sürdü.
 
 APK'yı kendin derlemek istersen:
 
@@ -216,7 +243,7 @@ Bağlanılan uçlar:
 
 | Uç | Kullanım |
 |---|---|
-| `GET /health` | Ayakta mı? (kimlik istemez) |
+| `GET /health` | Ayakta mı? Kimlik istemez — ağ taraması bunu kullanır, `platform: hermes-agent` imzasına bakar |
 | `GET /v1/capabilities` | Anahtarı doğrular; "Bağlantıyı sına" bunu kullanır |
 | `POST /api/sessions` | Kalıcı oturum — Hermes'in belleği bu oturumda yaşar |
 | `POST /api/sessions/{id}/chat/stream` | Turun SSE akışı: `assistant.delta`, `tool.started`, `run.completed` |
@@ -280,6 +307,7 @@ backend/
     runtime.py          kurulumu bul, gateway'i başlat
     memory.py           kalıcı bellek (FTS5)
     rag.py              RAG motoru (FTS5 + bm25)
+    discovery.py        ev ağında Hermes arar (/24 tarama + /health imzası)
   forge/
     agents.py           ajan kadrosu, istemler ve bağımlılık grafiği
     board.py            ortak pano (damıtılmış yapım durumu)
@@ -295,14 +323,15 @@ frontend/
 android/                Chaquopy tabanlı APK projesi (Kotlin + gömülü Python)
 vendor/hermes-agent/    Hermes Agent kaynağı (MIT, üst akış — bkz. vendor/README.md)
 scripts/
-  hermes_sunucu.sh      Hermes'i başlatır ve bağlanma QR kodunu basar
+  hermes_sunucu.sh      Hermes'i kurar, modeli ayarlar, başlatır, QR kodu basar
+  hermes_model_ayarla.py  config.yaml'a model bloğunu yazar (TUI'siz)
   qr.py                 bağımlılıksız QR üreteci (byte modu, ECC M, sürüm 1-10)
   build_apk.sh          Android SDK'yı kurar ve APK derler
   install_hermes.sh     Hermes bağımlılıklarını kurar (kaynak depoda)
   update_hermes.sh      Hermes kaynağını üst akıştan günceller
   termux_setup.sh       Android tek komut kurulum
   start.sh              uygulamayı başlat
-tests/                  322 test (pytest)
+tests/                  334 test (pytest)
 ```
 
 ---
@@ -331,7 +360,7 @@ python3 -m pip install -r requirements-dev.txt
 python3 -m pytest
 ```
 
-322 test; hepsi yalıtılmış — makinede çalışan bir Hermes varsa bile testler
+334 test; hepsi yalıtılmış — makinede çalışan bir Hermes varsa bile testler
 ona bağlanmaz (`tests/conftest.py` erişilemez bir porta yönlendirir), yoksa
 "motor yok" senaryoları sessizce yeşile döner ve hiçbir şey doğrulamazdı.
 
