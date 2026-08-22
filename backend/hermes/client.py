@@ -124,6 +124,98 @@ def _sse_events(response: requests.Response) -> Iterator[Tuple[str, Any]]:
                 yield event_name, {"raw": payload}
 
 
+def probe(base_url: str, api_key: str = "", *, timeout: float = 8.0) -> Dict[str, Any]:
+    """Bir Hermes adresini kaydetmeden önce sınar.
+
+    Kullanıcı yanlış adres ya da yanlış anahtar girdiğinde bunu ayarları
+    kaydettikten sonra ilk sohbette değil, "Bağlan" düğmesine bastığı anda
+    öğrenmeli. Dönen sözlük ``ok`` ve Türkçe bir ``error``/``detail`` taşır.
+    """
+    base = (base_url or "").strip().rstrip("/")
+    if not base:
+        return {"ok": False, "error": "Hermes adresi boş olamaz."}
+    if not base.startswith(("http://", "https://")):
+        base = "http://" + base
+
+    headers = {"Accept": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    try:
+        health = requests.get(f"{base}/health", headers=headers, timeout=timeout)
+    except requests.exceptions.RequestException as exc:
+        return {
+            "ok": False,
+            "error": (
+                "Hermes'e ulaşılamadı. Adresi ve Hermes'in çalıştığı makinenin açık "
+                "olduğunu kontrol et; aynı Wi-Fi ağında olmanız gerekir."
+            ),
+            "detail": str(exc)[:300],
+            "base_url": base,
+        }
+    if health.status_code >= 500:
+        return {
+            "ok": False,
+            "error": f"Hermes hata döndürdü ({health.status_code}).",
+            "base_url": base,
+        }
+
+    # /health kimlik istemez; anahtarı gerçekten sınayan uç /v1/capabilities.
+    try:
+        caps = requests.get(f"{base}/v1/capabilities", headers=headers, timeout=timeout)
+    except requests.exceptions.RequestException as exc:
+        return {
+            "ok": False,
+            "error": "Hermes yanıt verdi ama yetenek listesi alınamadı.",
+            "detail": str(exc)[:300],
+            "base_url": base,
+        }
+
+    if caps.status_code in (401, 403):
+        return {
+            "ok": False,
+            "error": (
+                "Anahtar reddedildi. Hermes makinesindeki ~/.hermes/.env dosyasındaki "
+                "API_SERVER_KEY değerini birebir kopyala."
+            ),
+            "base_url": base,
+        }
+    if caps.status_code >= 400:
+        return {
+            "ok": False,
+            "error": (
+                f"Bu adres bir Hermes API sunucusu gibi görünmüyor ({caps.status_code}). "
+                "Portun 8642 olduğundan emin ol."
+            ),
+            "base_url": base,
+        }
+
+    try:
+        payload = caps.json()
+    except ValueError:
+        return {
+            "ok": False,
+            "error": "Adres yanıt verdi ama Hermes değil (geçersiz yanıt).",
+            "base_url": base,
+        }
+
+    # Gerçek Hermes 0.20.4 tekil ``model`` alanı döndürüyor; liste biçimini de
+    # kabul ediyoruz ki ileride değişirse arayüz boş kalmasın.
+    models: List[str] = []
+    if isinstance(payload, dict):
+        single = payload.get("model")
+        if isinstance(single, str) and single:
+            models.append(single)
+        raw = payload.get("models") or payload.get("data") or []
+        for row in raw if isinstance(raw, list) else []:
+            if isinstance(row, dict) and row.get("id"):
+                models.append(str(row["id"]))
+            elif isinstance(row, str):
+                models.append(row)
+
+    return {"ok": True, "base_url": base, "models": models[:20]}
+
+
 class HermesClient:
     """Hermes API sunucusuyla konuşan ince istemci."""
 

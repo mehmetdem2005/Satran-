@@ -551,57 +551,41 @@
       const reachable = !!(data.hermes && data.hermes.health && data.hermes.health.reachable);
       engineIsHermes = reachable;
 
-      if (reachable || data.fallback.available) showSetup(false);
-
       if (reachable) {
+        showSetup(false);
         updateEngineBadge({
           engine: 'hermes',
           label: 'Hermes Agent',
           detail: data.hermes.base_url,
           note: 'araçlar ve beceriler etkin'
         });
-      } else if (data.fallback.available) {
-        // APK'da Hermes zaten yok: "kapalı" demek arıza varmış gibi okunuyor.
-        // Motor çalışıyor; Hermes yalnızca isteğe bağlı bir ek.
-        updateEngineBadge({
-          engine: 'fallback',
-          label: data.fallback.model,
-          detail: data.fallback.base_url,
-          note: platform === 'android'
-            ? 'Hermes bağlı değil (isteğe bağlı)'
-            : 'Hermes kapalı — araçlar ve beceriler devre dışı'
-        });
       } else {
-        // Motor yoksa kullanıcıyı menüde arattırma: kurulum kartını göster.
+        // Hermes olmadan çalışan bir yol yok; kullanıcıyı menüde arattırma.
         if (!state.messages.length) showSetup(true);
         updateEngineBadge({
           engine: 'none',
-          label: 'Sağlayıcı ayarlanmadı',
-          detail: '',
+          label: 'Hermes\'e bağlı değil',
+          detail: data.hermes ? data.hermes.base_url : '',
           note: platform === 'android'
-            ? 'Ayarlar → Sağlayıcı bölümünden bir API anahtarı gir.'
-            : 'Ayarlar\'dan bir API anahtarı gir ya da Hermes gateway\'i başlat.'
+            ? 'Hermes\'in çalıştığı bilgisayardaki QR kodu okut ya da adresi elle gir.'
+            : 'scripts/hermes_sunucu.sh ile gateway\'i başlat.'
         });
       }
 
-      // Hermes gateway'i yalnızca masaüstünde başlatılabilir; APK'nın içinde
+      // Gateway'i yalnızca aynı makinede başlatabiliriz; APK'nın içinde
       // Hermes yok ve kabuk da yok, düğmeyi orada göstermek yanıltıcı olur.
       els.startHermesBtn.style.display = (!reachable && platform !== 'android') ? 'block' : 'none';
       els.hermesLog.style.display = platform === 'android' ? 'none' : '';
 
-      // Hermes bağlı değilken ne kaçırdığını ve nasıl bağlayacağını söyle —
-      // "kapalı" kelimesi tek başına arıza sanılıyor.
       const optional = $('hermesOptionalHint');
       if (optional) {
-        const show = !reachable && data.fallback.available;
-        optional.style.display = show ? '' : 'none';
-        if (show) {
+        optional.style.display = reachable ? 'none' : '';
+        if (!reachable) {
           optional.textContent = platform === 'android'
-            ? 'Uygulama çalışıyor. Hermes ek bir katman: Termux\'ta ya da bir sunucuda ' +
-              'çalıştırıp Ayarlar → Hermes Agent bölümüne adresini yazarsan terminal, ' +
-              'dosya araçları ve beceriler de devreye girer.'
-            : 'Hermes çalışmıyor; model doğrudan sağlayıcıdan geliyor. Gateway\'i ' +
-              'başlatırsan araçlar ve beceriler de gelir.';
+            ? 'Uygulama tüm işi Hermes\'e yaptırır. Hermes\'in çalıştığı bilgisayarda ' +
+              'scripts/hermes_sunucu.sh komutunu çalıştır, ekrandaki QR kodu telefonun ' +
+              'kamerasıyla okut.'
+            : 'Hermes çalışmıyor; uygulama Hermes olmadan iş üretemez.';
         }
       }
 
@@ -820,20 +804,13 @@
 
     els.saveSettingsBtn.addEventListener('click', saveSettings);
     $('setupSaveBtn').addEventListener('click', runSetup);
-    $('setupPreset').addEventListener('change', function () { applySetupPreset(this.value); });
     $('setupKey').addEventListener('keydown', function (event) {
       if (event.key === 'Enter') runSetup();
     });
-    $('fallback_preset').addEventListener('change', function () {
-      $('fallback_base_url').value = '';
-      applyPreset(this.value, '', $('reasoning_effort').value);
+    $('setupBaseUrl').addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') runSetup();
     });
-    $('fallback_model_select').addEventListener('change', function () {
-      $('customModelField').style.display = this.value === '__custom__' ? '' : 'none';
-    });
-    ['temperature', 'top_p'].forEach(function (field) {
-      $(field).addEventListener('input', syncSliderLabels);
-    });
+    $('testHermesBtn').addEventListener('click', testHermesFromSettings);
 
     // Kod kartı düğmeleri, sohbet listesi, proje listesi: tek delege dinleyici.
     document.addEventListener('click', function (event) {
@@ -910,112 +887,52 @@
   /**
    * İlk açılış kurulumu.
    *
-   * Uygulamanın çalışması için gereken tek şey bir sağlayıcı anahtarı.
-   * Kullanıcıyı menüde arattırmak yerine sohbet alanında istiyoruz ve
-   * kaydetmeden ÖNCE sağlayıcıya karşı sınıyoruz — yanlış bir anahtar aksi
-   * hâlde ancak ilk sohbet denemesinde, akışın ortasında anlaşılıyor.
+   * Uygulama yalnızca Hermes ile çalışır; gereken tek şey Hermes'in adresi ve
+   * anahtarı. Kaydetmeden ÖNCE sunucuya karşı sınıyoruz — yanlış bir adres
+   * aksi hâlde ancak ilk sohbet denemesinde, akışın ortasında anlaşılıyor.
    */
-  function setupPresetById(id) {
-    if (!catalog) return null;
-    return catalog.presets.find(function (p) { return p.id === id; }) || null;
-  }
-
-  function renderSetup() {
-    if (!catalog) return;
-    const presetSelect = $('setupPreset');
-    if (!presetSelect.options.length) {
-      presetSelect.innerHTML = catalog.presets.map(function (p) {
-        return '<option value="' + p.id + '">' + window.Markdown.escapeHtml(p.label) + '</option>';
-      }).join('');
-      presetSelect.value = catalog.default_preset;
-    }
-    applySetupPreset(presetSelect.value);
-  }
-
-  function applySetupPreset(presetId) {
-    const preset = setupPresetById(presetId);
-    if (!preset) return;
-
-    const modelSelect = $('setupModel');
-    if (preset.models.length) {
-      modelSelect.innerHTML = preset.models.map(function (m) {
-        return '<option value="' + m.id + '">' + window.Markdown.escapeHtml(m.label) + '</option>';
-      }).join('');
-      modelSelect.closest('.field').style.display = '';
-      $('setupBaseUrlField').style.display = 'none';
-    } else {
-      // Özel uçta model adını ve adresi kullanıcı verir. Model adı boş
-      // kalırsa kayıtlı DeepSeek modeli kullanılır ve uç onu tanımaz —
-      // bu yüzden ikisi de zorunlu.
-      modelSelect.innerHTML = '';
-      modelSelect.closest('.field').style.display = 'none';
-      $('setupBaseUrlField').style.display = '';
-      $('setupCustomModelField').style.display = '';
-    }
-    if (preset.models.length) $('setupCustomModelField').style.display = 'none';
-    $('setupKey').placeholder = preset.key_hint || 'sk-…';
-    $('setupKeyLink').style.display = presetId === 'deepseek' ? '' : 'none';
-  }
-
   function showSetup(show) {
     $('setupCard').style.display = show ? 'flex' : 'none';
     if (els.empty) els.empty.style.display = show ? 'none' : '';
-    if (show) renderSetup();
+  }
+
+  /** Adresi/anahtarı sınar, sonucu verilen durum kutusuna yazar. */
+  async function probeHermes(baseUrl, apiKey, status) {
+    status.className = 'setup-status busy';
+    status.textContent = 'Bağlanılıyor…';
+    const result = await fetch('/api/hermes/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ base_url: baseUrl, api_key: apiKey })
+    }).then(function (r) { return r.json(); });
+
+    if (!result.ok) {
+      status.className = 'setup-status error';
+      status.textContent = result.error || 'Bağlanılamadı.';
+    }
+    return result;
   }
 
   async function runSetup() {
     const button = $('setupSaveBtn');
     const status = $('setupStatus');
-    const presetId = $('setupPreset').value;
-    const preset = setupPresetById(presetId);
+    const baseUrl = $('setupBaseUrl').value.trim();
     const key = $('setupKey').value.trim();
 
-    if (!key) {
+    if (!baseUrl) {
       status.className = 'setup-status error';
-      status.textContent = 'Önce bir API anahtarı yapıştır.';
-      return;
-    }
-
-    const usingPreset = !!(preset && preset.models.length);
-    const model = usingPreset ? $('setupModel').value : $('setupCustomModel').value.trim();
-    const baseUrl = usingPreset ? preset.base_url : $('setupBaseUrl').value.trim();
-
-    if (!usingPreset && !baseUrl) {
-      status.className = 'setup-status error';
-      status.textContent = 'Özel sağlayıcı için taban adres gerekli.';
-      return;
-    }
-    if (!usingPreset && !model) {
-      status.className = 'setup-status error';
-      status.textContent = 'Özel sağlayıcı için model adı gerekli.';
+      status.textContent = 'Hermes adresini gir (örn. http://192.168.1.20:8642).';
       return;
     }
 
     button.disabled = true;
-    status.className = 'setup-status busy';
-    status.textContent = 'Anahtar sınanıyor…';
-
     try {
-      const test = await fetch('/api/provider/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ preset: presetId, api_key: key, base_url: baseUrl, model: model })
-      }).then(function (r) { return r.json(); });
-
-      if (!test.ok) {
-        status.className = 'setup-status error';
-        status.textContent = test.error || 'Anahtar doğrulanamadı.';
-        return;
-      }
+      const test = await probeHermes(baseUrl, key, status);
+      if (!test.ok) return;
 
       status.textContent = 'Kaydediliyor…';
-      const payload = {
-        fallback_preset: presetId,
-        fallback_api_key: key,
-        fallback_enabled: true
-      };
-      if (model) payload.fallback_model = model;
-      if (baseUrl) payload.fallback_base_url = baseUrl;
+      const payload = { hermes_base_url: test.base_url || baseUrl };
+      if (key) payload.hermes_api_key = key;
 
       const saved = await fetch('/api/settings', {
         method: 'POST',
@@ -1030,9 +947,31 @@
       }
 
       status.className = 'setup-status ok';
-      status.textContent = test.warning || 'Hazır! Artık yazabilirsin.';
+      status.textContent = 'Bağlandı! Artık yazabilirsin.';
       await refreshStatus();
-      setTimeout(function () { showSetup(false); els.input.focus(); }, test.warning ? 2600 : 900);
+      setTimeout(function () { showSetup(false); els.input.focus(); }, 900);
+    } catch (err) {
+      status.className = 'setup-status error';
+      status.textContent = 'Hata: ' + err.message;
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  /** Ayarlar panelindeki "Bağlantıyı sına" düğmesi. */
+  async function testHermesFromSettings() {
+    const button = $('testHermesBtn');
+    const status = $('hermesTestStatus');
+    button.disabled = true;
+    try {
+      const result = await probeHermes(
+        $('hermes_base_url').value.trim(), $('hermes_api_key').value.trim(), status
+      );
+      if (result.ok) {
+        status.className = 'setup-status ok';
+        status.textContent = 'Bağlantı çalışıyor.' +
+          (result.models && result.models.length ? ' Model: ' + result.models[0] : '');
+      }
     } catch (err) {
       status.className = 'setup-status error';
       status.textContent = 'Hata: ' + err.message;
@@ -1043,78 +982,31 @@
 
   // ------------------------------------------------------------------ ayarlar
 
-  const SETTING_FIELDS = [
-    'hermes_base_url', 'hermes_api_key', 'hermes_model', 'hermes_repo_dir',
-    'fallback_base_url', 'fallback_api_key'
-  ];
-  const NUMERIC_FIELDS = ['max_tokens', 'temperature', 'top_p'];
+  const SETTING_FIELDS = ['hermes_base_url', 'hermes_api_key', 'hermes_model', 'hermes_repo_dir'];
+  const NUMERIC_FIELDS = ['max_tokens', 'max_parallel_agents'];
 
-  // Model ve düşünme düzeyi listeleri sunucudan gelir; sağlayıcının kendi
-  // belgelerinden türetilmiştir, arayüzde sabit liste tutmuyoruz.
+  // Düşünme düzeyi listesi sunucudan gelir; Hermes'in kendi kaynak kodundan
+  // türetilmiştir, arayüzde sabit liste tutmuyoruz.
   let catalog = null;
   let platform = 'desktop';      // 'android' ise kabuk komutu önerilmez
-  let engineIsHermes = false;    // düşünme düzeyi listesi buna göre değişir
+  let engineIsHermes = false;
 
-  function presetById(id) {
-    if (!catalog) return null;
-    return catalog.presets.find(function (p) { return p.id === id; }) || null;
-  }
-
-  /** Sağlayıcı değişince model ve düzey listelerini yeniden kur. */
-  function applyPreset(presetId, currentModel, currentEffort) {
-    const preset = presetById(presetId);
-    if (!preset) return;
-
-    // Model: bilinen modeller açılır listede, "custom" ise serbest metin.
-    const select = $('fallback_model_select');
-    const customField = $('customModelField');
-    if (preset.models.length) {
-      select.innerHTML = preset.models.map(function (m) {
-        return '<option value="' + m.id + '">' + window.Markdown.escapeHtml(m.label) + '</option>';
-      }).join('') + '<option value="__custom__">Özel model adı…</option>';
-      const known = preset.models.some(function (m) { return m.id === currentModel; });
-      select.value = known ? currentModel : (currentModel ? '__custom__' : preset.models[0].id);
-      select.closest('.field').style.display = '';
-      customField.style.display = select.value === '__custom__' ? '' : 'none';
-      if (select.value === '__custom__') $('fallback_model').value = currentModel || '';
-    } else {
-      select.closest('.field').style.display = 'none';
-      customField.style.display = '';
-      $('fallback_model').value = currentModel || '';
-    }
-
-    // Taban adres: ön ayarda tanımlıysa doldur, özel sağlayıcıda kullanıcıya bırak.
-    if (preset.base_url && !$('fallback_base_url').value) {
-      $('fallback_base_url').value = preset.base_url;
-    }
-    $('fallback_api_key').placeholder = preset.key_hint || 'sk-…';
-
-    // Düşünme düzeyleri: aktif motora göre. Hermes çalışıyorsa onun kümesi,
-    // yoksa sağlayıcınınki — ikisi aynı liste değil.
-    const efforts = (engineIsHermes && catalog.hermes_efforts) ? catalog.hermes_efforts : preset.efforts;
+  /** Düşünme düzeyi listesini ve token ipucunu kurar. */
+  function applyCatalog(currentEffort) {
+    if (!catalog || !catalog.hermes_efforts) return;
     const effortSelect = $('reasoning_effort');
-    effortSelect.innerHTML = efforts.map(function (e) {
+    effortSelect.innerHTML = catalog.hermes_efforts.map(function (e) {
       return '<option value="' + e.id + '">' + window.Markdown.escapeHtml(e.label) + '</option>';
     }).join('');
-    effortSelect.value = efforts.some(function (e) { return e.id === currentEffort; })
+    effortSelect.value = catalog.hermes_efforts.some(function (e) { return e.id === currentEffort; })
       ? currentEffort : 'default';
 
-    $('effortHint').textContent = engineIsHermes
-      ? 'Hermes çalışıyor: düzeyler Hermes\'in kabul ettiği kümeden.'
-      : preset.label + ' bu düzeyleri kabul ediyor.';
-
-    // Token sınırı
-    const maxInput = $('max_tokens');
-    if (preset.max_output_tokens) {
-      maxInput.max = String(preset.max_output_tokens);
-      $('maxTokensHint').textContent =
-        preset.label + ' en fazla ' + preset.max_output_tokens.toLocaleString('tr-TR') +
-        ' çıktı tokenı veriyor. Hermes bu değeri istek başına kabul etmediği için ' +
-        'ayrıca ~/.hermes/.env dosyasına yazılır.';
-    } else {
-      maxInput.removeAttribute('max');
-      $('maxTokensHint').textContent = 'Sağlayıcının üst sınırı bilinmiyor; değeri sen belirle.';
-    }
+    $('effortHint').textContent =
+      'Düzeyler Hermes\'in kabul ettiği kümeden. "Varsayılan" seçiliyken hiçbir şey ' +
+      'gönderilmez, Hermes kendi ayarını kullanır.';
+    $('maxTokensHint').textContent =
+      'Hermes bu değeri istek başına kabul etmiyor; Hermes ile aynı makinedeysen ' +
+      '~/.hermes/.env dosyasına yazılır ve gateway yeniden başlatılması gerekir.';
   }
 
   async function loadSettings() {
@@ -1128,21 +1020,14 @@
       else input.value = value || '';
     });
     $('hermes_autostart').checked = !!data.hermes_autostart;
-    $('fallback_enabled').checked = !!data.fallback_enabled;
 
     NUMERIC_FIELDS.forEach(function (field) {
       const input = $(field);
       if (input && data[field] !== undefined && data[field] !== null) input.value = data[field];
     });
-    syncSliderLabels();
 
     if (!catalog) await refreshStatus();
-    const presetSelect = $('fallback_preset');
-    presetSelect.innerHTML = (catalog ? catalog.presets : []).map(function (p) {
-      return '<option value="' + p.id + '">' + window.Markdown.escapeHtml(p.label) + '</option>';
-    }).join('');
-    presetSelect.value = data.fallback_preset || (catalog ? catalog.default_preset : 'deepseek');
-    applyPreset(presetSelect.value, data.fallback_model, data.reasoning_effort);
+    applyCatalog(data.reasoning_effort);
     applyPlatformToSettings();
   }
 
@@ -1150,17 +1035,13 @@
   function applyPlatformToSettings() {
     const android = platform === 'android';
     $('hermesAutostartRow').style.display = android ? 'none' : '';
+    $('hermesRepoField').style.display = android ? 'none' : '';
     const hint = $('hermesPlatformHint');
     hint.style.display = android ? '' : 'none';
     if (android) {
-      hint.textContent = 'Hermes bu uygulamanın içinde değil. Termux\'ta ya da bir ' +
-        'sunucuda çalıştırıp adresini buraya yazarsan araçları ve becerileri devreye girer.';
+      hint.textContent = 'Hermes bu uygulamanın içinde değil, senin bilgisayarında çalışır. ' +
+        'Adresi elle yazmak yerine, o bilgisayardaki QR kodu telefonun kamerasıyla okutabilirsin.';
     }
-  }
-
-  function syncSliderLabels() {
-    $('temperatureValue').textContent = parseFloat($('temperature').value).toFixed(2);
-    $('topPValue').textContent = parseFloat($('top_p').value).toFixed(2);
   }
 
   async function saveSettings() {
@@ -1170,15 +1051,7 @@
       if (input && input.value.trim()) payload[field] = input.value.trim();
     });
     payload.hermes_autostart = $('hermes_autostart').checked;
-    payload.fallback_enabled = $('fallback_enabled').checked;
-    payload.fallback_preset = $('fallback_preset').value;
     payload.reasoning_effort = $('reasoning_effort').value;
-
-    const modelSelect = $('fallback_model_select');
-    const usingCustom = modelSelect.closest('.field').style.display === 'none' ||
-      modelSelect.value === '__custom__';
-    const model = usingCustom ? $('fallback_model').value.trim() : modelSelect.value;
-    if (model) payload.fallback_model = model;
 
     NUMERIC_FIELDS.forEach(function (field) {
       const raw = $(field).value.trim();

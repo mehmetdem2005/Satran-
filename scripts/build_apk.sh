@@ -120,8 +120,11 @@ $(cd "$PROJECT_ROOT/dist" && for f in *.apk; do printf "    %-36s %s\n" "$f" "$(
     - "Bilinmeyen kaynaklardan kuruluma izin ver" sorulursa onayla
     - Ya da USB ile: adb install -r dist/hermesforge-arm64-debug.apk
 
-  İlk açılışta bir model sağlayıcısı anahtarı gir (Ayarlar → Yedek sağlayıcı).
-  Hermes'in araçlarını da istiyorsan Termux'ta Hermes'i çalıştırıp
-  Ayarlar → Hermes Agent bölümüne adresini yaz.
+  Uygulama yalnızca Hermes ile çalışır. Kurduktan sonra bu bilgisayarda:
+
+    bash scripts/hermes_sunucu.sh
+
+  komutunu çalıştır ve ekrana çıkan QR kodu telefonun kamerasıyla okut.
+  Uygulama adresi ve anahtarı kendisi kaydeder.
 
 SUMMARY

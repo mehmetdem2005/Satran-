@@ -8,6 +8,11 @@
     <string name="download_saved">İndirildi: %1$s</string>
     <string name="download_failed">İndirme başarısız: %1$s</string>
     <string name="connecting_hermes">Hermes bağlanıyor…</string>
-    <string name="connected_hermes">Hermes bağlandı — araçlar ve beceriler etkin</string>
+    <string name="connected_hermes">Hermes bağlandı — artık yazabilirsin</string>
     <string name="connect_failed">Hermes bağlanamadı</string>
+    <string name="connect_confirm_title">Bu makineye bağlanılsın mı?</string>
+    <string name="connect_confirm_local">HermesForge şu adrese bağlanacak:\n\n%1$s\n\nBu senin bilgisayarınsa devam et. Bu ekranı beklemiyorduysan iptal et.</string>
+    <string name="connect_confirm_remote">Dikkat: %1$s ev ağında değil, internetteki bir sunucu.\n\nBağlanırsan Hermes anahtarın bu sunucuya gönderilir ve tüm istekler oradan geçer. Sunucunun sana ait olduğundan emin değilsen iptal et.</string>
+    <string name="connect_confirm_yes">Bağlan</string>
+    <string name="connect_confirm_no">İptal</string>
 </resources>

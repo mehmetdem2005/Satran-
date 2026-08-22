@@ -25,11 +25,11 @@ import config as config_module  # noqa: E402
 import utils  # noqa: E402
 from forge import ArtifactStore, ForgePipeline, public_roster  # noqa: E402
 from forge.artifacts import EXPORT_FORMATS  # noqa: E402
+import presets  # noqa: E402
 from hermes import HermesClient, HermesRuntime  # noqa: E402
+from hermes.client import probe as hermes_probe  # noqa: E402
 from hermes.memory import CATEGORIES, HermesMemory  # noqa: E402
 from hermes.rag import HermesRag  # noqa: E402
-from providers import DirectProvider  # noqa: E402
-from providers import presets  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -40,8 +40,8 @@ logger = logging.getLogger("hermesforge")
 MAX_UPLOAD_BYTES = 32 * 1024 * 1024
 DEFAULT_SCOPE = "default"
 
-# Düşünme düzeyleri ve model listeleri sağlayıcının kendi belgelerinden
-# geliyor (providers/presets.py). Uydurma bir liste göstermiyoruz.
+# Düşünme düzeyleri Hermes'in kendi kaynak kodundan geliyor (presets.py).
+# Uydurma bir liste göstermiyoruz.
 
 
 def _validate_settings(updates: Dict[str, Any]) -> Optional[str]:
@@ -52,19 +52,24 @@ def _validate_settings(updates: Dict[str, Any]) -> Optional[str]:
     sayılırdı ve kullanıcı ayarın çalıştığını sanırdı.
     """
     effort = updates.get("reasoning_effort")
-    if effort is not None:
-        preset_id = str(updates.get("fallback_preset") or presets.DEFAULT_PRESET)
-        if not presets.is_valid_effort(str(effort), preset_id):
-            gecerli = ", ".join(presets.efforts_for(preset_id))
-            return f"Geçersiz düşünme düzeyi. Bu sağlayıcıda geçerli olanlar: {gecerli}"
+    if effort is not None and not presets.is_valid_effort(str(effort)):
+        gecerli = ", ".join(presets.HERMES_EFFORTS)
+        return f"Geçersiz düşünme düzeyi. Geçerli olanlar: {gecerli}"
 
-    preset_id = updates.get("fallback_preset")
-    if preset_id is not None and str(preset_id) not in presets.PRESETS:
-        return f"Bilinmeyen sağlayıcı. Seçenekler: {', '.join(presets.PRESETS)}"
+    base_url = updates.get("hermes_base_url")
+    if base_url is not None:
+        text = str(base_url).strip()
+        if not text:
+            return "Hermes adresi boş olamaz."
+        if not text.startswith(("http://", "https://")):
+            return "Hermes adresi http:// ya da https:// ile başlamalı."
+        updates["hermes_base_url"] = text.rstrip("/")
 
     for key, low, high in (
         ("max_tokens", 1, 1_000_000),
         ("max_parallel_agents", 1, 6),
+        ("rag_top_k", 1, 50),
+        ("memory_top_k", 1, 50),
     ):
         if key in updates:
             try:
@@ -75,22 +80,7 @@ def _validate_settings(updates: Dict[str, Any]) -> Optional[str]:
                 return f"{key} {low}-{high} aralığında olmalı."
             updates[key] = value
 
-    for key, low, high in (("temperature", 0.0, 2.0), ("top_p", 0.0, 1.0)):
-        if key in updates:
-            try:
-                value = float(updates[key])
-            except (TypeError, ValueError):
-                return f"{key} bir sayı olmalı."
-            if not low <= value <= high:
-                return f"{key} {low}-{high} aralığında olmalı."
-            updates[key] = value
-
     return None
-
-
-
-def cfg_preset(services) -> str:
-    return getattr(services["config"], "fallback_preset", presets.DEFAULT_PRESET)
 
 
 def create_app() -> Flask:
@@ -115,10 +105,7 @@ def create_app() -> Flask:
     memory = HermesMemory(cfg.memory_db_path, client=client)
     rag = HermesRag(cfg.rag_db_path, workspace_dir=cfg.uploads_path)
     store = ArtifactStore(cfg.projects_path)
-    fallback = DirectProvider(cfg)
-    pipeline = ForgePipeline(
-        config=cfg, client=client, memory=memory, rag=rag, store=store, fallback=fallback
-    )
+    pipeline = ForgePipeline(config=cfg, client=client, memory=memory, rag=rag, store=store)
 
     app.extensions["hermesforge"] = {
         "config": cfg,
@@ -127,7 +114,6 @@ def create_app() -> Flask:
         "memory": memory,
         "rag": rag,
         "store": store,
-        "fallback": fallback,
         "pipeline": pipeline,
     }
 
@@ -200,12 +186,6 @@ def _register_routes(app: Flask) -> None:
                     "models": models,
                     "base_url": cfg.hermes_base_url,
                     "managed_pid": runtime.managed_pid(),
-                },
-                "fallback": {
-                    "available": services["fallback"].available,
-                    "preset": cfg.fallback_preset,
-                    "model": cfg.fallback_model,
-                    "base_url": cfg.fallback_base_url,
                 },
                 "memory": services["memory"].stats(scope=DEFAULT_SCOPE),
                 "rag": services["rag"].stats(),
@@ -438,21 +418,20 @@ def _register_routes(app: Flask) -> None:
         )
 
     # ------------------------------------------------------------------
-    # Sağlayıcı doğrulama
+    # Bağlantı doğrulama
     # ------------------------------------------------------------------
-    @app.route("/api/provider/test", methods=["POST"])
-    def provider_test():
-        """Girilen anahtarı kaydetmeden önce sağlayıcıya karşı sınar."""
+    @app.route("/api/hermes/test", methods=["POST"])
+    def hermes_test():
+        """Girilen Hermes adresini/anahtarını kaydetmeden önce sınar."""
         payload = request.get_json(silent=True) or {}
         services = _services()
-
-        preset = presets.get_preset(str(payload.get("preset") or cfg_preset(services)))
-        base_url = str(payload.get("base_url") or "").strip() or preset.get("base_url", "")
-        result = services["fallback"].test_credentials(
-            api_key=str(payload.get("api_key") or "").strip() or None,
-            base_url=base_url or None,
-            model=str(payload.get("model") or "").strip() or None,
-        )
+        base_url = str(payload.get("base_url") or "").strip() or services["config"].hermes_base_url
+        api_key = str(payload.get("api_key") or "").strip()
+        if not api_key:
+            # Boş bırakıldıysa kayıtlı anahtarla sına — kullanıcı sırrı
+            # yeniden yazmak zorunda kalmasın.
+            api_key = services["config"].hermes_api_key
+        result = hermes_probe(base_url, api_key)
         return jsonify(result), (200 if result.get("ok") else 400)
 
     # ------------------------------------------------------------------
@@ -468,9 +447,8 @@ def _register_routes(app: Flask) -> None:
         payload = request.get_json(silent=True) or {}
         allowed = {
             "hermes_base_url", "hermes_api_key", "hermes_model", "hermes_provider",
-            "hermes_autostart", "hermes_repo_dir", "fallback_enabled", "fallback_base_url",
-            "fallback_model", "fallback_api_key", "fallback_preset", "rag_top_k", "memory_top_k",
-            "reasoning_effort", "max_tokens", "temperature", "top_p", "max_parallel_agents",
+            "hermes_autostart", "hermes_repo_dir", "rag_top_k", "memory_top_k",
+            "reasoning_effort", "max_tokens", "max_parallel_agents",
         }
         updates = {key: value for key, value in payload.items() if key in allowed}
         if not updates:

@@ -61,7 +61,7 @@ class TestChatStream:
 
         assert "engine" in types
         hata = next(e for e in events if e["type"] == "error")
-        assert "install_hermes.sh" in hata["text"] or "yedek sağlayıcı" in hata["text"]
+        assert "hermes_sunucu.sh" in hata["text"] or "Hermes" in hata["text"]
         assert events[-1] == {"type": "done", "ok": False}
 
     def test_bozuk_proje_kimligi_cokertmez(self, client):
@@ -249,40 +249,39 @@ class TestModelSettings:
     def test_gecersiz_max_token(self, client, value):
         assert client.post("/api/settings", json={"max_tokens": value}).status_code == 400
 
-    def test_temperature_ve_top_p(self, client):
-        assert client.post("/api/settings", json={"temperature": 0.3, "top_p": 0.8}).status_code == 200
-        data = client.get("/api/settings").get_json()
-        assert data["temperature"] == 0.3
-        assert data["top_p"] == 0.8
+    def test_hermes_adresi_kaydedilir(self, client):
+        assert client.post(
+            "/api/settings", json={"hermes_base_url": "http://192.168.1.20:8642/"}
+        ).get_json()["saved"]
+        assert client.get("/api/settings").get_json()["hermes_base_url"] == (
+            "http://192.168.1.20:8642"
+        )
 
-    @pytest.mark.parametrize("payload", [{"temperature": 5}, {"top_p": 2}, {"temperature": "x"}])
-    def test_araligi_asan_degerler(self, client, payload):
-        assert client.post("/api/settings", json=payload).status_code == 400
+    @pytest.mark.parametrize("value", ["", "192.168.1.20:8642", "ftp://x"])
+    def test_gecersiz_hermes_adresi_reddedilir(self, client, value):
+        assert client.post("/api/settings", json={"hermes_base_url": value}).status_code == 400
+
+    def test_anahtar_duz_metin_donmez(self, client):
+        """Sır cihazda kalır; /api/settings yalnızca var/yok bildirir."""
+        client.post("/api/settings", json={"hermes_api_key": "gizli-anahtar"})
+        assert client.get("/api/settings").get_json()["hermes_api_key"] is True
 
     def test_paralel_ajan_siniri(self, client):
         assert client.post("/api/settings", json={"max_parallel_agents": 3}).status_code == 200
         assert client.post("/api/settings", json={"max_parallel_agents": 99}).status_code == 400
 
     def test_status_gercek_katalogu_bildirir(self, client):
-        """Model ve düzey listeleri sağlayıcının belgelerinden gelmeli."""
+        """Düzey listesi Hermes'in kendi _REASONING_EFFORTS kümesinden gelmeli."""
         data = client.get("/api/status").get_json()
         catalog = data["catalog"]
 
-        deepseek = next(p for p in catalog["presets"] if p["id"] == "deepseek")
-        model_ids = [m["id"] for m in deepseek["models"]]
-        assert model_ids == [
-            "deepseek-v4-flash", "deepseek-v4-pro", "deepseek-v4-flash-vision-exp"
-        ]
-
-        efforts = [e["id"] for e in deepseek["efforts"]]
-        assert efforts == ["default", "none", "low", "high", "max"]
-        # Hermes'e özgü düzeyler DeepSeek listesinde GÖRÜNMEMELİ
-        assert "ultra" not in efforts and "minimal" not in efforts and "xhigh" not in efforts
-
         hermes_efforts = [e["id"] for e in catalog["hermes_efforts"]]
-        assert "ultra" in hermes_efforts and "xhigh" in hermes_efforts
+        assert hermes_efforts == [
+            "default", "none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra",
+        ]
+        assert "presets" not in catalog, "artık doğrudan sağlayıcı yok"
+        assert "fallback" not in data, "Hermes'siz çalışan bir yol kalmadı"
 
-        assert deepseek["max_output_tokens"] == 384000
         assert data["platform"] in ("desktop", "android")
         assert data["max_parallel_agents"] >= 1
 
@@ -417,130 +416,84 @@ class TestAndroidEntrypoint:
         assert android_main.last_error()
 
 
-class TestProviderPresets:
-    """Sağlayıcı ön ayarları — değerler sağlayıcının belgelerinden."""
+class TestHermesEnvOkuma:
+    """Hermes'in kendi .env dosyasından adres türetme."""
 
-    def test_deepseek_varsayilan_model_gercek(self, client):
-        """Eskiden 'deepseek-chat' yazıyordu; belgelerdeki aile v4."""
-        assert client.get("/api/settings").get_json()["fallback_model"] == "deepseek-v4-flash"
-
-    def test_model_secilebilir(self, client):
-        assert client.post(
-            "/api/settings", json={"fallback_model": "deepseek-v4-pro"}
-        ).get_json()["saved"]
-        assert client.get("/api/settings").get_json()["fallback_model"] == "deepseek-v4-pro"
-
-    def test_deepseekte_hermes_duzeyi_reddedilmez_ama_eslenir(self, client):
-        """Kullanıcı motorlar arası geçerken ayarı yeniden girmek zorunda kalmasın."""
-        assert client.post(
-            "/api/settings", json={"reasoning_effort": "ultra", "fallback_preset": "deepseek"}
-        ).status_code == 200
-
-    def test_gecersiz_duzey_reddedilir(self, client):
-        response = client.post("/api/settings", json={"reasoning_effort": "uydurma-duzey"})
-        assert response.status_code == 400
-        assert "geçerli olanlar" in response.get_json()["error"]
-
-    def test_bilinmeyen_saglayici_reddedilir(self, client):
-        assert client.post("/api/settings", json={"fallback_preset": "yokboyle"}).status_code == 400
-
-    def test_ozel_saglayici_secilebilir(self, client):
-        assert client.post("/api/settings", json={
-            "fallback_preset": "custom",
-            "fallback_base_url": "http://127.0.0.1:1234/v1",
-            "fallback_model": "yerel-model",
-        }).status_code == 200
-
-
-class TestDeepSeekPayload:
-    """Yedek sağlayıcıya giden gövde DeepSeek sözleşmesine uymalı."""
-
-    def _payload(self, **overrides):
+    def _load(self, tmp_path, monkeypatch, satirlar):
         import config as config_module
-        from providers.direct import DirectProvider
 
-        cfg = config_module.load_config()
-        cfg.fallback_api_key = "test"
-        for key, value in overrides.items():
-            setattr(cfg, key, value)
-        return DirectProvider(cfg)._payload([], False, None)
+        home = tmp_path / "hermes-home"
+        home.mkdir(parents=True, exist_ok=True)
+        (home / ".env").write_text("\n".join(satirlar), encoding="utf-8")
+        monkeypatch.delenv("HERMESFORGE_HERMES_URL", raising=False)
+        return config_module.load_config()
 
-    def test_dusunme_kapatma_deepseek_bicimi(self):
-        """DeepSeek: {"thinking": {"type": "disabled"}}"""
-        payload = self._payload(reasoning_effort="none")
-        assert payload["thinking"] == {"type": "disabled"}
-        assert "reasoning_effort" not in payload
+    def test_dinleme_adresi_baglanti_adresi_degildir(self, tmp_path, monkeypatch):
+        """0.0.0.0 'tüm arayüzlerde dinle' demek; oraya bağlanılmaz.
 
-    def test_belgelenmis_duzeyler_dogrudan_gider(self):
-        for effort in ("low", "high", "max"):
-            assert self._payload(reasoning_effort=effort)["reasoning_effort"] == effort
+        scripts/hermes_sunucu.sh gateway'i ev ağına açmak için bu değeri
+        yazıyor. Olduğu gibi kullansaydık Linux'ta tesadüfen çalışır,
+        macOS ve Windows'ta 'bağlanamadı' hatası verirdi.
+        """
+        cfg = self._load(tmp_path, monkeypatch, [
+            "API_SERVER_HOST=0.0.0.0", "API_SERVER_PORT=8642",
+        ])
+        assert cfg.hermes_base_url == "http://127.0.0.1:8642"
 
-    def test_hermes_duzeyleri_deepseeke_eslenir(self):
-        """DeepSeek 'ultra'yı tanımıyor; en yakın gerçek düzeye indiriyoruz."""
-        assert self._payload(reasoning_effort="ultra")["reasoning_effort"] == "max"
-        assert self._payload(reasoning_effort="xhigh")["reasoning_effort"] == "high"
-        assert self._payload(reasoning_effort="minimal")["reasoning_effort"] == "low"
+    def test_gercek_adres_korunur(self, tmp_path, monkeypatch):
+        cfg = self._load(tmp_path, monkeypatch, [
+            "API_SERVER_HOST=192.168.1.20", "API_SERVER_PORT=9000",
+        ])
+        assert cfg.hermes_base_url == "http://192.168.1.20:9000"
 
-    def test_384k_ustu_kirpiliyor(self):
-        """Üst sınırın üstünü istemek isteğin tamamını reddettirir."""
-        assert self._payload(max_tokens=999_999)["max_tokens"] == 384_000
-
-    def test_ozel_uçta_kirpma_yok(self):
-        payload = self._payload(fallback_preset="custom", max_tokens=999_999)
-        assert payload["max_tokens"] == 999_999
-
-    def test_ozel_uçta_thinking_alani_gonderilmez(self):
-        """Alanı tanımayan sunucular bilinmeyen gövde alanında 400 dönüyor."""
-        payload = self._payload(fallback_preset="custom", reasoning_effort="none")
-        assert "thinking" not in payload
+    def test_anahtar_env_dosyasindan_okunur(self, tmp_path, monkeypatch):
+        """Kullanıcı aynı sırrı iki yere yazmak zorunda kalmasın."""
+        cfg = self._load(tmp_path, monkeypatch, ["API_SERVER_KEY=hf-gizli"])
+        assert cfg.hermes_api_key == "hf-gizli"
+        assert cfg.to_public_dict()["hermes_api_key"] is True
 
 
-class TestProviderValidation:
-    """Yanlış anahtar ilk sohbet denemesinde değil, hemen anlaşılmalı."""
+class TestHermesConnection:
+    """Yanlış adres/anahtar ilk sohbet denemesinde değil, hemen anlaşılmalı."""
 
-    def test_bos_anahtar_reddedilir(self, client):
-        response = client.post("/api/provider/test", json={"api_key": ""})
+    def test_ulasilamayan_sunucu(self, client):
+        response = client.post("/api/hermes/test", json={"base_url": "http://127.0.0.1:9"})
         assert response.status_code == 400
-        assert "boş" in response.get_json()["error"]
+        error = response.get_json()["error"]
+        assert "ulaşılamadı" in error
+        assert "Wi-Fi" in error, "kullanıcıya ne yapacağını söylemeli"
 
-    def test_ulasilamayan_saglayici(self, client):
-        response = client.post("/api/provider/test", json={
-            "api_key": "sk-test",
-            "base_url": "http://127.0.0.1:9",
-            "preset": "custom",
-        })
+    def test_bos_adres_reddedilir(self, client):
+        client.post("/api/settings", json={"hermes_base_url": "http://127.0.0.1:9"})
+        response = client.post("/api/hermes/test", json={"base_url": "   "})
+        # Boş gönderilirse kayıtlı adres denenir; o da kapalı.
         assert response.status_code == 400
-        assert "ulaşılamadı" in response.get_json()["error"]
 
-    def test_gecerli_anahtar_kabul_edilir(self, client, sahte_saglayici):
-        response = client.post("/api/provider/test", json={
-            "api_key": "sk-dogru",
-            "base_url": sahte_saglayici,
-            "preset": "custom",
-            "model": "sahte-model",
-        })
+    def test_gecerli_baglanti_kabul_edilir(self, client, sahte_hermes):
+        response = client.post(
+            "/api/hermes/test", json={"base_url": sahte_hermes, "api_key": "sk-dogru"}
+        )
         assert response.status_code == 200
-        assert response.get_json()["ok"] is True
+        payload = response.get_json()
+        assert payload["ok"] is True
+        assert "hermes-agent" in payload["models"]
 
-    def test_reddedilen_anahtar_anlasilir_hata(self, client, sahte_saglayici):
-        response = client.post("/api/provider/test", json={
-            "api_key": "sk-yanlis",
-            "base_url": sahte_saglayici,
-            "preset": "custom",
-        })
+    def test_reddedilen_anahtar_anlasilir_hata(self, client, sahte_hermes):
+        response = client.post(
+            "/api/hermes/test", json={"base_url": sahte_hermes, "api_key": "sk-yanlis"}
+        )
         assert response.status_code == 400
         error = response.get_json()["error"]
         assert "reddedildi" in error
-        assert "kredi" in error, "kullanıcıya ne yapacağını söylemeli"
+        assert "API_SERVER_KEY" in error, "anahtarın nerede olduğunu söylemeli"
 
-    def test_model_listede_yoksa_uyarir(self, client, sahte_saglayici):
-        """Anahtar geçerli ama model yanlışsa sessizce geçmemeli."""
-        response = client.post("/api/provider/test", json={
-            "api_key": "sk-dogru",
-            "base_url": sahte_saglayici,
-            "preset": "custom",
-            "model": "olmayan-model",
-        })
-        payload = response.get_json()
-        assert payload["ok"] is True
-        assert "listede yok" in payload["warning"]
+    def test_hermes_olmayan_adres_ayirt_edilir(self, client, http_sunucu):
+        """Yanlış porta bağlanan kullanıcı 'burası Hermes değil' cevabını almalı."""
+        response = client.post("/api/hermes/test", json={"base_url": http_sunucu})
+        assert response.status_code == 400
+        assert "Hermes" in response.get_json()["error"]
+
+    def test_kayitli_anahtar_yeniden_yazilmak_zorunda_degil(self, client, sahte_hermes):
+        client.post("/api/settings", json={"hermes_api_key": "sk-dogru"})
+        response = client.post("/api/hermes/test", json={"base_url": sahte_hermes})
+        assert response.status_code == 200

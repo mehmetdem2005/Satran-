@@ -13,7 +13,7 @@ yeniden açması" davranışını bitirir.
 Arayüzün beklediği olaylar:
 
 ``route``        seçilen mod, roller ve sohbet başlığı
-``engine``       hangi motor çalışıyor (hermes / fallback)
+``engine``       Hermes bağlantısının durumu
 ``wave``         yeni dalga başladı, içindeki ajanlar
 ``agent_start``  bir düğüm çalışmaya başladı (aynı anda birden çok olabilir)
 ``delta``        yanıt metni parçası (``agent_id`` + ``node`` ile etiketli)
@@ -51,13 +51,12 @@ _HISTORY_TURNS = 6
 class ForgePipeline:
     """Ajan grafiğini yürüten orkestratör."""
 
-    def __init__(self, *, config, client, memory, rag, store, fallback) -> None:
+    def __init__(self, *, config, client, memory, rag, store) -> None:
         self.config = config
         self.client = client
         self.memory = memory
         self.rag = rag
         self.store = store
-        self.fallback = fallback
 
     # ------------------------------------------------------------------
     # Genel akış
@@ -322,6 +321,7 @@ class ForgePipeline:
     # Motor seçimi
     # ------------------------------------------------------------------
     def _select_engine(self) -> Dict[str, Any]:
+        """HermesForge yalnızca Hermes ile çalışır; başka motor yok."""
         health = self.client.health()
         if health.get("reachable"):
             return {
@@ -329,23 +329,9 @@ class ForgePipeline:
                 "label": "Hermes Agent",
                 "detail": self.config.hermes_base_url,
             }
-        if self.fallback.available:
-            # APK'da Hermes zaten yok; "kapalı" demek arıza varmış gibi okunuyor.
-            # Masaüstünde ise gerçekten kapatılabilir/açılabilir bir şey.
-            android = getattr(self.config, "platform", "desktop") == "android"
-            return {
-                "engine": "fallback",
-                "label": self.config.fallback_model or "Doğrudan sağlayıcı",
-                "detail": self.config.fallback_base_url,
-                "note": (
-                    "Hermes bağlı değil (isteğe bağlı) — bağlarsan araçlar ve beceriler de gelir."
-                    if android
-                    else "Hermes gateway kapalı; araçlar ve beceriler devre dışı."
-                ),
-            }
         return {
             "engine": "none",
-            "label": "Motor yok",
+            "label": "Hermes'e bağlı değil",
             "detail": health.get("error", ""),
             "note": self._no_engine_message(),
         }
@@ -353,25 +339,26 @@ class ForgePipeline:
     def _no_engine_message(self) -> str:
         """Kullanıcının gerçekten yapabileceği şeyi söyler.
 
-        Android'de kabuk yok: oradaki kullanıcıya ``install_hermes.sh``
-        önermek çalıştıramayacağı bir komutu önermektir.
+        Telefonda kabuk yok: oradaki kullanıcıya ``install_hermes.sh``
+        önermek çalıştıramayacağı bir komutu önermektir. Onun yapabileceği
+        şey, Hermes'in çalıştığı makinedeki QR kodu okutmak.
         """
         if getattr(self.config, "platform", "desktop") == "android":
             return (
-                "Henüz bir model sağlayıcısı ayarlanmadı. Menü → Ayarlar → "
-                "Sağlayıcı bölümünden bir API anahtarı girin."
+                "Hermes sunucusuna bağlanılamadı. Hermes'in çalıştığı bilgisayarda "
+                "'bash scripts/hermes_sunucu.sh' komutunu çalıştırıp ekrandaki QR kodu "
+                "telefonun kamerasıyla okut ya da Ayarlar → Hermes bölümünden adresi "
+                "elle gir. Hermes çalışmadan uygulama iş üretemez."
             )
         return (
-            "Çalışan bir motor yok. 'bash scripts/install_hermes.sh' ile Hermes'i kurun "
-            "ya da Ayarlar'dan bir sağlayıcı anahtarı girin."
+            "Hermes'e bağlanılamadı. 'bash scripts/hermes_sunucu.sh' ile gateway'i "
+            "başlat ya da Ayarlar → Hermes bölümünden doğru adresi ve anahtarı gir."
         )
 
     def _completer(self, engine: Dict[str, Any]):
         """Yönlendirici için kısa, akışsız bir tamamlama işlevi döndürür."""
         if engine["engine"] == "hermes":
             return lambda messages: self.client.complete(messages, timeout=60)
-        if engine["engine"] == "fallback":
-            return lambda messages: self.fallback.complete(messages, max_tokens=300)
         return None
 
     # ------------------------------------------------------------------
@@ -463,39 +450,22 @@ class ForgePipeline:
     ) -> Iterator[Dict[str, Any]]:
         system_prompt = agent["system_prompt"] + "\n\n" + self.memory.build_system_prompt()
 
-        if engine["engine"] == "hermes":
-            emitted = 0
-            try:
-                for event in self._stream_hermes(system_prompt, prompt, session_id, scope):
-                    if event["type"] == "delta":
-                        emitted += 1
-                    yield event
-                return
-            except Exception as exc:
-                logger.warning("Hermes akışı başarısız (%s): %s", agent["id"], exc)
-                # Metin çoktan akmaya başladıysa yedek sağlayıcıyla baştan
-                # başlamak aynı yanıtı ikinci kez yazdırır.
-                if emitted:
-                    yield {"type": "error", "text": f"Hermes akışı yarıda kesildi: {exc}"}
-                    return
-                if not self.fallback.available:
-                    yield {"type": "error", "text": f"Hermes hatası: {exc}"}
-                    return
-                yield {"type": "status", "text": "Hermes yanıt vermedi, yedek sağlayıcıya geçiliyor…"}
-
-        if engine["engine"] == "none" and not self.fallback.available:
+        if engine["engine"] != "hermes":
             yield {"type": "error", "text": self._no_engine_message()}
             return
 
+        emitted = 0
         try:
-            yield from self.fallback.stream(
-                [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt},
-                ]
-            )
+            for event in self._stream_hermes(system_prompt, prompt, session_id, scope):
+                if event["type"] == "delta":
+                    emitted += 1
+                yield event
         except Exception as exc:
-            yield {"type": "error", "text": str(exc)}
+            logger.warning("Hermes akışı başarısız (%s): %s", agent["id"], exc)
+            if emitted:
+                yield {"type": "error", "text": f"Hermes akışı yarıda kesildi: {exc}"}
+            else:
+                yield {"type": "error", "text": f"Hermes hatası: {exc}"}
 
     def _model_options(self) -> Optional[Dict[str, Any]]:
         """Hermes'e istek başına gönderilecek model seçenekleri.

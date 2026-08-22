@@ -21,6 +21,7 @@ import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import java.io.File
@@ -85,14 +86,34 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Termux betiğinin açtığı ``hermesforge://connect`` bağlantısını uygular.
+     * QR koddan gelen ``hermesforge://connect`` bağlantısını uygular.
      *
-     * Sunucu daha kalkmamış olabilir; ayarları göndermeden önce hazır olmasını
-     * bekliyoruz, yoksa istek boşa gider ve kullanıcı yine elle uğraşır.
+     * Adres artık uzak olabilir — Hermes kullanıcının bilgisayarında çalışıyor.
+     * Bu bağlantıyı kötü niyetli bir web sayfası da açabileceği için, aynı
+     * cihazda olmayan her adres için önce kullanıcıya hangi makineye
+     * bağlanılacağı soruluyor; onay gelmeden anahtar hiçbir yere yazılmıyor.
      */
     private fun handleConnectLink(intent: Intent?) {
         val request = ConnectLink.parse(intent?.data?.toString()) ?: return
+        if (request.isLoopback) {
+            applyConnectRequest(request)
+            return
+        }
 
+        val warning = if (request.isPrivateNetwork) {
+            getString(R.string.connect_confirm_local, request.host)
+        } else {
+            getString(R.string.connect_confirm_remote, request.host)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.connect_confirm_title)
+            .setMessage(warning)
+            .setPositiveButton(R.string.connect_confirm_yes) { _, _ -> applyConnectRequest(request) }
+            .setNegativeButton(R.string.connect_confirm_no, null)
+            .show()
+    }
+
+    private fun applyConnectRequest(request: ConnectRequest) {
         Toast.makeText(this, R.string.connecting_hermes, Toast.LENGTH_SHORT).show()
         thread(name = "forge-connect") {
             val port = PythonBridge.start(applicationContext)

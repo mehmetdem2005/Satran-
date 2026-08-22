@@ -53,30 +53,15 @@ class SahteIstemci:
         yield {"type": "delta", "text": self._yanit}
 
 
-class SahteYedek:
-    def __init__(self, available=False, yanit="yedek yanıtı yeterince uzun bir metin"):
-        self.available = available
-        self._yanit = yanit
-        self.cagrildi = 0
-
-    def complete(self, messages, **kwargs):
-        return '{"mode":"build","title":"Yedek","reason":"test"}'
-
-    def stream(self, messages, **kwargs):
-        self.cagrildi += 1
-        yield {"type": "delta", "text": self._yanit}
-
-
 @pytest.fixture()
 def hat_kur(tmp_path, tmp_config):
-    def kur(istemci=None, yedek=None):
+    def kur(istemci=None):
         return ForgePipeline(
             config=tmp_config,
             client=istemci or SahteIstemci(),
             memory=HermesMemory(tmp_path / "mem.sqlite3"),
             rag=HermesRag(tmp_path / "rag.sqlite3", workspace_dir=tmp_path / "ws"),
             store=ArtifactStore(tmp_path / "projects"),
-            fallback=yedek or SahteYedek(),
         )
 
     return kur
@@ -161,34 +146,34 @@ class TestHataYollari:
         assert events[0]["type"] == "error"
 
     def test_motor_yoksa_aciklayici_hata(self, hat_kur):
-        pipeline = hat_kur(SahteIstemci(reachable=False), SahteYedek(available=False))
+        pipeline = hat_kur(SahteIstemci(reachable=False))
         events = olaylar(pipeline)
         hata = next(e for e in events if e["type"] == "error")
-        assert "install_hermes.sh" in hata["text"]
+        assert "hermes_sunucu.sh" in hata["text"]
         assert events[-1]["ok"] is False
 
     def test_androidde_kabuk_komutu_onerilmez(self, hat_kur, tmp_config):
         """APK'da kabuk yok; çalıştırılamayacak bir komut önermek yanlış yönlendirme."""
         tmp_config.platform = "android"
-        pipeline = hat_kur(SahteIstemci(reachable=False), SahteYedek(available=False))
+        pipeline = hat_kur(SahteIstemci(reachable=False))
         hata = next(e for e in olaylar(pipeline) if e["type"] == "error")
-        assert "install_hermes.sh" not in hata["text"]
-        assert "API anahtarı" in hata["text"]
+        assert "QR" in hata["text"]
+        assert "Ayarlar" in hata["text"]
 
-    def test_hermes_coktugunde_yedege_gecer(self, hat_kur):
-        yedek = SahteYedek(available=True)
-        pipeline = hat_kur(SahteIstemci(patlat="hemen"), yedek)
+    def test_hermes_coktugunde_yedek_yok(self, hat_kur):
+        """Hermes'siz çalışan bir yol kalmadı; hata açıkça söylenmeli."""
+        pipeline = hat_kur(SahteIstemci(patlat="hemen"))
         events = olaylar(pipeline)
-        assert yedek.cagrildi > 0
-        assert any(e["type"] == "delta" for e in events)
+        hata = next(e for e in events if e["type"] == "error")
+        assert "Hermes hatası" in hata["text"]
 
     def test_akis_ortada_kesilirse_metin_ikilenmez(self, hat_kur):
-        """Yedekle baştan başlamak aynı yanıtı iki kez yazdırırdı."""
-        yedek = SahteYedek(available=True)
-        pipeline = hat_kur(SahteIstemci(patlat="ortada"), yedek)
+        """Yarıda kesilen tur baştan yazdırılmaz, hata olarak bildirilir."""
+        pipeline = hat_kur(SahteIstemci(patlat="ortada"))
         events = olaylar(pipeline)
 
-        assert yedek.cagrildi == 0, "yarıda kesilen tur yedekle tekrarlanmamalı"
+        deltalar = [e for e in events if e["type"] == "delta"]
+        assert len(deltalar) == 1, "kesilen tur tekrar yazdırılmamalı"
         assert any(e["type"] == "error" for e in events)
 
     def test_bos_yanit_sessizce_gecmez(self, hat_kur):
@@ -387,29 +372,26 @@ class TestModelOptions:
 class TestEngineWording:
     """Motor notu, kullanıcının bulunduğu ortamda anlamlı olmalı."""
 
-    def test_androidde_hermes_kapali_denmez(self, hat_kur, tmp_config):
-        """APK'da Hermes zaten yok; 'kapalı' arıza varmış gibi okunuyor."""
+    def test_hermes_yoksa_motor_yok(self, hat_kur, tmp_config):
+        """Hermes olmadan çalışan bir yol yok; motor 'none' olmalı."""
         tmp_config.platform = "android"
-        pipeline = hat_kur(SahteIstemci(reachable=False), SahteYedek(available=True))
+        pipeline = hat_kur(SahteIstemci(reachable=False))
         engine = next(e for e in olaylar(pipeline) if e["type"] == "engine")
 
-        assert engine["engine"] == "fallback"
-        assert "kapalı" not in engine["note"]
-        assert "isteğe bağlı" in engine["note"]
+        assert engine["engine"] == "none"
+        assert "QR" in engine["note"]
 
-    def test_masaustunde_kapali_denir(self, hat_kur, tmp_config):
-        """Masaüstünde gerçekten açılabilir bir şey; öyle söylenmeli."""
+    def test_masaustunde_baslatma_komutu_onerilir(self, hat_kur, tmp_config):
         tmp_config.platform = "desktop"
-        pipeline = hat_kur(SahteIstemci(reachable=False), SahteYedek(available=True))
+        pipeline = hat_kur(SahteIstemci(reachable=False))
         engine = next(e for e in olaylar(pipeline) if e["type"] == "engine")
-        assert "kapalı" in engine["note"]
+        assert "hermes_sunucu.sh" in engine["note"]
 
-    def test_motor_etiketi_model_adini_tasir(self, hat_kur, tmp_config):
-        """Menüde hangi modelin çalıştığı görünmeli."""
-        tmp_config.fallback_model = "deepseek-v4-pro"
-        pipeline = hat_kur(SahteIstemci(reachable=False), SahteYedek(available=True))
+    def test_motor_etiketi_hermes_adresini_tasir(self, hat_kur, tmp_config):
+        pipeline = hat_kur(SahteIstemci(reachable=True))
         engine = next(e for e in olaylar(pipeline) if e["type"] == "engine")
-        assert engine["label"] == "deepseek-v4-pro"
+        assert engine["label"] == "Hermes Agent"
+        assert engine["detail"] == tmp_config.hermes_base_url
 
     def test_hermes_baglaninca_motor_hermes_olur(self, hat_kur):
         pipeline = hat_kur(SahteIstemci(reachable=True))

@@ -84,28 +84,30 @@
       <button class="icon-btn" id="closeSettingsBtn" aria-label="Kapat">×</button>
     </div>
     <div class="panel-body">
-      <details class="panel-section advanced">
-        <summary class="section-title advanced-summary">
-          Hermes Agent <span class="optional-tag">isteğe bağlı</span>
-        </summary>
+      <section class="panel-section">
+        <div class="section-title">Hermes sunucusu</div>
         <p class="hint">
-          Uygulama Hermes olmadan da eksiksiz çalışır. Hermes yalnızca ek bir
-          <b>araç katmanı</b> getirir (terminal, dosya işlemleri, web arama) ve
-          ayrı bir bilgisayarda ya da Termux'ta çalışması gerekir.
+          Uygulama <b>yalnızca</b> Hermes Agent ile çalışır. Hermes senin
+          bilgisayarında (ya da bir sunucuda) çalışır; bu uygulama ona bağlanır.
+          Model, sağlayıcı ve API anahtarı Hermes tarafında ayarlanır.
         </p>
         <label class="field">
           <span>API sunucusu adresi</span>
-          <input type="text" id="hermes_base_url" placeholder="http://127.0.0.1:8642">
+          <input type="text" id="hermes_base_url" placeholder="http://192.168.1.20:8642"
+                 autocomplete="off" autocapitalize="none" spellcheck="false">
         </label>
         <label class="field">
           <span>API_SERVER_KEY</span>
-          <input type="password" id="hermes_api_key" placeholder="~/.hermes/.env içinden okunur">
+          <input type="password" id="hermes_api_key" placeholder="~/.hermes/.env içinden"
+                 autocomplete="off" autocapitalize="none" spellcheck="false">
         </label>
+        <button class="ghost-btn" id="testHermesBtn">Bağlantıyı sına</button>
+        <div class="setup-status" id="hermesTestStatus"></div>
         <label class="field">
           <span>Model</span>
           <input type="text" id="hermes_model" placeholder="hermes-agent">
         </label>
-        <label class="field">
+        <label class="field" id="hermesRepoField">
           <span>Hermes repo klasörü</span>
           <input type="text" id="hermes_repo_dir" placeholder="vendor/hermes-agent">
         </label>
@@ -114,38 +116,6 @@
           <span>Uygulama açılırken gateway'i otomatik başlat</span>
         </label>
         <p class="hint" id="hermesPlatformHint" style="display:none"></p>
-      </details>
-
-      <section class="panel-section">
-        <div class="section-title">Sağlayıcı</div>
-        <p class="hint">
-          Model ve düşünme düzeyi listeleri sağlayıcının kendi belgelerinden
-          gelir. Uygulama bu sağlayıcıyı Hermes kapalıyken kullanır.
-        </p>
-        <label class="check">
-          <input type="checkbox" id="fallback_enabled">
-          <span>Bu sağlayıcıyı kullan</span>
-        </label>
-        <label class="field">
-          <span>Sağlayıcı</span>
-          <select id="fallback_preset"></select>
-        </label>
-        <label class="field">
-          <span>Model</span>
-          <select id="fallback_model_select"></select>
-        </label>
-        <label class="field" id="customModelField" style="display:none">
-          <span>Model adı</span>
-          <input type="text" id="fallback_model" placeholder="model-adi">
-        </label>
-        <label class="field" id="customBaseUrlField">
-          <span>Taban adres</span>
-          <input type="text" id="fallback_base_url" placeholder="https://api.deepseek.com">
-        </label>
-        <label class="field">
-          <span>API anahtarı</span>
-          <input type="password" id="fallback_api_key" placeholder="sk-…">
-        </label>
       </section>
 
       <section class="panel-section">
@@ -160,18 +130,17 @@
           <input type="number" id="max_tokens" min="1" step="1024" placeholder="32768">
         </label>
         <p class="hint" id="maxTokensHint"></p>
+      </section>
+
+      <section class="panel-section">
+        <div class="section-title">Ajanlar</div>
         <label class="field">
-          <span>Sıcaklık (temperature): <b id="temperatureValue">1.00</b></span>
-          <input type="range" id="temperature" min="0" max="2" step="0.05" value="1">
-        </label>
-        <label class="field">
-          <span>Top P: <b id="topPValue">1.00</b></span>
-          <input type="range" id="top_p" min="0" max="1" step="0.05" value="1">
+          <span>Aynı anda çalışacak ajan sayısı</span>
+          <input type="number" id="max_parallel_agents" min="1" max="6" step="1">
         </label>
         <p class="hint">
-          Sağlayıcının belgelerine göre düşünme <b>açıkken</b> sıcaklık ve
-          Top P yok sayılıyor; bu yüzden yalnızca düşünme kapalıyken
-          gönderiliyorlar.
+          Kodlayıcı, dosya planına göre bölünüp aynı anda birden çok dosya
+          yazabilir. Telefonda 2 iyi bir denge.
         </p>
       </section>
 
@@ -189,48 +158,34 @@
       -->
       <div class="setup" id="setupCard" style="display:none">
         <div class="setup-icon">⚒️</div>
-        <h1>Başlamak için tek adım</h1>
+        <h1>Hermes'e bağlan</h1>
         <p class="setup-lead">
-          HermesForge modeli senin hesabından çalıştırır. Bir API anahtarı
-          yapıştır, gerisi hazır.
+          Bu uygulama tüm işi <b>Hermes Agent</b>'a yaptırır. Hermes'in
+          çalıştığı bilgisayarda <code>bash scripts/hermes_sunucu.sh</code>
+          komutunu çalıştır; ekrana çıkan <b>QR kodu telefonunun kamerasıyla
+          okut</b>, bağlantı kendiliğinden kurulur.
         </p>
 
-        <label class="field">
-          <span>Sağlayıcı</span>
-          <select id="setupPreset"></select>
-        </label>
+        <p class="setup-lead setup-or">Ya da adresi elle gir:</p>
 
         <label class="field">
-          <span>Model</span>
-          <select id="setupModel"></select>
-        </label>
-
-        <label class="field" id="setupBaseUrlField" style="display:none">
-          <span>Taban adres</span>
-          <input type="text" id="setupBaseUrl" placeholder="https://…/v1" autocomplete="off"
-                 autocapitalize="none" spellcheck="false">
-        </label>
-
-        <label class="field" id="setupCustomModelField" style="display:none">
-          <span>Model adı</span>
-          <input type="text" id="setupCustomModel" placeholder="model-adi" autocomplete="off"
-                 autocapitalize="none" spellcheck="false">
+          <span>Hermes adresi</span>
+          <input type="text" id="setupBaseUrl" placeholder="http://192.168.1.20:8642"
+                 autocomplete="off" autocapitalize="none" spellcheck="false">
         </label>
 
         <label class="field">
-          <span>API anahtarı</span>
-          <input type="password" id="setupKey" placeholder="sk-…" autocomplete="off"
-                 autocapitalize="none" spellcheck="false">
+          <span>API_SERVER_KEY</span>
+          <input type="password" id="setupKey" placeholder="hermes_sunucu.sh ekranda yazar"
+                 autocomplete="off" autocapitalize="none" spellcheck="false">
         </label>
-
-        <a class="setup-link" id="setupKeyLink" href="https://platform.deepseek.com/api_keys"
-           target="_blank" rel="noopener noreferrer">Anahtarı nereden alırım? →</a>
 
         <button class="primary-btn setup-btn" id="setupSaveBtn">Bağlan ve başla</button>
         <div class="setup-status" id="setupStatus"></div>
 
         <p class="setup-note">
-          Anahtar yalnızca bu telefonda saklanır, hiçbir yere gönderilmez.
+          Anahtar yalnızca bu telefonda saklanır. Hermes'in çalıştığı makine
+          açık olmalı ve telefonla aynı ağda bulunmalı.
         </p>
       </div>
 

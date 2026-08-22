@@ -65,28 +65,16 @@ class Config:
     hermes_autostart: bool = True
     hermes_repo_dir: str = ""
 
-    # --- Yedek (doğrudan sağlayıcı) ------------------------------------
-    fallback_enabled: bool = True
-    # Sağlayıcı ön ayarı: model listesi, düşünme düzeyleri ve token sınırı
-    # buradan gelir (providers/presets.py — sağlayıcının kendi belgelerinden).
-    fallback_preset: str = "deepseek"
-    fallback_base_url: str = "https://api.deepseek.com"
-    fallback_model: str = "deepseek-v4-flash"
-    fallback_api_key: str = ""
-
     # --- Model davranışı ------------------------------------------------
     # Düşünme düzeyi Hermes'e her istekte model_options ile gider; geçerli
     # değerler Hermes'in _REASONING_EFFORTS kümesinden alınmıştır.
     # "default" = hiçbir şey gönderme, sunucunun kendi ayarı geçerli olsun.
     reasoning_effort: str = "default"
     # Hermes max_tokens'ı istek başına KABUL ETMİYOR (istek gövdesinden yalnız
-    # provider/model/model_options okunuyor); bu değer yedek sağlayıcıya
-    # doğrudan gider ve ~/.hermes/.env içine HERMES_MAX_TOKENS olarak yazılır.
-    # DeepSeek V4 ailesi 384K çıktıya kadar çıkıyor.
+    # provider/model/model_options okunuyor); bu değer Hermes makinesindeki
+    # ~/.hermes/.env içine HERMES_MAX_TOKENS olarak yazılır ve yalnızca
+    # uygulama ile Hermes aynı makinedeyse etkilidir.
     max_tokens: int = 32768
-    # Yalnızca yedek sağlayıcıya, yalnızca düşünme kapalıyken gönderilir.
-    temperature: float = 1.0
-    top_p: float = 1.0
 
     # --- Depolama -------------------------------------------------------
     data_dir: str = ""
@@ -143,8 +131,7 @@ class Config:
     def to_public_dict(self) -> Dict[str, Any]:
         """Tarayıcıya gönderilebilecek (gizli anahtarsız) görünüm."""
         data = asdict(self)
-        for secret_key in ("hermes_api_key", "fallback_api_key"):
-            data[secret_key] = bool(data.get(secret_key))
+        data["hermes_api_key"] = bool(data.get("hermes_api_key"))
         data.pop("extra", None)
         return data
 
@@ -202,7 +189,13 @@ def load_config() -> Config:
     if not cfg.hermes_api_key and hermes_env.get("API_SERVER_KEY"):
         cfg.hermes_api_key = hermes_env["API_SERVER_KEY"]
     if hermes_env.get("API_SERVER_PORT"):
-        host = hermes_env.get("API_SERVER_HOST") or "127.0.0.1"
+        host = (hermes_env.get("API_SERVER_HOST") or "127.0.0.1").strip()
+        # 0.0.0.0 "tüm arayüzlerde dinle" demek — bir BAĞLANTI adresi değil.
+        # scripts/hermes_sunucu.sh gateway'i ev ağına açmak için bunu yazıyor;
+        # olduğu gibi kullansak Linux'ta tesadüfen çalışır, macOS ve
+        # Windows'ta bağlantı hatası verirdi.
+        if host in {"0.0.0.0", "::", "[::]", "*", ""}:
+            host = "127.0.0.1"
         cfg.hermes_base_url = f"http://{host}:{hermes_env['API_SERVER_PORT']}"
 
     # 3. katman: ortam değişkenleri
@@ -212,10 +205,6 @@ def load_config() -> Config:
         "hermes_model": "HERMESFORGE_HERMES_MODEL",
         "hermes_provider": "HERMESFORGE_HERMES_PROVIDER",
         "hermes_repo_dir": "HERMESFORGE_HERMES_REPO",
-        "fallback_base_url": "HERMESFORGE_FALLBACK_URL",
-        "fallback_model": "HERMESFORGE_FALLBACK_MODEL",
-        "fallback_preset": "HERMESFORGE_FALLBACK_PRESET",
-        "fallback_api_key": "HERMESFORGE_FALLBACK_KEY",
         "reasoning_effort": "HERMESFORGE_REASONING_EFFORT",
         "data_dir": "HERMESFORGE_DATA_DIR",
         "workspace_dir": "HERMESFORGE_WORKSPACE_DIR",
@@ -233,13 +222,8 @@ def load_config() -> Config:
     cfg.max_parallel_agents = max(1, min(_env_int("HERMESFORGE_MAX_PARALLEL", cfg.max_parallel_agents), 6))
     cfg.debug = _env_bool("HERMESFORGE_DEBUG", cfg.debug)
     cfg.hermes_autostart = _env_bool("HERMESFORGE_HERMES_AUTOSTART", cfg.hermes_autostart)
-    cfg.fallback_enabled = _env_bool("HERMESFORGE_FALLBACK_ENABLED", cfg.fallback_enabled)
-
-    if not cfg.fallback_api_key:
-        cfg.fallback_api_key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
 
     cfg.hermes_base_url = cfg.hermes_base_url.rstrip("/")
-    cfg.fallback_base_url = cfg.fallback_base_url.rstrip("/")
     cfg.ensure_dirs()
     return cfg
 
@@ -255,7 +239,7 @@ def save_config(cfg: Config, updates: Dict[str, Any]) -> Config:
         if not hasattr(cfg, key) or key == "extra":
             continue
         # Boş string gönderilen sır alanları "değiştirme" anlamına gelir.
-        if key in {"hermes_api_key", "fallback_api_key"} and value == "":
+        if key == "hermes_api_key" and value == "":
             continue
         setattr(cfg, key, value)
         stored[key] = value

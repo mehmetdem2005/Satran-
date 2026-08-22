@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Model sağlayıcısına (DeepSeek/OpenRouter) ve varsa uzak Hermes'e erişim -->
+    <!-- Ev ağındaki (ya da uzaktaki) Hermes sunucusuna erişim -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Yapım turu dakikalarca sürebiliyor; sunucu ön plan servisinde yaşar -->
@@ -31,10 +31,12 @@
             </intent-filter>
 
             <!--
-              Termux kurulum betiği Hermes'i kurup başlattıktan sonra bu
-              bağlantıyı açıyor; uygulama adresi ve anahtarı kendisi kaydediyor.
-              Kullanıcının hiçbir şey yazması gerekmiyor.
-                  hermesforge://connect?url=http://127.0.0.1:8642&key=...
+              Hermes'in çalıştığı bilgisayardaki scripts/hermes_sunucu.sh bu
+              bağlantıyı QR kod olarak basıyor; telefonun kamerası okutunca
+              uygulama adresi ve anahtarı kendisi kaydediyor.
+                  hermesforge://connect?url=http://192.168.1.20:8642&key=...
+              Aynı cihazda olmayan adresler için önce kullanıcıya onay soruluyor
+              (MainActivity.handleConnectLink).
             -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />

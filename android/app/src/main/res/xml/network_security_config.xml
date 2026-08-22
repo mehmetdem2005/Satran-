@@ -1,8 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   Gömülü sunucu 127.0.0.1'de HTTP konuşuyor; Android 9+ varsayılan olarak
-  cleartext HTTP'yi engelliyor. İzni SADECE localhost'a veriyoruz — dış
-  hedeflere cleartext yine kapalı, model sağlayıcısına HTTPS ile gidiliyor.
+  cleartext HTTP'yi engelliyor. İzni SADECE localhost'a veriyoruz: WebView ve
+  Kotlin tarafındaki tüm istekler oraya gidiyor.
+
+  Hermes'e giden ev ağı isteklerini (http://192.168.x.x:8642) Python'un kendi
+  soketleri yapıyor; Android'in ağ güvenliği yapılandırması Java/WebView
+  yığınına uygulandığı için o yol bu dosyadan etkilenmiyor. Yani burada
+  cleartext'i genele açmaya gerek yok — açsaydık uygulamanın Kotlin tarafı da
+  herhangi bir siteye şifresiz gidebilir hâle gelirdi.
 -->
 <network-security-config>
     <domain-config cleartextTrafficPermitted="true">
