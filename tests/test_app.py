@@ -259,18 +259,43 @@ class TestModelSettings:
         assert client.post("/api/settings", json={"max_parallel_agents": 3}).status_code == 200
         assert client.post("/api/settings", json={"max_parallel_agents": 99}).status_code == 400
 
-    def test_status_gercek_katalogu_bildirir(self, client):
-        """Düzey listesi Hermes'in kendi _REASONING_EFFORTS kümesinden gelmeli."""
-        data = client.get("/api/status").get_json()
-        catalog = data["catalog"]
+    def test_status_saglayiciya_gore_katalog(self, client, monkeypatch):
+        """Liste, sağlayıcının telde kabul ettiği düzeylerden olmalı.
 
-        hermes_efforts = [e["id"] for e in catalog["hermes_efforts"]]
-        assert hermes_efforts == [
-            "default", "none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra",
+        Hermes'in iç merdivenini göstermek, DeepSeek kullanan birine tanımadığı
+        düzeyleri seçtirmek demekti (ölçüldü: "ultra" seçilince telde hiçbir
+        şey gitmiyor, DeepSeek kendi varsayılanını uyguluyor).
+        """
+        from hermes import embedded
+
+        monkeypatch.setattr(
+            embedded, "current_model",
+            lambda *args, **kwargs: {"provider": "deepseek", "model": "deepseek-v4-pro"},
+        )
+        catalog = client.get("/api/status").get_json()["catalog"]
+
+        assert [e["id"] for e in catalog["efforts"]] == [
+            "default", "none", "low", "medium", "high", "max",
         ]
-        assert "presets" not in catalog, "artık doğrudan sağlayıcı yok"
-        assert "fallback" not in data, "Hermes'siz çalışan bir yol kalmadı"
+        assert catalog["provider_known"] is True
+        for etkisiz in ("ultra", "xhigh", "minimal"):
+            assert etkisiz not in [e["id"] for e in catalog["efforts"]]
 
+    def test_saglayici_bilinmiyorsa_tam_merdiven(self, client, monkeypatch):
+        """Uzak bir Hermes'in sağlayıcısını bilemeyiz; hepsini gösterip uyarırız."""
+        from hermes import embedded
+
+        monkeypatch.setattr(
+            embedded, "current_model", lambda *args, **kwargs: {"provider": "", "model": ""}
+        )
+        catalog = client.get("/api/status").get_json()["catalog"]
+        assert "ultra" in [e["id"] for e in catalog["efforts"]]
+        assert catalog["provider_known"] is False
+
+    def test_status_temel_alanlar(self, client):
+        data = client.get("/api/status").get_json()
+        assert "presets" not in data["catalog"], "artık doğrudan sağlayıcı yok"
+        assert "fallback" not in data, "Hermes'siz çalışan bir yol kalmadı"
         assert data["platform"] in ("desktop", "android")
         assert data["max_parallel_agents"] >= 1
 

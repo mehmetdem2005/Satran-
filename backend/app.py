@@ -54,9 +54,11 @@ def _validate_settings(updates: Dict[str, Any]) -> Optional[str]:
     sayılırdı ve kullanıcı ayarın çalıştığını sanırdı.
     """
     effort = updates.get("reasoning_effort")
-    if effort is not None and not presets.is_valid_effort(str(effort)):
-        gecerli = ", ".join(presets.HERMES_EFFORTS)
-        return f"Geçersiz düşünme düzeyi. Geçerli olanlar: {gecerli}"
+    if effort is not None:
+        provider = embedded.current_model().get("provider") or ""
+        if not presets.is_valid_effort(str(effort), provider):
+            gecerli = ", ".join(presets.efforts_for(provider))
+            return f"Geçersiz düşünme düzeyi. Geçerli olanlar: {gecerli}"
 
     base_url = updates.get("hermes_base_url")
     if base_url is not None:
@@ -193,12 +195,13 @@ def _register_routes(app: Flask) -> None:
                     "available": embedded.available(),
                     **embedded.status(),
                     "model_configured": embedded.model_configured(),
+                    **embedded.current_model(),
                 },
                 "memory": services["memory"].stats(scope=DEFAULT_SCOPE),
                 "rag": services["rag"].stats(),
                 "agents": public_roster(),
                 "formats": list(EXPORT_FORMATS),
-                "catalog": presets.public_catalog(),
+                "catalog": presets.public_catalog(embedded.current_model().get("provider")),
                 "platform": cfg.platform,
                 "max_parallel_agents": cfg.max_parallel_agents,
             }

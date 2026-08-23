@@ -1003,6 +1003,8 @@
         ? 'Kaydedildi. Yeni ayarın geçerli olması için uygulamayı kapatıp aç.'
         : 'Kaydedildi! Artık yazabilirsin.';
       await refreshStatus();
+      // Sağlayıcı değişmiş olabilir; düzey listesi ona göre yeniden kurulmalı.
+      applyCatalog($('reasoning_effort').value);
       if (onDone) setTimeout(onDone, data.restart_required ? 2600 : 900);
     } catch (err) {
       status.className = 'setup-status error';
@@ -1178,22 +1180,34 @@
   let engineIsHermes = false;
   let embeddedAvailable = false;   // Hermes APK'nın içinde mi?
 
-  /** Düşünme düzeyi listesini ve token ipucunu kurar. */
+  /** Düşünme düzeyi listesini ve token ipucunu kurar.
+   *
+   * Liste sağlayıcıya göre değişiyor: Hermes'in iç merdiveni (minimal, xhigh,
+   * ultra…) her sağlayıcıda geçerli değil, telde en yakın düzeye kırpılıyor.
+   * Kullanıcıya seçemeyeceği bir şey göstermek, seçtiğinden başka bir şeyin
+   * gitmesi demekti.
+   */
   function applyCatalog(currentEffort) {
-    if (!catalog || !catalog.hermes_efforts) return;
+    const efforts = (catalog && (catalog.efforts || catalog.hermes_efforts)) || [];
+    if (!efforts.length) return;
+
     const effortSelect = $('reasoning_effort');
-    effortSelect.innerHTML = catalog.hermes_efforts.map(function (e) {
+    effortSelect.innerHTML = efforts.map(function (e) {
       return '<option value="' + e.id + '">' + window.Markdown.escapeHtml(e.label) + '</option>';
     }).join('');
-    effortSelect.value = catalog.hermes_efforts.some(function (e) { return e.id === currentEffort; })
+    effortSelect.value = efforts.some(function (e) { return e.id === currentEffort; })
       ? currentEffort : 'default';
 
-    $('effortHint').textContent =
-      'Düzeyler Hermes\'in kabul ettiği kümeden. "Varsayılan" seçiliyken hiçbir şey ' +
-      'gönderilmez, Hermes kendi ayarını kullanır.';
+    const label = catalog.provider_label;
+    $('effortHint').textContent = catalog.provider_known
+      ? label + ' bu düzeyleri kabul ediyor. ' + (catalog.default_note ||
+          '"Varsayılan" seçiliyken hiçbir şey gönderilmez.')
+      : 'Sağlayıcı bilinmiyor; Hermes\'in tüm düzeyleri gösteriliyor. Sağlayıcının ' +
+        'tanımadığı bir düzey telde en yakınına indirilir.';
+
     $('maxTokensHint').textContent =
-      'Hermes bu değeri istek başına kabul etmiyor; Hermes ile aynı makinedeysen ' +
-      '~/.hermes/.env dosyasına yazılır ve gateway yeniden başlatılması gerekir.';
+      'Hermes bu değeri istek başına kabul etmiyor; Hermes\'in kendi .env dosyasına ' +
+      'yazılır ve motorun yeniden başlaması gerekir.';
   }
 
   async function loadSettings() {

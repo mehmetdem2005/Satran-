@@ -206,6 +206,33 @@ def model_configured(hermes_home: Optional[Path] = None) -> bool:
     return bool(isinstance(model, dict) and (model.get("default") or model.get("model")))
 
 
+def current_model(hermes_home: Optional[Path] = None) -> Dict[str, str]:
+    """Hermes'te seçili model ve sağlayıcı.
+
+    Düşünme düzeyi listesi buna göre kuruluyor: Hermes'in iç merdiveni her
+    sağlayıcıda geçerli değil, telde kırpılıyor. Kullanıcıya sağlayıcısının
+    gerçekten kabul ettiği düzeyleri göstermeliyiz.
+    """
+    home = hermes_home or Path(os.environ.get("HERMES_HOME", "~/.hermes")).expanduser()
+    config_path = home / "config.yaml"
+    if not config_path.exists():
+        return {"provider": "", "model": ""}
+    try:
+        import yaml
+
+        data = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return {"provider": "", "model": ""}
+
+    model_block = data.get("model") if isinstance(data, dict) else None
+    if not isinstance(model_block, dict):
+        return {"provider": "", "model": ""}
+    return {
+        "provider": str(model_block.get("provider") or "").strip().lower(),
+        "model": str(model_block.get("default") or model_block.get("model") or "").strip(),
+    }
+
+
 def set_model(api_key: str, model: str = "deepseek-v4-pro",
               hermes_home: Optional[Path] = None) -> None:
     """Model sağlayıcısını yazar (telefonda ``hermes model`` TUI'si yok).

@@ -75,7 +75,15 @@ val syncHermesSource by tasks.registering(Sync::class) {
             // Depo süsleri: APK'yı şişirir, çalışma zamanında okunmaz.
             "*.md", "**/*.md", "LICENSE", "Dockerfile*", "docker-compose*",
             "*.tar.gz", "flake.*", "*.mjs", "*.example", "Makefile", "setup.py",
-            "*.toml", "*.cfg", "*.lock", "*.txt"
+            "*.toml", "*.cfg", "*.lock", "*.txt",
+            // Gateway'in hiç dokunmadığı arayüzler ve belge varlıkları.
+            // Ölçüldü: bunlar çıkarılınca gateway açılıyor ve tam bir tur
+            // tamamlıyor; APK 136 MB'tan 60 MB'a iniyor.
+            "website/**", "ui-tui/**", "web/**", "tui_gateway/**", "scripts/**",
+            "**/docs/**", "**/__tests__/**",
+            "**/*.png", "**/*.jpg", "**/*.jpeg", "**/*.gif", "**/*.svg",
+            "**/*.webp", "**/*.ico", "**/*.mp4", "**/*.woff*", "**/*.ttf",
+            "**/*.ts", "**/*.tsx", "**/*.scss", "**/*.map"
         )
     }
     into(hermesSource)
