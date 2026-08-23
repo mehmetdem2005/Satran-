@@ -355,31 +355,19 @@
         break;
 
       case 'route':
-        pipelineAgents = (event.agents || []).map(function (a) {
-          return Object.assign({}, a, { done: false, instances: 1 });
-        });
+        // Kadro artık sunucudan gelmiyor: ekibi Hermes kuruyor ve şerit
+        // 'team' olaylarıyla doluyor.
+        pipelineAgents = [];
         if (event.title) { state.chatTitle = event.title; }
         renderPipeline(pipelineAgents);
-        addNotice('Yönlendirme: ' + event.mode + ' · ' + (event.reason || ''), 'info');
         break;
 
-      case 'wave':
-        // Aynı dalgadaki ajanlar paralel çalışır. Fan-out'ta aynı rolden
-        // birden çok düğüm olur; şeritte "×2" olarak gösteriyoruz.
-        (event.agents || []).forEach(function (card) {
-          const row = pipelineAgents.find(function (a) { return a.id === card.id; });
-          if (row) row.instances = (event.agents || []).filter(function (c) {
-            return c.id === card.id;
-          }).length;
-        });
-        if (event.parallel) {
-          addNotice(
-            event.agents.length + ' ajan paralel başlıyor: ' +
-            event.agents.map(function (c) { return c.emoji + ' ' + (c.label || c.name); }).join(', '),
-            'info'
-          );
-        }
-        renderPipeline(pipelineAgents);
+      case 'team':
+        addNotice(
+          'Ekibe ' + event.hired.length + ' ajan alındı (toplam ' + event.size + '): ' +
+          event.hired.map(function (a) { return a.label; }).join(', '),
+          'info'
+        );
         break;
 
       case 'project':
@@ -391,21 +379,27 @@
         break;
 
       case 'agent_start': {
+        // Alt ajanların metni bu akışa gelmiyor (Hermes yalnızca özeti baş
+        // yöneticiye döndürüyor); o yüzden balon açmıyoruz, şeride çip
+        // ekleyip başlıkta kimin çalıştığını gösteriyoruz.
         const card = event.agent;
         state.active.set(card.node || card.id, card);
-        openStream(card);
+        if (!pipelineAgents.some(function (a) { return a.id === card.id; })) {
+          pipelineAgents.push(Object.assign({}, card, { done: false, instances: 1 }));
+        }
         refreshTitle();
         renderPipeline(pipelineAgents);
         break;
       }
 
       case 'delta': {
-        // Paralel akışta hangi balona yazılacağını düğüm anahtarı belirler.
-        const key = event.node || event.agent_id;
+        // Metin baş yöneticiden gelir; alt ajanların çıktısı onun yanıtına
+        // işlenmiş olarak döner. Tek balon yeter.
+        const key = event.node || event.agent_id || '__lead__';
         let stream = state.streams.get(key);
         if (!stream) {
           stream = openStream(state.active.get(key) || {
-            id: event.agent_id || 'advisor', name: 'Ajan', emoji: '🤖', title: '', node: key
+            id: 'lead', name: 'Baş yönetici', emoji: '🧭', title: 'Ekibi kuruyor', node: key
           });
         }
         stream.text += event.text;
@@ -422,14 +416,13 @@
         break;
 
       case 'agent_end': {
-        const key = event.node || event.agent_id;
+        const key = event.agent ? (event.agent.node || event.agent.id) : event.node;
         state.active.delete(key);
-        closeStream(key);
-        const row = pipelineAgents.find(function (a) { return a.id === event.agent_id; });
+        const row = pipelineAgents.find(function (a) {
+          return a.id === (event.agent ? event.agent.id : event.agent_id);
+        });
         // Fan-out'ta rol, ancak tüm düğümleri bitince "tamam" sayılır.
-        if (row && !Array.from(state.active.values()).some(function (c) { return c.id === event.agent_id; })) {
-          row.done = true;
-        }
+        if (row) row.done = true;
         renderPipeline(pipelineAgents);
         refreshTitle();
         if (event.files && event.files.length) {
@@ -582,7 +575,12 @@
       const embedded = data.embedded || {};
       embeddedAvailable = !!embedded.available;
       $('embeddedSection').style.display = embeddedAvailable ? '' : 'none';
+      $('teamSection').style.display = embeddedAvailable ? '' : 'none';
       $('remoteSection').style.display = embeddedAvailable ? 'none' : '';
+      if (embedded.team) {
+        if (!$('teamDepth').value) $('teamDepth').value = embedded.team.max_spawn_depth;
+        if (!$('teamConcurrent').value) $('teamConcurrent').value = embedded.team.max_concurrent_children;
+      }
 
       // Motor içeride ama model anahtarı yoksa iş üretemez; kurulumu göster.
       if (embeddedAvailable && !embedded.model_configured) {
@@ -866,6 +864,8 @@
       if (event.key === 'Enter') runSetup();
     });
     $('testHermesBtn').addEventListener('click', testHermesFromSettings);
+    $('runDiagBtn').addEventListener('click', runDiagnostics);
+    $('saveTeamBtn').addEventListener('click', saveTeamSettings);
     $('discoverHermesBtn').addEventListener('click', function () {
       discoverHermes({ rescan: true, status: $('hermesTestStatus'), fill: true });
     });
@@ -960,7 +960,13 @@
     const card = $('setupCard');
     const wasHidden = card.style.display === 'none';
     card.style.display = show ? 'flex' : 'none';
-    if (els.empty) els.empty.style.display = show ? 'none' : '';
+    // Boş ekranı YALNIZCA hiç mesaj yokken göster. Durum her 30 saniyede
+    // tazeleniyor ve showSetup(false) çağırıyordu; sohbetin ortasında boş
+    // ekran mesajların üstüne geri geliyor, "yanıt gelmiyor" gibi duruyordu.
+    if (els.empty) {
+      const bos = !state.messages.length && !state.streams.size;
+      els.empty.style.display = (!show && bos) ? '' : 'none';
+    }
     if (!show) return;
 
     // İki kurulum yolu var: motor telefonun içindeyse yalnızca model anahtarı
@@ -1146,6 +1152,63 @@
     }
   }
 
+  /** "Sistemi sına": neyin çalışmadığını tek tek gösterir. */
+  async function runDiagnostics() {
+    const button = $('runDiagBtn');
+    const box = $('diagResult');
+    button.disabled = true;
+    box.innerHTML = '<div class="diag-row">Sınanıyor…</div>';
+    try {
+      const data = await fetch('/api/diagnostics').then(function (r) { return r.json(); });
+      box.innerHTML = (data.checks || []).map(function (check) {
+        return '<div class="diag-row"><span class="' +
+          (check.ok ? 'diag-ok' : 'diag-bad') + '">' + (check.ok ? '✓' : '✕') + '</span>' +
+          '<span><b>' + window.Markdown.escapeHtml(check.name) + '</b>' +
+          '<small>' + window.Markdown.escapeHtml(check.detail || '') + '</small></span></div>';
+      }).join('');
+      if (!data.checks || !data.checks.length) box.innerHTML = '<div class="diag-row">Sonuç yok.</div>';
+    } catch (err) {
+      box.innerHTML = '<div class="diag-row diag-bad">Sınama başarısız: ' +
+        window.Markdown.escapeHtml(err.message) + '</div>';
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  /** Ekip derinliği ve paralel ajan sayısı. */
+  async function saveTeamSettings() {
+    const button = $('saveTeamBtn');
+    const status = $('teamStatus');
+    button.disabled = true;
+    status.className = 'setup-status busy';
+    status.textContent = 'Kaydediliyor…';
+    try {
+      const data = await fetch('/api/hermes/team', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          depth: Number($('teamDepth').value),
+          concurrent: Number($('teamConcurrent').value)
+        })
+      }).then(function (r) { return r.json(); });
+
+      if (!data.saved) {
+        status.className = 'setup-status error';
+        status.textContent = data.error || 'Kaydedilemedi.';
+        return;
+      }
+      status.className = 'setup-status ok';
+      status.textContent = data.restart_required
+        ? 'Kaydedildi. Geçerli olması için uygulamayı kapatıp aç.'
+        : 'Kaydedildi.';
+    } catch (err) {
+      status.className = 'setup-status error';
+      status.textContent = 'Hata: ' + err.message;
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   /** Ayarlar panelindeki "Bağlantıyı sına" düğmesi. */
   async function testHermesFromSettings() {
     const button = $('testHermesBtn');
@@ -1171,7 +1234,7 @@
   // ------------------------------------------------------------------ ayarlar
 
   const SETTING_FIELDS = ['hermes_base_url', 'hermes_api_key', 'hermes_model', 'hermes_repo_dir'];
-  const NUMERIC_FIELDS = ['max_tokens', 'max_parallel_agents'];
+  const NUMERIC_FIELDS = ['max_tokens'];
 
   // Düşünme düzeyi listesi sunucudan gelir; Hermes'in kendi kaynak kodundan
   // türetilmiştir, arayüzde sabit liste tutmuyoruz.

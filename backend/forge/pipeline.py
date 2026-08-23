@@ -1,25 +1,25 @@
-"""App-Forge hattı: yönlendir, ajanları dalgalar hâlinde çalıştır, ürünü paketle.
+"""App-Forge hattı: turu yürüt, ürünü paketle.
 
-Ajanlar birbirini doğrusal takip etmez. ``agents.plan_waves`` bağımlılık
-grafiğinden dalgaları çıkarır, ``scheduler.run_wave`` aynı dalgadaki düğümleri
-paralel çalıştırır. Kodlayıcı ayrıca Mimar'ın dosya planına göre bölünüp
-birden çok düğüm olarak aynı anda çalışabilir.
+Ajan kadrosu burada tanımlı DEĞİL. Hermes'e baş yönetici rolü veriliyor
+(``orchestration.py``); ekibi kendi ``delegate_task`` aracıyla kuruyor,
+gerektiğinde yöneticilerin altına yeni ajanlar alıyor ve her turdan sonra
+ekibi büyütmeyi değerlendiriyor. Biz yalnızca akıştaki delegasyon olaylarını
+arayüzün anlayacağı biçime çeviriyoruz.
 
-Hiçbir ajan bir öncekinin ham çıktısını almaz: ortak panodan (``board.py``)
-yalnızca kendi rolüne düşen damıtılmış dilimleri okur. Sohbet geçmişi de
-yalnızca Çözümleyici'ye gider. Bu ikisi, ajanların "her turda konuşmayı
-yeniden açması" davranışını bitirir.
+Neden böyle: sabit bir kadro yazdığımızda motorun zaten yaptığı işin zayıf
+bir kopyasını üretmiş oluyorduk — Hermes'in alt ajanları kendi bağlamı, kendi
+terminali ve kendi araç kümesiyle çalışıyor, ebeveyne yalnızca özet dönüyor.
 
 Arayüzün beklediği olaylar:
 
-``route``        seçilen mod, roller ve sohbet başlığı
+``route``        seçilen mod ve sohbet başlığı
 ``engine``       Hermes bağlantısının durumu
-``wave``         yeni dalga başladı, içindeki ajanlar
-``agent_start``  bir düğüm çalışmaya başladı (aynı anda birden çok olabilir)
-``delta``        yanıt metni parçası (``agent_id`` + ``node`` ile etiketli)
+``team``         Hermes ekibe yeni ajan aldı
+``agent_start``  bir ajan çalışmaya başladı
+``delta``        baş yöneticinin yanıt metni
 ``reasoning``    düşünme akışı
 ``tool_start``   Hermes'in çalıştırdığı araç
-``agent_end``    düğüm bitti, yazdığı dosyalar
+``agent_end``    ajan bitti
 ``artifacts``    projenin güncel dosya listesi ve indirme bağlantıları
 ``error``/``done``
 """
@@ -28,7 +28,6 @@ from __future__ import annotations
 
 import logging
 import sys
-import threading
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
 
@@ -36,11 +35,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from hf_utils import trim  # noqa: E402
 
-from .agents import AGENTS, plan_waves, supports_fanout  # noqa: E402
+from . import orchestration  # noqa: E402
 from .artifacts import EXPORT_FORMATS, detect_requested_format, extract_files  # noqa: E402
-from .board import BuildBoard, parse_file_plan, split_file_plan  # noqa: E402
 from .router import route  # noqa: E402
-from .scheduler import AgentNode, build_nodes, run_wave  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +67,12 @@ class ForgePipeline:
         scope: str = "default",
         hermes_session_id: Optional[str] = None,
     ) -> Iterator[Dict[str, Any]]:
+        """Bir turu yürütür.
+
+        Ajan kadrosu artık burada tanımlı değil: Hermes'e baş yönetici rolü
+        veriliyor, ekibi ``delegate_task`` ile kendisi kuruyor ve gerektikçe
+        büyütüyor. Biz yalnızca olayları arayüze çeviriyoruz.
+        """
         history = history or []
         message = (message or "").strip()
         if not message:
@@ -84,7 +87,6 @@ class ForgePipeline:
             project_id, existing_files = None, []
         has_project = bool(existing_files)
 
-        # 1) Yönlendirme -------------------------------------------------
         yield {"type": "status", "text": "İstek çözümleniyor…"}
         engine = self._select_engine()
         yield {"type": "engine", **engine}
@@ -94,139 +96,86 @@ class ForgePipeline:
         yield {
             "type": "route",
             "mode": decision["mode"],
-            "agents": [self._agent_card(agent_id) for agent_id in decision["agents"]],
             "title": decision["title"],
             "reason": decision["reason"],
             "source": decision["source"],
             "format": requested_format,
         }
 
-        # 2) Yalnızca paketleme isteniyorsa modeli hiç meşgul etme -------
+        # Yalnızca paketleme isteniyorsa modeli hiç meşgul etme.
         if decision["mode"] == "package" and has_project:
             yield from self._package_only(project_id, existing_files, requested_format)
             self.memory.sync(message, "", scope=scope)
             yield {"type": "done", "ok": True}
             return
 
+        if engine["engine"] != "hermes":
+            yield {"type": "error", "text": self._no_engine_message()}
+            yield {"type": "done", "ok": False}
+            return
+
         if not project_id:
             project_id = self.store.new_project_id(decision["title"])
             yield {"type": "project", "project_id": project_id}
 
-        # 3) Pano ---------------------------------------------------------
-        board = BuildBoard(
-            goal=message,
-            mode=decision["mode"],
-            project_id=project_id,
-            requested_format=requested_format,
+        context = self._build_context(message, project_id, existing_files, scope)
+        system_prompt = (
+            orchestration.build_prompt(context, existing_files)
+            + "\n\n"
+            + self.memory.build_system_prompt()
         )
-        board.context = self._build_context(message, project_id, existing_files, scope)
-        board.set_files(existing_files)
 
-        # Ajan başına ayrı Hermes oturumu: paralel turlar tek oturumda
-        # güvenli değil, ayrıca tek oturumda ajanlar birbirinin çıktısını
-        # ikinci kez okurdu. Uzun vadeli bellek aynı session_key ile korunur.
-        sessions: Dict[str, Optional[str]] = {}
-        session_lock = threading.Lock()
+        session_id = hermes_session_id or self._open_session(decision["title"])
 
-        # 4) Dalgalar ------------------------------------------------------
-        produced: List[Dict[str, Any]] = []
+        yield {"type": "status", "text": "Baş yönetici ekibi kuruyor…"}
+
+        collected: List[str] = []
         failed = False
-        last_text = ""
+        team: List[Dict[str, str]] = []
 
-        for wave_index, wave_agents in enumerate(plan_waves(decision["agents"]), start=1):
-            nodes = self._nodes_for_wave(wave_agents, board)
-            if not nodes:
-                continue
+        try:
+            for event in self._stream_hermes(system_prompt, message, session_id, scope):
+                kind = event.get("type")
 
+                if kind == "delta":
+                    collected.append(event.get("text") or "")
+                    yield event
+                elif kind == "tool_start" and event.get("tool") == orchestration.DELEGATE_TOOL:
+                    hired = orchestration.hired_agents(event.get("args"))
+                    if hired:
+                        team.extend(hired)
+                        yield {"type": "team", "hired": hired, "size": len(team)}
+                        for agent in hired:
+                            yield {"type": "agent_start", "agent": self._hired_card(agent)}
+                    else:
+                        yield {"type": "status", "text": "Ekibe yeni ajan alınıyor…"}
+                elif kind == "tool_end" and event.get("tool") == orchestration.DELEGATE_TOOL:
+                    for agent in orchestration.hired_agents(event.get("args")) or team[-1:]:
+                        yield {
+                            "type": "agent_end",
+                            "agent": self._hired_card(agent),
+                            "files": [],
+                            "chars": len(event.get("preview") or ""),
+                        }
+                elif kind in {"tool_start", "tool_end", "status", "reasoning", "error"}:
+                    yield event
+                elif kind == "final":
+                    yield event
+        except Exception as exc:
+            logger.warning("Hermes turu başarısız: %s", exc)
+            yield {"type": "error", "text": f"Hermes hatası: {exc}"}
+            failed = True
+
+        output = "".join(collected)
+        if not output.strip() and not failed:
+            failed = True
             yield {
-                "type": "wave",
-                "index": wave_index,
-                "agents": [self._node_card(node) for node in nodes],
-                "parallel": len(nodes) > 1,
+                "type": "error",
+                "text": "Motor boş yanıt döndürdü. Menü → Tanı bölümünden bağlantıyı sınayabilirsin.",
             }
-            for node in nodes:
-                yield {"type": "agent_start", "agent": self._node_card(node)}
 
-            runner = self._make_runner(
-                engine=engine,
-                board=board,
-                history=history,
-                scope=scope,
-                title=decision["title"],
-                sessions=sessions,
-                session_lock=session_lock,
-                hermes_session_id=hermes_session_id,
-            )
+        produced = self._persist_files(project_id, output) if output.strip() else []
 
-            results: List[Any] = []
-            for item in run_wave(
-                nodes,
-                runner,
-                max_parallel=self.config.max_parallel_agents,
-            ):
-                if isinstance(item, dict) and "__results__" in item:
-                    results = item["__results__"]
-                    continue
-                yield item
-
-            # 5) Dalga sonrası: panoyu güncelle, dosyaları yaz -------------
-            for result in results:
-                node = result.node
-                agent = AGENTS[node.agent_id]
-                text = result.text
-
-                if text.strip():
-                    last_text = text
-                    board.record(node.agent_id, text)
-                elif not result.failed:
-                    # Sessiz başarısızlık en kötüsüdür.
-                    result.failed = True
-                    yield {
-                        "type": "error",
-                        "agent_id": node.agent_id,
-                        "node": node.key,
-                        "text": f"{node.label} boş yanıt döndürdü. Modeli veya bağlantıyı kontrol edin.",
-                    }
-
-                written: List[Dict[str, Any]] = []
-                if agent["produces_files"] and text.strip():
-                    written = self._persist_files(project_id, text)
-                    produced.extend(written)
-
-                yield {
-                    "type": "agent_end",
-                    "agent_id": node.agent_id,
-                    "node": node.key,
-                    "agent": self._node_card(node),
-                    "files": written,
-                    "chars": len(text),
-                }
-
-                if result.failed:
-                    failed = True
-
-            board.set_files(self.store.list_files(project_id))
-
-            # Mimar bittiyse dosya planını çıkar — sonraki dalgada Kodlayıcı
-            # buna göre bölünecek.
-            if "architect" in wave_agents and board.design:
-                entries = parse_file_plan(board.design)
-                board.set_file_plan(entries)
-                if entries:
-                    yield {
-                        "type": "status",
-                        "text": f"Dosya planı çıkarıldı: {len(entries)} dosya.",
-                    }
-                else:
-                    yield {
-                        "type": "status",
-                        "text": "Dosya planı okunamadı; kodlama tek ajanla sürdürülecek.",
-                    }
-
-            if failed:
-                break
-
-        # 6) Ürün ------------------------------------------------------------
         files_now = self.store.list_files(project_id)
         if files_now:
             yield {
@@ -238,84 +187,37 @@ class ForgePipeline:
                 "suggested_format": requested_format or "zip",
             }
 
-        # 7) Bellek ----------------------------------------------------------
-        stored = self.memory.sync(message, last_text, scope=scope)
+        stored = self.memory.sync(message, output, scope=scope)
         if stored:
             yield {"type": "memory", "stored": stored}
 
         yield {"type": "done", "ok": not failed}
 
-    # ------------------------------------------------------------------
-    # Dalga kurulumu
-    # ------------------------------------------------------------------
-    def _nodes_for_wave(self, wave_agents: List[str], board: BuildBoard) -> List[AgentNode]:
-        """Bir dalgadaki rolleri çalıştırılabilir düğümlere açar."""
-        nodes: List[AgentNode] = []
-        for agent_id in wave_agents:
-            agent = AGENTS.get(agent_id)
-            if not agent:
-                continue
-            if supports_fanout(agent_id) and board.file_plan:
-                groups = split_file_plan(board.file_plan, self.config.max_parallel_agents)
-                nodes.extend(build_nodes(agent_id, agent["name"], file_groups=groups))
-            else:
-                nodes.extend(build_nodes(agent_id, agent["name"]))
-        return nodes
-
-    def _make_runner(
-        self,
-        *,
-        engine: Dict[str, Any],
-        board: BuildBoard,
-        history: List[Dict[str, Any]],
-        scope: str,
-        title: str,
-        sessions: Dict[str, Optional[str]],
-        session_lock: threading.Lock,
-        hermes_session_id: Optional[str],
-    ):
-        """Bir düğümü çalıştırıp olaylarını akıtan işlevi döndürür."""
-
-        def runner(node: AgentNode) -> Iterator[Dict[str, Any]]:
-            agent = AGENTS[node.agent_id]
-            prompt = self._node_prompt(node, board, history)
-            session_id = None
-            if engine["engine"] == "hermes":
-                session_id = self._session_for(
-                    node, sessions, session_lock, title, hermes_session_id
-                )
-            yield from self._stream_agent(engine, agent, prompt, session_id, scope)
-
-        return runner
-
-    def _session_for(
-        self,
-        node: AgentNode,
-        sessions: Dict[str, Optional[str]],
-        lock: threading.Lock,
-        title: str,
-        hermes_session_id: Optional[str],
-    ) -> Optional[str]:
-        """Düğüm için Hermes oturumu döndürür (düğüm başına bir tane)."""
-        with lock:
-            if node.key in sessions:
-                return sessions[node.key]
-            # İstemciden gelen oturum ilk düğüme verilir; sohbetin devamlılığı
-            # o oturumda görünür kalsın.
-            if hermes_session_id and not sessions:
-                sessions[node.key] = hermes_session_id
-                return hermes_session_id
-            sessions[node.key] = None  # yer tut, ikinci kez denenmesin
-
+    def _open_session(self, title: str) -> Optional[str]:
+        """Tur için Hermes oturumu açar; açılamazsa durumsuz devam edilir."""
         try:
-            session_id = self.client.create_session(title=f"{title} · {node.label}")
+            return self.client.create_session(title=title)
         except Exception as exc:
-            logger.info("Hermes oturumu açılamadı (%s), durumsuz yola geçiliyor: %s", node.key, exc)
+            logger.info("Hermes oturumu açılamadı, durumsuz yola geçiliyor: %s", exc)
             return None
 
-        with lock:
-            sessions[node.key] = session_id
-        return session_id
+    @staticmethod
+    def _hired_card(agent: Dict[str, str]) -> Dict[str, Any]:
+        """Hermes'in işe aldığı ajanı arayüzün beklediği biçime çevirir."""
+        orchestrator = str(agent.get("role") or "").lower() == "orchestrator"
+        label = agent.get("label") or "Ajan"
+        return {
+            "id": label,
+            "name": label,
+            "label": label,
+            "title": "Yönetici" if orchestrator else "Uzman",
+            "emoji": "🧠" if orchestrator else "⚙️",
+            "node": label,
+            "role": "orchestrator" if orchestrator else "leaf",
+            "instance": 0,
+            "total_instances": 1,
+            "paths": [],
+        }
 
     # ------------------------------------------------------------------
     # Motor seçimi
@@ -398,75 +300,9 @@ class ForgePipeline:
     # ------------------------------------------------------------------
     # Düğüm istemi
     # ------------------------------------------------------------------
-    def _node_prompt(
-        self,
-        node: AgentNode,
-        board: BuildBoard,
-        history: List[Dict[str, Any]],
-    ) -> str:
-        """Bir düğümün göreceği istemi kurar.
-
-        Kritik nokta: sohbet geçmişi ve kullanıcının ham mesajı YALNIZCA
-        Çözümleyici'ye gider. Diğer roller panodan gelen damıtılmış durumu ve
-        tek satırlık hedefi görür — böylece hiçbir ajan konuşmayı yeniden
-        açmaz, hiçbir metin iki kez beslenmez.
-        """
-        parts: List[str] = []
-
-        if node.agent_id == "analyst":
-            recent = [
-                f"{'Kullanıcı' if item.get('role') == 'user' else 'Asistan'}: "
-                f"{trim(str(item.get('content') or ''), 1200)}"
-                for item in history[-_HISTORY_TURNS:]
-                if item.get("role") in {"user", "assistant"} and item.get("content")
-            ]
-            if recent:
-                parts.append("### Önceki konuşma ###\n" + "\n".join(recent))
-
-        board_context = board.render_for(node.agent_id, assigned_paths=node.assigned_paths or None)
-        if board_context:
-            parts.append(board_context)
-
-        if node.is_fanout:
-            parts.append(
-                f"### Paralel çalışma ###\nBu işte {node.total_instances} Kodlayıcı aynı anda "
-                f"çalışıyor; sen {node.instance}. sırasın. Yalnızca sana düşen dosyaları üret, "
-                "diğerlerinin dosyalarını yeniden yazma."
-            )
-
-        parts.append("### Şimdi senden istenen ###\n" + AGENTS[node.agent_id]["description"])
-        return "\n\n".join(parts)
-
     # ------------------------------------------------------------------
     # Akış
     # ------------------------------------------------------------------
-    def _stream_agent(
-        self,
-        engine: Dict[str, Any],
-        agent: Dict[str, Any],
-        prompt: str,
-        session_id: Optional[str],
-        scope: str,
-    ) -> Iterator[Dict[str, Any]]:
-        system_prompt = agent["system_prompt"] + "\n\n" + self.memory.build_system_prompt()
-
-        if engine["engine"] != "hermes":
-            yield {"type": "error", "text": self._no_engine_message()}
-            return
-
-        emitted = 0
-        try:
-            for event in self._stream_hermes(system_prompt, prompt, session_id, scope):
-                if event["type"] == "delta":
-                    emitted += 1
-                yield event
-        except Exception as exc:
-            logger.warning("Hermes akışı başarısız (%s): %s", agent["id"], exc)
-            if emitted:
-                yield {"type": "error", "text": f"Hermes akışı yarıda kesildi: {exc}"}
-            else:
-                yield {"type": "error", "text": f"Hermes hatası: {exc}"}
-
     def _model_options(self) -> Optional[Dict[str, Any]]:
         """Hermes'e istek başına gönderilecek model seçenekleri.
 
@@ -558,7 +394,6 @@ class ForgePipeline:
         }
 
     # ------------------------------------------------------------------
-    @staticmethod
     def _agent_card(agent_id: str) -> Dict[str, Any]:
         agent = AGENTS.get(agent_id, {})
         return {
@@ -568,7 +403,6 @@ class ForgePipeline:
             "emoji": agent.get("emoji", "🤖"),
         }
 
-    @classmethod
     def _node_card(cls, node: AgentNode) -> Dict[str, Any]:
         card = cls._agent_card(node.agent_id)
         card.update(

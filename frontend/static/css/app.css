@@ -736,6 +736,20 @@ button { cursor: pointer; background: none; border: none; }
 /* Ağda bulunan Hermes: tek dokunuşla seçilebilsin. */
 .setup-found { display: flex; flex-direction: column; gap: 8px; }
 
+/* Tanı sonuçları: her satır tek bir kontrol. */
+.diag { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.diag-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.diag-row b { font-weight: 600; }
+.diag-row small { display: block; color: var(--text-dim); overflow-wrap: anywhere; }
+.diag-ok { color: var(--ok); }
+.diag-bad { color: var(--error); }
+
 .found-btn {
   display: flex;
   align-items: center;

@@ -494,10 +494,13 @@ class HermesClient:
                 elif delta:
                     yield {"type": "status", "text": delta, "tool": tool}
             elif name in _TOOL_START_EVENTS:
+                # ``args`` taşınıyor: Hermes ekibini delegate_task ile kuruyor
+                # ve hangi ajanı hangi işe aldığı yalnızca burada görünüyor.
                 yield {
                     "type": "tool_start",
                     "tool": data.get("tool_name") or "araç",
                     "preview": data.get("preview") or "",
+                    "args": data.get("args"),
                 }
             elif name in _TOOL_END_EVENTS:
                 yield {
@@ -505,6 +508,7 @@ class HermesClient:
                     "tool": data.get("tool_name") or "araç",
                     "ok": name != "tool.failed",
                     "preview": data.get("preview") or "",
+                    "args": data.get("args"),
                 }
             elif name == "run.completed":
                 # Ne delta ne de assistant.completed metin verdiyse son çare:

@@ -28,7 +28,6 @@ class TestBasicRoutes:
     def test_status_hermes_kapaliyken_de_doner(self, client):
         data = client.get("/api/status").get_json()
         assert data["hermes"]["health"]["reachable"] is False
-        assert data["agents"]
         assert "zip" in data["formats"]
 
     def test_bilinmeyen_api_ucu_json_404(self, client):
@@ -255,9 +254,22 @@ class TestModelSettings:
         client.post("/api/settings", json={"hermes_api_key": "gizli-anahtar"})
         assert client.get("/api/settings").get_json()["hermes_api_key"] is True
 
-    def test_paralel_ajan_siniri(self, client):
-        assert client.post("/api/settings", json={"max_parallel_agents": 3}).status_code == 200
-        assert client.post("/api/settings", json={"max_parallel_agents": 99}).status_code == 400
+    def test_ekip_ayarlari_dogrulanir(self, client, monkeypatch):
+        """Katman derinliği ve paralel ajan sayısı Hermes'e yazılıyor."""
+        from hermes import embedded
+
+        monkeypatch.setattr(embedded, "available", lambda: True)
+        yazilan = {}
+        monkeypatch.setattr(embedded, "set_delegation",
+                            lambda depth, concurrent, **kw: yazilan.update(
+                                depth=depth, concurrent=concurrent))
+        monkeypatch.setattr(embedded, "current_delegation",
+                            lambda *a, **k: {"max_spawn_depth": 5, "max_concurrent_children": 7})
+
+        assert client.post("/api/hermes/team", json={"depth": 5, "concurrent": 7}).status_code == 200
+        assert yazilan == {"depth": 5, "concurrent": 7}
+        assert client.post("/api/hermes/team", json={"depth": 99}).status_code == 400
+        assert client.post("/api/hermes/team", json={"concurrent": 0}).status_code == 400
 
     def test_status_saglayiciya_gore_katalog(self, client, monkeypatch):
         """Liste, sağlayıcının telde kabul ettiği düzeylerden olmalı.
@@ -297,7 +309,6 @@ class TestModelSettings:
         assert "presets" not in data["catalog"], "artık doğrudan sağlayıcı yok"
         assert "fallback" not in data, "Hermes'siz çalışan bir yol kalmadı"
         assert data["platform"] in ("desktop", "android")
-        assert data["max_parallel_agents"] >= 1
 
 
 class TestEmbeddedPaths:

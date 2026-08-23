@@ -45,6 +45,13 @@
       </section>
 
       <section class="panel-section">
+        <div class="section-title">Tanı</div>
+        <p class="hint">Bir şey çalışmıyorsa nedenini burada söyler.</p>
+        <button class="ghost-btn" id="runDiagBtn">Sistemi sına</button>
+        <div class="diag" id="diagResult"></div>
+      </section>
+
+      <section class="panel-section">
         <div class="section-title">Sohbetler</div>
         <div class="list" id="historyList"></div>
       </section>
@@ -156,16 +163,28 @@
         <p class="hint" id="maxTokensHint"></p>
       </section>
 
-      <section class="panel-section">
-        <div class="section-title">Ajanlar</div>
+      <section class="panel-section" id="teamSection" style="display:none">
+        <div class="section-title">Ekip</div>
+        <p class="hint">
+          Ajanları biz belirlemiyoruz: Hermes işe göre kendi ekibini kuruyor ve
+          her turdan sonra gerekirse yeni ajan alıyor. Buradan yalnızca ne kadar
+          derine inebileceğini ve aynı anda kaç ajan çalışabileceğini
+          sınırlıyorsun.
+        </p>
         <label class="field">
-          <span>Aynı anda çalışacak ajan sayısı</span>
-          <input type="number" id="max_parallel_agents" min="1" max="6" step="1">
+          <span>Katman derinliği</span>
+          <input type="number" id="teamDepth" min="1" max="8" step="1">
         </label>
         <p class="hint">
-          Kodlayıcı, dosya planına göre bölünüp aynı anda birden çok dosya
-          yazabilir. Telefonda 2 iyi bir denge.
+          1 = düz kadro (yöneticiler kendi altına ajan alamaz).
+          2 = yönetici → uzman. 3 ve üstü daha derin hiyerarşi.
         </p>
+        <label class="field">
+          <span>Aynı anda çalışacak ajan</span>
+          <input type="number" id="teamConcurrent" min="1" max="16" step="1">
+        </label>
+        <button class="ghost-btn" id="saveTeamBtn">Ekip ayarlarını kaydet</button>
+        <div class="setup-status" id="teamStatus"></div>
       </section>
 
       <button class="primary-btn" id="saveSettingsBtn">Kaydet</button>

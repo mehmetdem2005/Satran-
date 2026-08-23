@@ -92,8 +92,6 @@ class Config:
 
     # --- Pipeline -------------------------------------------------------
     # Aynı anda kaç ajan düğümü çalışabilir. Telefonda bellek ve eşzamanlı
-    # bağlantı sınırlı olduğu için varsayılan düşük tutuldu.
-    max_parallel_agents: int = 2
     rag_top_k: int = 6
     memory_top_k: int = 6
 
@@ -219,7 +217,6 @@ def load_config() -> Config:
     cfg.hermes_timeout = _env_int("HERMESFORGE_HERMES_TIMEOUT", cfg.hermes_timeout)
     cfg.max_tokens = _env_int("HERMESFORGE_MAX_TOKENS", cfg.max_tokens)
     cfg.platform = (os.environ.get("HERMESFORGE_PLATFORM") or cfg.platform).strip().lower()
-    cfg.max_parallel_agents = max(1, min(_env_int("HERMESFORGE_MAX_PARALLEL", cfg.max_parallel_agents), 6))
     cfg.debug = _env_bool("HERMESFORGE_DEBUG", cfg.debug)
     cfg.hermes_autostart = _env_bool("HERMESFORGE_HERMES_AUTOSTART", cfg.hermes_autostart)
 

@@ -15,8 +15,8 @@ arkasında. Hermes'siz çalışan bir yedek yol yoktur.
 
 | Karar | Gerekçe |
 |---|---|
-| Ajan seçimi menüden kaldırıldı | Kullanıcı "hangi ajan" değil "ne istediğini" bilir. Yönlendirici isteği okuyup hattı kendisi kurar. |
-| Başlık canlı | Üst başlık o an çalışan ajanın adını taşır; ilerlemeyi izlemek için ayrı bir panele gerek yok. |
+| Ajan kadrosu kaldırıldı | Kadroyu biz sabitlediğimizde motorun zaten yaptığı işin zayıf bir kopyasını yazmış oluyorduk. Ekibi Hermes kuruyor, gerektikçe büyütüyor. |
+| Başlık canlı | Üst başlık o an çalışan ajanın adını taşır — adı Hermes koymuştur. |
 | Kod her zaman kart içinde | Model kodu düz metin akıtsa bile arayüz onu dosya adı başlıklı, kopyalanabilir ve indirilebilir bir karta çevirir. |
 | Hermes olmadan çalışan yol yok | Doğrudan sağlayıcıya giden yedek yol kaldırıldı. Modeli, anahtarı, araçları ve becerileri Hermes yönetir; telefonda hiçbir sağlayıcı anahtarı durmaz. |
 | Hermes kaynağı depoda | Kaynak `vendor/hermes-agent/` altında (MIT, sürüm sabit) — klonlayan herkes aynı sürümü alır, çevrimdışı kurulum mümkün. APK'ya kırpılmış hâli gömülür (bkz. "Nasıl çalışır"). |
@@ -25,63 +25,38 @@ arkasında. Hermes'siz çalışan bir yedek yol yoktur.
 
 ---
 
-## Ajan kadrosu
+## Ajanları Hermes kurar
 
-Hangilerinin çalışacağına yönlendirici karar verir:
+Sabit bir kadro yok. Hermes'e **baş yönetici** rolü veriliyor; işe göre kendi
+ekibini kuruyor ve her turdan sonra "başka kime ihtiyacım var?" diye sorup
+yeni ajan alıyor.
 
-| Mod | Ne zaman | Roller |
-|---|---|---|
-| `build` | Sıfırdan yeni bir uygulama | 🧭 Çözümleyici, 🏛️ Mimar, 💻 Kodlayıcı, 🔍 Denetçi, 📦 Paketleyici |
-| `patch` | Mevcut projede değişiklik | 💻 Kodlayıcı, 🔍 Denetçi |
-| `package` | "zip olarak ver" | 📦 Paketleyici (model çağrısı yapılmaz) |
-| `answer` | Soru, sohbet, açıklama | 💬 Danışman |
-
-Paketleme istekleri ve tek satırlık sorular **deterministik** olarak
-tanınır — model burada yanılıp hazır projeyi baştan üretemez.
-
-### Ajanlar birbirini doğrusal takip etmez
-
-Sırayı bağımlılık grafiği belirler; bağımlılığı karşılanan her düğüm **aynı
-anda** başlar:
+Bu bizim taklit ettiğimiz bir şey değil, Hermes'in kendi `delegate_task`
+aracı: her çocuk ajan kendi bağlamı, kendi terminali ve kendi araç kümesiyle
+çalışıyor; ebeveyne yalnızca özeti dönüyor.
 
 ```
-Çözümleyici → Mimar → ┌── Kodlayıcı 1 ─┐ → ┌── Denetçi ────┐
-                      └── Kodlayıcı 2 ─┘   └── Paketleyici ┘
-                          (dosya planına       (birbirini
-                           göre bölünür)        beklemezler)
+         Baş yönetici (Hermes)
+        ┌────────┴────────┐
+    Yönetici           Uzman
+   ┌────┴────┐
+Uzman     Uzman        ← katman derinliği ayarlanabilir
 ```
 
-- **Denetçi ‖ Paketleyici** — ikisi de yalnız Kodlayıcı'ya bağlı, paralel çalışır.
-- **Kodlayıcı bölünür** — Mimar'ın `dosya-plani` bloğu ayrık gruplara ayrılır,
-  her grubu ayrı bir Kodlayıcı aynı anda yazar. Yollar ayrık olduğu için diske
-  yazma çakışmaz; dosyalar arası uyuşmazlıkları Denetçi yakalar.
-- Eşzamanlılık `max_parallel_agents` ile sınırlı (varsayılan **2** — telefonda
-  bellek ve bağlantı sınırlı).
+- `role="orchestrator"` verilen bir ajan **kendi altına ajan alabilir**;
+  sıradan uzmanlar (`leaf`) alamaz.
+- Kaç katman derine inilebileceği `delegation.max_spawn_depth`, aynı anda kaç
+  ajan çalışabileceği `delegation.max_concurrent_children` ile sınırlı.
+  İkisi de Ayarlar → **Ekip** bölümünden değiştiriliyor (varsayılan: 4 katman,
+  aynı anda 6 ajan).
+- Arayüzdeki şerit, Hermes ekibi kurdukça doluyor: adları Hermes veriyor,
+  biz sabit bir liste göstermiyoruz.
 
-### Hiçbir ajan konuşmayı yeniden açmaz
+Kod hep baş yöneticinin yanıtından çıkarılıyor. Alt ajanların "yazdım"
+özetleri kendi beyanlarıdır; yanıtta görünmeyen dosya yazılmamış sayılır.
 
-Eskiden her ajan tüm sohbet geçmişini, kullanıcının ham mesajını ve kendinden
-önceki bütün ajanların çıktısını (ajan başına 14 KB'a kadar) yeniden alıyordu —
-üstelik hepsi tek Hermes oturumunu paylaştığı için aynı metin ikinci kez
-besleniyordu. Modelin gözünden her ajan turu konuşmanın baştan açılmasıydı.
-
-Şimdi ortak bir **pano** (`backend/forge/board.py`) var: ham transkript yerine
-damıtılmış durum taşır (gereksinim, tasarım, dosya planı, dosya listesi,
-bulgular) ve her rol yalnızca kendi dilimlerini görür. Sohbet geçmişi yalnızca
-Çözümleyici'ye gider. Her düğüm kendi Hermes oturumunda çalışır; uzun vadeli
-bellek ortak `X-Hermes-Session-Key` ile korunur.
-
-Gerçek bir turda ölçülen istem boyutları — ajan sayısıyla büyümüyor:
-
-| Ajan | İstem (karakter) |
-|---|---|
-| Çözümleyici | 213 |
-| Mimar | 443 |
-| Kodlayıcı | 1230 |
-| Denetçi | 621 |
-| Paketleyici | 621 |
-
----
+Paketleme istekleri ("zip olarak ver") hâlâ **deterministik** olarak tanınıyor
+ve model hiç çağrılmıyor.
 
 ## Nasıl çalışır
 
@@ -240,10 +215,8 @@ backend/
     discovery.py        ev ağında Hermes arar (/24 tarama + /health imzası)
     embedded.py         APK'nın içindeki gateway'i başlatır ve ayarlar
   forge/
-    agents.py           ajan kadrosu, istemler ve bağımlılık grafiği
-    board.py            ortak pano (damıtılmış yapım durumu)
-    scheduler.py        dalga yürütücüsü, paralel düğümler, fan-out
-    router.py           otomatik rol seçimi
+    orchestration.py    Hermes'e verilen "ekibini kur" yönergesi
+    router.py           mod seçimi (yapım / yama / paketleme / soru)
     pipeline.py         akış orkestrasyonu
     artifacts.py        kod bloğu → dosya → paket
 frontend/

@@ -23,7 +23,7 @@ sys.path.insert(0, str(BACKEND_DIR))
 
 import config as config_module  # noqa: E402
 import hf_utils as utils  # noqa: E402
-from forge import ArtifactStore, ForgePipeline, public_roster  # noqa: E402
+from forge import ArtifactStore, ForgePipeline  # noqa: E402
 from forge.artifacts import EXPORT_FORMATS  # noqa: E402
 import presets  # noqa: E402
 from hermes import HermesClient, HermesRuntime  # noqa: E402
@@ -71,7 +71,6 @@ def _validate_settings(updates: Dict[str, Any]) -> Optional[str]:
 
     for key, low, high in (
         ("max_tokens", 1, 1_000_000),
-        ("max_parallel_agents", 1, 6),
         ("rag_top_k", 1, 50),
         ("memory_top_k", 1, 50),
     ):
@@ -196,14 +195,13 @@ def _register_routes(app: Flask) -> None:
                     **embedded.status(),
                     "model_configured": embedded.model_configured(),
                     **embedded.current_model(),
+                    "team": embedded.current_delegation(),
                 },
                 "memory": services["memory"].stats(scope=DEFAULT_SCOPE),
                 "rag": services["rag"].stats(),
-                "agents": public_roster(),
                 "formats": list(EXPORT_FORMATS),
                 "catalog": presets.public_catalog(embedded.current_model().get("provider")),
                 "platform": cfg.platform,
-                "max_parallel_agents": cfg.max_parallel_agents,
             }
         )
 
@@ -460,6 +458,81 @@ def _register_routes(app: Flask) -> None:
             "restart_required": embedded.status().get("running", False),
         })
 
+    @app.route("/api/hermes/team", methods=["POST"])
+    def hermes_team():
+        """Ekip derinliği ve aynı anda çalışacak ajan sayısı."""
+        if not embedded.available():
+            return jsonify({"error": "Bu yapıda gömülü Hermes yok."}), 400
+
+        payload = request.get_json(silent=True) or {}
+        try:
+            depth = int(payload.get("depth", embedded.DEFAULT_SPAWN_DEPTH))
+            concurrent = int(payload.get("concurrent", embedded.DEFAULT_CONCURRENT_CHILDREN))
+        except (TypeError, ValueError):
+            return jsonify({"error": "Değerler tam sayı olmalı."}), 400
+        if not 1 <= depth <= 8:
+            return jsonify({"error": "Katman derinliği 1-8 aralığında olmalı."}), 400
+        if not 1 <= concurrent <= 16:
+            return jsonify({"error": "Aynı anda ajan sayısı 1-16 aralığında olmalı."}), 400
+
+        try:
+            embedded.set_delegation(depth, concurrent)
+        except Exception as exc:
+            return jsonify({"error": f"Ayar yazılamadı: {exc}"}), 500
+        return jsonify({"saved": True, **embedded.current_delegation(),
+                        "restart_required": embedded.status().get("running", False)})
+
+    @app.route("/api/diagnostics")
+    def diagnostics():
+        """Neyin çalışmadığını söyler.
+
+        "Yanıt gelmiyor" tek başına hiçbir şey anlatmıyor; buradaki her adım
+        tek tek sınanıp Türkçe sonucu dönüyor.
+        """
+        services = _services()
+        cfg = services["config"]
+        checks = []
+
+        def add(name, ok, detail=""):
+            checks.append({"name": name, "ok": bool(ok), "detail": str(detail)[:400]})
+
+        gomulu = embedded.available()
+        add("Motor uygulamanın içinde", gomulu,
+            "Hermes kaynağı paketlenmiş." if gomulu else "Bu yapıda gömülü motor yok.")
+
+        durum = embedded.status()
+        if gomulu:
+            add("Motor çalışıyor", durum.get("running"),
+                durum.get("error") or f"port {durum.get('port') or embedded.DEFAULT_PORT}")
+
+        model = embedded.current_model()
+        add("Model ayarlı", bool(model.get("model")),
+            f"{model.get('model')} ({model.get('provider')})" if model.get("model")
+            else "Ayarlar → Model bölümünden anahtar gir.")
+
+        health = services["client"].health()
+        add("Hermes yanıt veriyor", health.get("reachable"),
+            health.get("error") or health.get("status") or cfg.hermes_base_url)
+
+        if health.get("reachable"):
+            probe = hermes_probe(cfg.hermes_base_url, cfg.hermes_api_key)
+            add("Anahtar geçerli", probe.get("ok"), probe.get("error") or "tamam")
+            if probe.get("ok"):
+                try:
+                    text = services["client"].complete(
+                        [{"role": "user", "content": "Yalnızca 'tamam' yaz."}], timeout=90
+                    )
+                    add("Model yanıt veriyor", bool(str(text).strip()),
+                        trim(str(text), 200) or "boş yanıt döndü")
+                except Exception as exc:
+                    add("Model yanıt veriyor", False, f"{type(exc).__name__}: {exc}")
+
+        return jsonify({
+            "checks": checks,
+            "ok": all(check["ok"] for check in checks),
+            "team": embedded.current_delegation() if gomulu else {},
+        })
+
     @app.route("/api/hermes/discover", methods=["POST"])
     def hermes_discover():
         """Ev ağında Hermes arar.
@@ -505,7 +578,7 @@ def _register_routes(app: Flask) -> None:
         allowed = {
             "hermes_base_url", "hermes_api_key", "hermes_model", "hermes_provider",
             "hermes_autostart", "hermes_repo_dir", "rag_top_k", "memory_top_k",
-            "reasoning_effort", "max_tokens", "max_parallel_agents",
+            "reasoning_effort", "max_tokens",
         }
         updates = {key: value for key, value in payload.items() if key in allowed}
         if not updates:

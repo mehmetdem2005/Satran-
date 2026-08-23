@@ -1,4 +1,9 @@
-"""ForgePipeline: ajan orkestrasyonu, dosya kaydı ve hata yolları."""
+"""ForgePipeline: turun yürütülmesi, dosya kaydı ve hata yolları.
+
+Ajan kadrosu artık burada tanımlı değil: ekibi Hermes ``delegate_task`` ile
+kendisi kuruyor. Bu yüzden testler "beş ajan çalıştı mı" diye değil,
+"Hermes'in kurduğu ekip arayüze doğru aktarıldı mı" diye bakıyor.
+"""
 
 import pytest
 
@@ -18,11 +23,14 @@ print("merhaba")
 class SahteIstemci:
     """HermesClient yerine geçen, akışı senaryoya göre üreten sahte."""
 
-    def __init__(self, *, reachable=True, yanit=KOD_YANITI, patlat=None, oturum_hatasi=False):
+    def __init__(self, *, reachable=True, yanit=KOD_YANITI, patlat=None,
+                 oturum_hatasi=False, ekip=None):
         self._reachable = reachable
         self._yanit = yanit
         self._patlat = patlat
         self._oturum_hatasi = oturum_hatasi
+        # Hermes'in delegate_task ile işe aldığı ajanlar (araç olayı olarak).
+        self._ekip = ekip or []
         self.oturumlar = []
         self.tur_sayisi = 0
 
@@ -44,6 +52,10 @@ class SahteIstemci:
         if self._patlat == "hemen":
             raise RuntimeError("hermes çöktü")
         yield {"type": "delta", "text": self._yanit[:20]}
+        for cagri in self._ekip:
+            yield {"type": "tool_start", "tool": "delegate_task", "args": cagri}
+            yield {"type": "tool_end", "tool": "delegate_task", "ok": True,
+                   "args": cagri, "preview": "özet"}
         if self._patlat == "ortada":
             raise RuntimeError("akış yarıda kesildi")
         yield {"type": "delta", "text": self._yanit[20:]}
@@ -80,17 +92,48 @@ class TestMutluYol:
 
         assert tipler[-1] == "done"
         assert events[-1]["ok"] is True
-        assert tipler.count("agent_start") == 5, "build modunda beş ajan çalışmalı"
+        assert "delta" in tipler
         assert "artifacts" in tipler
 
-    def test_baslik_calisan_ajani_gosterir(self, hat_kur):
-        """Arayüz başlığı bu olaydan besleniyor."""
-        events = olaylar(hat_kur())
+    def test_ekibi_hermes_kuruyor(self, hat_kur):
+        """Kadro bizde sabit değil; adları Hermes veriyor."""
+        istemci = SahteIstemci(ekip=[
+            {"tasks": [
+                {"name": "Güvenlik uzmanı", "role": "leaf"},
+                {"name": "Veri mimarı", "role": "orchestrator"},
+            ]},
+        ])
+        events = olaylar(hat_kur(istemci))
+
+        ekip = next(e for e in events if e["type"] == "team")
+        assert [a["label"] for a in ekip["hired"]] == ["Güvenlik uzmanı", "Veri mimarı"]
+
         baslangiclar = [e["agent"] for e in events if e["type"] == "agent_start"]
-        assert [a["id"] for a in baslangiclar] == [
-            "analyst", "architect", "builder", "reviewer", "packager"
-        ]
-        assert all(a["name"] and a["emoji"] for a in baslangiclar)
+        assert [a["label"] for a in baslangiclar] == ["Güvenlik uzmanı", "Veri mimarı"]
+
+    def test_yonetici_ve_uzman_ayirt_edilir(self, hat_kur):
+        """Katmanlı hiyerarşi: kendi altına ajan alabilen rol işaretlenmeli."""
+        istemci = SahteIstemci(ekip=[
+            {"tasks": [
+                {"name": "Ekip lideri", "role": "orchestrator"},
+                {"name": "Test yazarı", "role": "leaf"},
+            ]},
+        ])
+        events = olaylar(hat_kur(istemci))
+        kartlar = {e["agent"]["label"]: e["agent"] for e in events if e["type"] == "agent_start"}
+
+        assert kartlar["Ekip lideri"]["role"] == "orchestrator"
+        assert kartlar["Ekip lideri"]["title"] == "Yönetici"
+        assert kartlar["Test yazarı"]["role"] == "leaf"
+
+    def test_ekip_turlar_boyunca_buyur(self, hat_kur):
+        """Sonraki delegate_task çağrıları ekibe eklenmeli, sıfırlamamalı."""
+        istemci = SahteIstemci(ekip=[
+            {"goal": "İlk uzman"},
+            {"tasks": [{"name": "İkinci uzman"}, {"name": "Üçüncü uzman"}]},
+        ])
+        events = [e for e in olaylar(hat_kur(istemci)) if e["type"] == "team"]
+        assert [e["size"] for e in events] == [1, 3]
 
     def test_dosyalar_diske_yazilir(self, hat_kur, tmp_path):
         events = olaylar(hat_kur())
@@ -100,12 +143,13 @@ class TestMutluYol:
         yazilan = tmp_path / "projects" / artifact["project_id"] / "app.py"
         assert yazilan.read_text(encoding="utf-8").strip() == 'print("merhaba")'
 
-    def test_dosya_uretmeyen_ajanlar_dosya_yazmaz(self, hat_kur):
-        events = olaylar(hat_kur())
-        bitisler = {e["agent_id"]: e["files"] for e in events if e["type"] == "agent_end"}
-        assert bitisler["analyst"] == []
-        assert bitisler["architect"] == []
-        assert bitisler["builder"]
+    def test_dosyalar_turun_sonunda_yazilir(self, hat_kur):
+        """Dosyaları baş yöneticinin yanıtından çıkarıyoruz; alt ajanların
+        özetleri kendi beyanları, onlara güvenmiyoruz."""
+        events = olaylar(hat_kur(SahteIstemci(ekip=[{"goal": "Kodlayıcı"}])))
+        bitisler = [e for e in events if e["type"] == "agent_end"]
+        assert all(e["files"] == [] for e in bitisler)
+        assert next(e for e in events if e["type"] == "artifacts")["new_files"] == ["app.py"]
 
     def test_uretilen_kod_rage_indekslenir(self, hat_kur):
         """Sonraki turda 'şunu düzelt' isteği ilgili kodu geri getirebilmeli."""
@@ -134,10 +178,11 @@ class TestYonlendirme:
         artifact = next(e for e in events if e["type"] == "artifacts")
         assert artifact["suggested_format"] == "zip"
 
-    def test_soru_tek_ajanla_yanitlanir(self, hat_kur):
+    def test_soru_da_ayni_yoldan_gecer(self, hat_kur):
+        """Artık mod başına ayrı kadro yok; Hermes gerekirse hiç ajan almaz."""
         events = olaylar(hat_kur(), message="Flask nedir?")
-        baslangiclar = [e["agent"]["id"] for e in events if e["type"] == "agent_start"]
-        assert baslangiclar == ["advisor"]
+        assert not [e for e in events if e["type"] == "agent_start"]
+        assert events[-1]["type"] == "done"
 
 
 class TestHataYollari:
@@ -241,111 +286,6 @@ class KaydedenIstemci(SahteIstemci):
                 break
         self.tur_sayisi += 1
         yield {"type": "delta", "text": yanit}
-
-
-class TestNoReFeeding:
-    """'Ajanlar her turda baştan başlıyor' hatasının regresyon kilidi."""
-
-    def test_gecmis_yalnizca_cozumleyiciye_gider(self, hat_kur):
-        istemci = KaydedenIstemci()
-        pipeline = hat_kur(istemci)
-        gecmis = [
-            {"role": "user", "content": "ONCEKI_KULLANICI_MESAJI"},
-            {"role": "assistant", "content": "ONCEKI_ASISTAN_CEVABI"},
-        ]
-        olaylar(pipeline, message="Bana bir uygulama yap", history=gecmis)
-
-        cozumleyici = istemci.prompts[0]["prompt"]
-        assert "ONCEKI_KULLANICI_MESAJI" in cozumleyici
-
-        for kayit in istemci.prompts[1:]:
-            assert "ONCEKI_KULLANICI_MESAJI" not in kayit["prompt"], (
-                "Çözümleyici dışındaki ajanlar sohbet geçmişini almamalı"
-            )
-            assert "### Önceki konuşma ###" not in kayit["prompt"]
-
-    def test_onceki_ajanlarin_ham_ciktisi_tekrar_beslenmez(self, hat_kur):
-        istemci = KaydedenIstemci(yanit="AJAN_HAM_CIKTISI_" + "x" * 500)
-        pipeline = hat_kur(istemci)
-        olaylar(pipeline)
-
-        # Pano damıtılmış metni taşır; ham çıktı blok başlığıyla dolaşmaz.
-        for kayit in istemci.prompts:
-            assert "### Önceki ajanların çıktıları ###" not in kayit["prompt"]
-
-    def test_istem_boyutu_ajan_sayisiyla_patlamaz(self, hat_kur):
-        """Eskiden son ajan, öncekilerin toplamını taşıdığı için şişiyordu."""
-        istemci = KaydedenIstemci(yanit="y" * 3000)
-        pipeline = hat_kur(istemci)
-        olaylar(pipeline)
-
-        boyutlar = [len(k["prompt"]) for k in istemci.prompts]
-        assert max(boyutlar) < 4 * min(boyutlar) + 8000
-
-    def test_her_dugum_kendi_oturumunu_alir(self, hat_kur):
-        """Tek oturum paylaşmak hem paralelliği hem bağlamı bozuyordu."""
-        istemci = KaydedenIstemci()
-        pipeline = hat_kur(istemci)
-        olaylar(pipeline)
-
-        oturumlar = {k["session_id"] for k in istemci.prompts}
-        assert len(oturumlar) == len(istemci.prompts), "her düğüm ayrı oturumda olmalı"
-
-
-class TestWavesInPipeline:
-    def test_denetci_ve_paketleyici_ayni_dalgada(self, hat_kur):
-        events = olaylar(hat_kur())
-        dalgalar = [e for e in events if e["type"] == "wave"]
-        son = dalgalar[-1]
-        assert son["parallel"] is True
-        assert {a["id"] for a in son["agents"]} == {"reviewer", "packager"}
-
-    def test_dalga_olayi_ajanlari_bildirir(self, hat_kur):
-        events = olaylar(hat_kur())
-        ilk = next(e for e in events if e["type"] == "wave")
-        assert ilk["index"] == 1
-        assert [a["id"] for a in ilk["agents"]] == ["analyst"]
-        assert ilk["parallel"] is False
-
-
-class TestFanout:
-    def test_mimar_plani_verince_kodlayici_bolunur(self, hat_kur):
-        istemci = KaydedenIstemci(yanitlar={"Mimar": ARCHITECT_REPLY})
-        pipeline = hat_kur(istemci)
-        events = olaylar(pipeline)
-
-        kodlayici_dugumleri = [
-            e["agent"] for e in events
-            if e["type"] == "agent_start" and e["agent"]["id"] == "builder"
-        ]
-        assert len(kodlayici_dugumleri) == 2, "max_parallel_agents=2 → iki Kodlayıcı"
-        assert [n["label"] for n in kodlayici_dugumleri] == ["Kodlayıcı 1", "Kodlayıcı 2"]
-
-    def test_bolunmus_kodlayicilar_ayrik_dosyalar_alir(self, hat_kur):
-        istemci = KaydedenIstemci(yanitlar={"Mimar": ARCHITECT_REPLY})
-        events = olaylar(hat_kur(istemci))
-
-        atamalar = [
-            e["agent"]["paths"] for e in events
-            if e["type"] == "agent_start" and e["agent"]["id"] == "builder"
-        ]
-        duz = [p for grup in atamalar for p in grup]
-        assert len(duz) == len(set(duz)) == 4
-
-    def test_plan_okunamazsa_tek_kodlayiciya_duser(self, hat_kur):
-        """Biçim hatası tüm hattı çökertmemeli, sessizce de geçmemeli."""
-        istemci = KaydedenIstemci(yanitlar={"Mimar": "Tasarım var ama plan bloğu yok."})
-        events = olaylar(hat_kur(istemci))
-
-        kodlayicilar = [
-            e for e in events
-            if e["type"] == "agent_start" and e["agent"]["id"] == "builder"
-        ]
-        assert len(kodlayicilar) == 1
-        assert any(
-            e["type"] == "status" and "tek ajanla" in e.get("text", "")
-            for e in events
-        )
 
 
 class TestModelOptions:

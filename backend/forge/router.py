@@ -20,7 +20,6 @@ import logging
 import re
 from typing import Any, Dict, List, Optional
 
-from .agents import AGENTS
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +119,6 @@ def route(
     if mode == "package":
         return {
             "mode": mode,
-            "agents": [agent_id for agent_id in MODES[mode] if agent_id in AGENTS],
             "title": title,
             "reason": "Paketleme isteği doğrudan tanındı",
             "source": "deterministic",
@@ -131,7 +129,6 @@ def route(
     if mode == "answer" and len(message.strip()) < 60 and message.strip().endswith("?"):
         return {
             "mode": mode,
-            "agents": [agent_id for agent_id in MODES[mode] if agent_id in AGENTS],
             "title": title,
             "reason": "Kısa soru — doğrudan yanıt",
             "source": "deterministic",
@@ -158,10 +155,8 @@ def route(
                 title = candidate_title[:60]
             reason = str(decision.get("reason") or reason)[:200]
 
-    agents = [agent_id for agent_id in MODES[mode] if agent_id in AGENTS]
     return {
         "mode": mode,
-        "agents": agents,
         "title": title,
         "reason": reason,
         "source": source,

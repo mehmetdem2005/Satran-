@@ -107,3 +107,56 @@ class TestUc:
         data = client.get("/api/status").get_json()
         assert "embedded" in data
         assert set(data["embedded"]) >= {"available", "running", "model_configured"}
+
+
+class TestEkip:
+    """Katmanlı hiyerarşi Hermes'in kendi delegasyon ayarlarıyla açılıyor."""
+
+    def test_model_yazilinca_delegasyon_da_acilir(self, tmp_path):
+        """Hermes'in varsayılanı max_spawn_depth=1 — DÜZ kadro demek.
+
+        O hâliyle yöneticiler kendi altına ajan alamıyor; kullanıcının
+        istediği çok katmanlı yapı hiç kurulamazdı.
+        """
+        embedded.set_model("sk-test", hermes_home=tmp_path)
+
+        import yaml
+
+        data = yaml.safe_load((tmp_path / "config.yaml").read_text(encoding="utf-8"))
+        assert data["delegation"]["max_spawn_depth"] > 1
+        assert data["delegation"]["orchestrator_enabled"] is True
+        assert data["delegation"]["max_concurrent_children"] >= 1
+
+    def test_ekip_ayarlari_degistirilebilir(self, tmp_path):
+        embedded.set_delegation(6, 8, hermes_home=tmp_path)
+        assert embedded.current_delegation(tmp_path) == {
+            "max_spawn_depth": 6, "max_concurrent_children": 8,
+        }
+
+    def test_sifir_ve_negatif_degerler_tabanlanir(self, tmp_path):
+        embedded.set_delegation(0, -3, hermes_home=tmp_path)
+        assert embedded.current_delegation(tmp_path) == {
+            "max_spawn_depth": 1, "max_concurrent_children": 1,
+        }
+
+    def test_model_ayari_delegasyonu_ezmez(self, tmp_path):
+        """Kullanıcı derinliği değiştirdiyse model kaydı onu geri almamalı."""
+        embedded.set_delegation(7, 3, hermes_home=tmp_path)
+        embedded.set_model("sk-yeni", hermes_home=tmp_path)
+        assert embedded.current_delegation(tmp_path)["max_spawn_depth"] == 7
+
+
+class TestTani:
+    def test_tani_ucu_adimlari_dondurur(self, client):
+        data = client.get("/api/diagnostics").get_json()
+        adlar = [check["name"] for check in data["checks"]]
+        assert "Motor uygulamanın içinde" in adlar
+        assert "Hermes yanıt veriyor" in adlar
+        assert isinstance(data["ok"], bool)
+
+    def test_motor_kapaliyken_sebep_yazili(self, client):
+        """"Yanıt gelmiyor" tek başına hiçbir şey anlatmıyor."""
+        data = client.get("/api/diagnostics").get_json()
+        hermes = next(c for c in data["checks"] if c["name"] == "Hermes yanıt veriyor")
+        assert hermes["ok"] is False
+        assert hermes["detail"], "neden ulaşılamadığı yazmalı"

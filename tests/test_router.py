@@ -46,7 +46,6 @@ class TestDeterministicLocks:
         result = route("bunu zip olarak ver", has_project=True, completer=self._hep_build)
         assert result["mode"] == "package"
         assert result["source"] == "deterministic"
-        assert result["agents"] == ["packager"]
 
     def test_kisa_soru_modelce_ezilemez(self):
         result = route("Flask nedir?", has_project=False, completer=self._hep_build)
@@ -116,15 +115,3 @@ class TestTitle:
 
     def test_uzun_baslik_kisaltilir(self):
         assert len(fallback_title("kelime " * 20)) <= 49
-
-
-class TestAgentLists:
-    @pytest.mark.parametrize("mode,agents", MODES.items())
-    def test_her_mod_gecerli_ajanlar_dondurur(self, mode, agents):
-        from forge.agents import AGENTS
-
-        assert agents
-        assert all(agent_id in AGENTS for agent_id in agents)
-
-    def test_build_tam_hat(self):
-        assert MODES["build"] == ["analyst", "architect", "builder", "reviewer", "packager"]

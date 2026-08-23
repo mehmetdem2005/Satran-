@@ -32,6 +32,10 @@ from typing import Any, Dict, Optional
 logger = logging.getLogger(__name__)
 
 DEFAULT_PORT = 8642
+#: Kaç katman derin ajan alınabilir (1 = düz kadro, 2 = yönetici→uzman, 3+ daha derin).
+DEFAULT_SPAWN_DEPTH = 4
+#: Aynı anda kaç çocuk ajan çalışabilir. Telefonda maliyet sınırı token, CPU değil.
+DEFAULT_CONCURRENT_CHILDREN = 6
 # Anahtar Hermes'in kendi eşiğini geçmeli: gateway/config.py 16 karakterden
 # kısa anahtarla API sunucusunu hiç açmıyor ve sebebini de söylemiyor.
 _MIN_KEY_LENGTH = 16
@@ -233,6 +237,59 @@ def current_model(hermes_home: Optional[Path] = None) -> Dict[str, str]:
     }
 
 
+def set_delegation(depth: int, concurrent: int, hermes_home: Optional[Path] = None) -> None:
+    """Ekip derinliğini ve aynı anda çalışacak ajan sayısını yazar."""
+    home = hermes_home or Path(os.environ.get("HERMES_HOME", "~/.hermes")).expanduser()
+    home.mkdir(parents=True, exist_ok=True)
+
+    import yaml
+
+    config_path = home / "config.yaml"
+    data: Dict[str, Any] = {}
+    if config_path.exists():
+        try:
+            loaded = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                data = loaded
+        except Exception:
+            data = {}
+
+    delegation = data.get("delegation")
+    if not isinstance(delegation, dict):
+        delegation = {}
+    delegation["max_spawn_depth"] = max(1, int(depth))
+    delegation["max_concurrent_children"] = max(1, int(concurrent))
+    delegation["orchestrator_enabled"] = True
+    data["delegation"] = delegation
+
+    config_path.write_text(
+        yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8"
+    )
+    try:
+        config_path.chmod(0o600)
+    except OSError:
+        pass
+
+
+def current_delegation(hermes_home: Optional[Path] = None) -> Dict[str, int]:
+    """Kayıtlı ekip ayarları (arayüz bunları gösteriyor)."""
+    home = hermes_home or Path(os.environ.get("HERMES_HOME", "~/.hermes")).expanduser()
+    config_path = home / "config.yaml"
+    depth, concurrent = DEFAULT_SPAWN_DEPTH, DEFAULT_CONCURRENT_CHILDREN
+    if config_path.exists():
+        try:
+            import yaml
+
+            data = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+            block = data.get("delegation") if isinstance(data, dict) else None
+            if isinstance(block, dict):
+                depth = int(block.get("max_spawn_depth") or depth)
+                concurrent = int(block.get("max_concurrent_children") or concurrent)
+        except Exception:
+            pass
+    return {"max_spawn_depth": depth, "max_concurrent_children": concurrent}
+
+
 def set_model(api_key: str, model: str = "deepseek-v4-pro",
               hermes_home: Optional[Path] = None) -> None:
     """Model sağlayıcısını yazar (telefonda ``hermes model`` TUI'si yok).
@@ -261,6 +318,18 @@ def set_model(api_key: str, model: str = "deepseek-v4-pro",
     model_block["default"] = model
     model_block["provider"] = "deepseek"
     data["model"] = model_block
+
+    # Ekibi Hermes kuruyor; iç içe ajan almasına izin veren ayarlar bunlar.
+    # Varsayılan max_spawn_depth=1 DÜZ bir kadro demek — yöneticiler kendi
+    # altına ajan alamaz. Anahtar adları Hermes'in kendi
+    # hermes_cli/config_defaults.py dosyasından.
+    delegation = data.get("delegation")
+    if not isinstance(delegation, dict):
+        delegation = {}
+    delegation.setdefault("max_spawn_depth", DEFAULT_SPAWN_DEPTH)
+    delegation.setdefault("max_concurrent_children", DEFAULT_CONCURRENT_CHILDREN)
+    delegation["orchestrator_enabled"] = True
+    data["delegation"] = delegation
 
     config_path.write_text(
         yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8"
