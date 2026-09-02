@@ -49,6 +49,7 @@ fun JobCard(
     onResearch: () -> Unit,
     onOpenDetail: () -> Unit,
     archivedNote: String? = null,
+    loadingDetails: Boolean = false,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -164,6 +165,13 @@ fun JobCard(
                     job.education?.let { DetailRow("Eğitim", it) }
                     job.postedOn?.let { DetailRow("Yayın", it) }
 
+                    if (loadingDetails && job.duties == null) {
+                        Spacer(Modifier.height(6.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            SmallSpinner()
+                            Text(" Görev tanımı getiriliyor…", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
                     job.duties?.let {
                         Spacer(Modifier.height(6.dp))
                         Text("Görev tanımı", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)

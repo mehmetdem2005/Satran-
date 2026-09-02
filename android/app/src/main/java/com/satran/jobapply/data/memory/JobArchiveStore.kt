@@ -83,6 +83,20 @@ class JobArchiveStore(context: Context) {
         return fresh
     }
 
+    /**
+     * Yalnızca hâlâ yayında olan ilanları tutar, kalkanları siler.
+     * @return silinen kayıt sayısı.
+     */
+    @Synchronized
+    fun retainOnly(activeCaseNumbers: Set<String>): Int {
+        val before = _archive.value.size
+        val next = _archive.value.filter { it.job.caseNumber in activeCaseNumbers }
+        if (next.size == before) return 0
+        _archive.value = next
+        persist(next)
+        return before - next.size
+    }
+
     @Synchronized
     fun clear() {
         _archive.value = emptyList()

@@ -35,7 +35,8 @@ data class JobsUiState(
     val visaClass: String? = null,
     val sort: SeasonalJobsApi.Sort = SeasonalJobsApi.Sort.NEWEST,
     val emailOnly: Boolean = true,
-    val hideArchitectural: Boolean = true,
+    /** Tarım dışı: H-2B vizesi + SOC 45 (tarım/balıkçılık/ormancılık) hariç. */
+    val excludeAgricultural: Boolean = true,
     val hideApplied: Boolean = true,
 
     val expanded: Set<String> = emptySet(),
@@ -46,8 +47,22 @@ data class JobsUiState(
     val research: Map<String, String> = emptyMap(),
     val researching: Set<String> = emptySet(),
 
-    val aiChecked: Set<String> = emptySet(),
-    val aiRemoved: Int = 0,
+    /** Kart açıldığında ayrıca çekilen görev tanımları. */
+    val details: Map<String, Job> = emptyMap(),
+    val loadingDetails: Set<String> = emptySet(),
+
+    /** Sunucuya gönderilen gerçek ifadeler — arayüzde olduğu gibi gösterilir. */
+    val sentFilter: String = "",
+    val sentSearch: String = "",
+    val showQueryPanel: Boolean = false,
+
+    /** "Tümünü çek" ilerlemesi. */
+    val bulkFetching: Boolean = false,
+    val bulkFetched: Int = 0,
+    val bulkTotal: Int = 0,
+
+    val refreshingArchive: Boolean = false,
+    val removedStale: Int = 0,
 ) {
     val selectedCount: Int get() = selected.size
 }

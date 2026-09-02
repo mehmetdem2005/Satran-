@@ -124,7 +124,6 @@ data class AppSettings(
     val aiBaseUrl: String = "",
     val aiWriteLetters: Boolean = true,
     val aiTranslateToTurkish: Boolean = true,
-    val aiFilterArchitectural: Boolean = true,
     val letterLanguage: String = "İngilizce",
     /** Sağlayıcıdan çekilen canlı model listesi; Ayarlar'daki seçicide gösterilir. */
     val discoveredModels: List<String> = emptyList(),
@@ -139,6 +138,10 @@ data class AppSettings(
     // Arama davranışı
     /** Bir aramada kaç ilan çekilecek (API'den sayfa sayfa toplanır). */
     val jobsPerSearch: Int = 40,
+    /** Metninde bu kelimeler geçen ilanlar elenir (virgülle ayrılır). */
+    val blockedWords: String = "",
+    /** Metninde bu kelimelerin hepsi geçen ilanlar kalır (virgülle ayrılır). */
+    val requiredWords: String = "",
     /** Daha önce görülen ilanlar bir daha listelenmesin. */
     val hideSeenJobs: Boolean = true,
 
@@ -167,7 +170,19 @@ data class AppSettings(
     val modelChoices: List<String>
         get() = discoveredModels.ifEmpty { aiProvider.fallbackModels }
 
+    val blockedWordList: List<String>
+        get() = com.satran.jobapply.data.filter.JobQuery.parseWordList(blockedWords)
+
+    val requiredWordList: List<String>
+        get() = com.satran.jobapply.data.filter.JobQuery.parseWordList(requiredWords)
+
+
     companion object {
+        /** ABD ilanlarında ağırlık en çok "lbs" olarak geçer; varyantların hepsi gerekir. */
+        const val WEIGHT_WORDS = "lbs, lb, pounds, pound"
+        const val LIFTING_WORDS = "lifting, lift, carry, heavy"
+        const val NIGHT_SHIFT_WORDS = "night shift, overnight, graveyard"
+
         const val DEFAULT_BODY_TEMPLATE = """Dear Hiring Manager at {{employer}},
 
 I am writing to apply for the position of {{title}} ({{case}}) in {{location}}.

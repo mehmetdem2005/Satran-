@@ -35,6 +35,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -50,6 +51,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.satran.jobapply.data.model.Job
 import com.satran.jobapply.data.remote.SeasonalJobsApi
@@ -69,7 +71,10 @@ fun JobsScreen(
     onNextPage: () -> Unit,
     onAiSearch: (String) -> Unit,
     onViewChange: (JobsView) -> Unit,
-    onFilter: (state: String?, sort: SeasonalJobsApi.Sort, hideArchitectural: Boolean, emailOnly: Boolean, hideApplied: Boolean) -> Unit,
+    onFilter: (state: String?, sort: SeasonalJobsApi.Sort, excludeAgricultural: Boolean, emailOnly: Boolean, hideApplied: Boolean) -> Unit,
+    onFetchAll: () -> Unit,
+    onRefreshArchive: () -> Unit,
+    onToggleQueryPanel: () -> Unit,
     onToggleSelect: (Job) -> Unit,
     onToggleExpand: (String) -> Unit,
     onSummarize: (Job) -> Unit,
@@ -164,10 +169,66 @@ fun JobsScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(
                         onClick = onNextPage,
-                        enabled = !state.loading && !state.loadingMore,
+                        enabled = !state.loading && !state.loadingMore && !state.bulkFetching,
                         modifier = Modifier.weight(1f),
                     ) { Text("Sonraki sayfa →") }
-                    OutlinedButton(onClick = onRefresh, enabled = !state.loading) { Text("Yenile") }
+                    Button(
+                        onClick = onFetchAll,
+                        enabled = !state.loading && !state.bulkFetching,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(if (state.bulkFetching) "Çekiliyor…" else "Tümünü çek")
+                    }
+                }
+            } else {
+                OutlinedButton(
+                    onClick = onRefreshArchive,
+                    enabled = !state.refreshingArchive,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(if (state.refreshingArchive) "Denetleniyor…" else "Arşivi tazele (kalkanları sil)")
+                }
+            }
+
+            if (state.bulkFetching) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "${state.bulkFetched} / ${state.bulkTotal} ilan çekildi",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                LinearProgressIndicator(
+                    progress = { if (state.bulkTotal == 0) 0f else state.bulkFetched.toFloat() / state.bulkTotal },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
+            if (state.sentFilter.isNotEmpty()) {
+                TextButton(onClick = onToggleQueryPanel) {
+                    Text(if (state.showQueryPanel) "Sorguyu gizle ▲" else "Sunucuya giden sorguyu göster ▼")
+                }
+            }
+            if (state.showQueryPanel) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column(Modifier.padding(10.dp)) {
+                        Text("POST api.seasonaljobs.dol.gov/datahub/search", style = MaterialTheme.typography.labelSmall)
+                        Spacer(Modifier.height(4.dp))
+                        Text("search:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                        Text(state.sentSearch, style = MaterialTheme.typography.bodySmall)
+                        Spacer(Modifier.height(4.dp))
+                        Text("filter:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                        Text(state.sentFilter, style = MaterialTheme.typography.bodySmall)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Her süzgeç bu ifadeye dönüşüp sunucuda çalışır. " +
+                                "Tek istisna \"Başvurulanları gizle\" — gönderim geçmişi cihazda tutulduğu için o cihazda uygulanır.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outline,
+                        )
+                    }
                 }
             }
         }
@@ -182,9 +243,12 @@ fun JobsScreen(
             }
         }
 
+        // Kart açıldığında ayrıca çekilen tam metinli sürüm varsa onu göster.
         val visible: List<Pair<Job, String?>> = when (state.view) {
-            JobsView.LIVE -> state.results.map { it to null }
-            JobsView.ARCHIVE -> state.archived.map { it.job to "görüldü ${ARCHIVE_FORMAT.format(Date(it.lastSeenAt))}" }
+            JobsView.LIVE -> state.results.map { (state.details[it.caseNumber] ?: it) to null }
+            JobsView.ARCHIVE -> state.archived.map {
+                (state.details[it.job.caseNumber] ?: it.job) to "görüldü ${ARCHIVE_FORMAT.format(Date(it.lastSeenAt))}"
+            }
         }
 
         if (!state.loading && state.error == null && visible.isEmpty()) {
@@ -232,6 +296,7 @@ fun JobsScreen(
                         researching = state.researching.contains(job.caseNumber),
                         onToggleSelect = { onToggleSelect(job) },
                         onToggleExpand = { onToggleExpand(job.caseNumber) },
+                        loadingDetails = state.loadingDetails.contains(job.caseNumber),
                         onSummarize = { onSummarize(job) },
                         onResearch = { onResearch(job) },
                         onOpenDetail = { onOpenDetail(job.detailUrl) },
@@ -263,23 +328,23 @@ private fun FilterBar(
 
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         FilterChip(
-            selected = state.hideArchitectural,
+            selected = state.excludeAgricultural,
             onClick = {
-                onFilter(state.selectedState, state.sort, !state.hideArchitectural, state.emailOnly, state.hideApplied)
+                onFilter(state.selectedState, state.sort, !state.excludeAgricultural, state.emailOnly, state.hideApplied)
             },
-            label = { Text("Mimarlık dışı") },
+            label = { Text("Tarım dışı (H-2B)") },
         )
         FilterChip(
             selected = state.emailOnly,
             onClick = {
-                onFilter(state.selectedState, state.sort, state.hideArchitectural, !state.emailOnly, state.hideApplied)
+                onFilter(state.selectedState, state.sort, state.excludeAgricultural, !state.emailOnly, state.hideApplied)
             },
             label = { Text("E-postası olan") },
         )
         FilterChip(
             selected = state.hideApplied,
             onClick = {
-                onFilter(state.selectedState, state.sort, state.hideArchitectural, state.emailOnly, !state.hideApplied)
+                onFilter(state.selectedState, state.sort, state.excludeAgricultural, state.emailOnly, !state.hideApplied)
             },
             label = { Text("Başvurulanları gizle") },
         )
@@ -293,7 +358,7 @@ private fun FilterBar(
                     text = { Text("Tüm eyaletler") },
                     onClick = {
                         stateMenu = false
-                        onFilter(null, state.sort, state.hideArchitectural, state.emailOnly, state.hideApplied)
+                        onFilter(null, state.sort, state.excludeAgricultural, state.emailOnly, state.hideApplied)
                     },
                 )
                 state.stateFacets.forEach { facet ->
@@ -301,7 +366,7 @@ private fun FilterBar(
                         text = { Text("${facet.value.lowercase().replaceFirstChar { it.uppercase() }} (${facet.count})") },
                         onClick = {
                             stateMenu = false
-                            onFilter(facet.value, state.sort, state.hideArchitectural, state.emailOnly, state.hideApplied)
+                            onFilter(facet.value, state.sort, state.excludeAgricultural, state.emailOnly, state.hideApplied)
                         },
                     )
                 }
@@ -316,7 +381,7 @@ private fun FilterBar(
                         text = { Text(sort.label()) },
                         onClick = {
                             sortMenu = false
-                            onFilter(state.selectedState, sort, state.hideArchitectural, state.emailOnly, state.hideApplied)
+                            onFilter(state.selectedState, sort, state.excludeAgricultural, state.emailOnly, state.hideApplied)
                         },
                     )
                 }
@@ -343,7 +408,7 @@ private fun summaryLine(state: JobsUiState): String = buildString {
             if (state.total > 0) append(" / ${state.total} eşleşme")
             if (state.offset > 0) append(" · ${state.offset}. kayıttan")
             if (state.duplicatesSkipped > 0) append(" · ${state.duplicatesSkipped} tekrar atlandı")
-            if (state.aiRemoved > 0) append(" · AI ${state.aiRemoved} eledi")
+            if (state.removedStale > 0) append(" · ${state.removedStale} kalkan ilan silindi")
         }
     }
     if (state.selectedCount > 0) append(" · ${state.selectedCount} seçili")

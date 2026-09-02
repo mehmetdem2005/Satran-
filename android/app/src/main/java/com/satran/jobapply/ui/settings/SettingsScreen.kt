@@ -21,6 +21,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -37,6 +38,7 @@ import com.satran.jobapply.data.model.AiProvider
 import com.satran.jobapply.data.model.AppSettings
 import com.satran.jobapply.data.model.SearchProvider
 import com.satran.jobapply.data.model.SendMode
+import com.satran.jobapply.data.filter.JobQuery
 import com.satran.jobapply.data.memory.SearchEntry
 import com.satran.jobapply.data.remote.SeasonalJobsApi
 import com.satran.jobapply.data.model.SendRecord
@@ -375,14 +377,6 @@ fun SettingsScreen(
             )
         }
         item {
-            SwitchRow(
-                title = "Mimarlık ilanlarını modele de eletsin",
-                subtitle = "Anahtar sözcük süzgecinin kaçırdıklarını yakalar",
-                checked = settings.aiFilterArchitectural,
-                onCheckedChange = { v -> onUpdate { it.copy(aiFilterArchitectural = v) } },
-            )
-        }
-        item {
             LabeledField(
                 label = "Mektup dili",
                 value = settings.letterLanguage,
@@ -454,6 +448,84 @@ fun SettingsScreen(
                 options = listOf(3, 5, 8, 10),
                 onSelect = { n -> onUpdate { it.copy(searchResultsPerJob = n) } },
             )
+        }
+
+        // ------------------------------------------------------------ kelime süzgeci
+        item { SectionTitle("Kelime süzgeci") }
+        item {
+            Text(
+                "İlanın başlığında, görev tanımında ve özel şartlarında geçen kelimelere göre süzer. " +
+                    "Sunucuda çalışır, sonuçlar geldikten sonra değil. Virgülle ayır.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline,
+            )
+        }
+        item {
+            LabeledField(
+                label = "Yasaklı kelimeler (geçen ilan elenir)",
+                value = settings.blockedWords,
+                onValueChange = { v -> onUpdate { it.copy(blockedWords = v) } },
+                hint = "Örn: lbs, lb, pounds — ağırlık kaldırma isteyen ilanları eler.",
+                singleLine = false,
+                minLines = 2,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        item {
+            Column {
+                Text("Hazır listeler", style = MaterialTheme.typography.labelMedium)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    AssistChip(
+                        onClick = { onUpdate { it.copy(blockedWords = AppSettings.WEIGHT_WORDS) } },
+                        label = { Text("Ağırlık (lbs/lb/pounds)") },
+                    )
+                    AssistChip(
+                        onClick = { onUpdate { it.copy(blockedWords = AppSettings.LIFTING_WORDS) } },
+                        label = { Text("Kaldırma işi") },
+                    )
+                    AssistChip(
+                        onClick = { onUpdate { it.copy(blockedWords = AppSettings.NIGHT_SHIFT_WORDS) } },
+                        label = { Text("Gece vardiyası") },
+                    )
+                    AssistChip(
+                        onClick = { onUpdate { it.copy(blockedWords = "") } },
+                        label = { Text("Temizle") },
+                    )
+                }
+                Text(
+                    "Not: ABD ilanlarında en yaygın biçim \"lbs\" (2675 ilan), sonra \"pounds\" (1458). " +
+                        "Arama tam kelime eşler, o yüzden varyantların hepsini yazmak gerekir.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline,
+                )
+            }
+        }
+        item {
+            LabeledField(
+                label = "Zorunlu kelimeler (hepsi geçmeli)",
+                value = settings.requiredWords,
+                onValueChange = { v -> onUpdate { it.copy(requiredWords = v) } },
+                hint = "Örn: housing, transportation — konaklama/ulaşım sunan ilanlar.",
+                singleLine = false,
+                minLines = 2,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        item {
+            val built = JobQuery.build(
+                JobQuery.Input(
+                    excludeAgricultural = true,
+                    blockedWords = settings.blockedWordList,
+                    requiredWords = settings.requiredWordList,
+                ),
+            )
+            Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.small) {
+                Column(Modifier.padding(10.dp)) {
+                    Text("Bu ayarlarla gidecek sorgu", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    Text("search: ${built.search}", style = MaterialTheme.typography.bodySmall)
+                    Text("filter: ${built.filter}", style = MaterialTheme.typography.bodySmall)
+                }
+            }
         }
 
         // ------------------------------------------------------------ arama davranışı

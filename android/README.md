@@ -13,14 +13,13 @@ Saf Android + Kotlin + Jetpack Compose. Ek sunucu yok, her şey telefonda çalı
 
 | Sekme | İçerik |
 |---|---|
-| **İlanlar** | Canlı arama, aşağı çekip yenileme, *Yeni / Geçmiş* görünümü, eyalet/sıralama süzgeçleri, "Mimarlık dışı" · "E-postası olan" · "Başvurulanları gizle" anahtarları. Her kartta çeviri tuşu; kart açılınca tam görev tanımı, özel şartlar, ücret, dönem, başvuru e-postası görünür. Kutucukla seçim, "Sonraki sayfa" ile yeni ilanlar. |
+| **İlanlar** | Canlı arama, aşağı çekip yenileme, *Yeni / Geçmiş* görünümü, eyalet/sıralama süzgeçleri, "Tarım dışı (H-2B)" · "E-postası olan" · "Başvurulanları gizle" anahtarları, "Tümünü çek", "Arşivi tazele", gönderilen sorguyu gösteren panel. Her kartta çeviri tuşu; kart açılınca tam görev tanımı, özel şartlar, ücret, dönem, başvuru e-postası görünür. Kutucukla seçim, "Sonraki sayfa" ile yeni ilanlar. |
 | **Başvuru** | Seçilen ilanlar için konu + mesaj hazırlar (şablon veya AI), tek tek düzenletir, PDF CV ekler, toplu gönderir. İlerleme bildirimi ön plan servisiyle akar. |
 | **Ayarlar** | Gmail hesabı, PDF CV, başvuru profili, mesaj şablonu, yapay zekâ sağlayıcısı, internet arama sağlayıcısı, gönderim geçmişi. |
 
 ### Yapay zekâ (isteğe bağlı)
 - **İlana özel başvuru mektubu** — profilin + ilanın görev tanımı + web araması + bellek okunarak yazılır.
 - **Türkçeye çevir** — her kartta görünür çeviri tuşu; İngilizce ilan metnini maddeleyip çevirir.
-- **Mimarlık süzgeci** — anahtar sözcüklerin kaçırdığı ilanları model eler.
 - **Akıllı arama** — "Florida'da otel temizlik işi" yazarsın, model arama sorgusuna çevirir.
 
 Sağlayıcılar: **DeepSeek** (varsayılan), **Claude**, **OpenAI**, **OpenRouter** veya
@@ -115,7 +114,7 @@ android/app/src/main/java/com/satran/jobapply/
 ├── data/
 │   ├── model/       Job, AppSettings, SendRecord
 │   ├── remote/      SeasonalJobsApi (Azure Search), AiClient, WebSearchClient
-│   ├── filter/      ArchitecturalFilter (SOC + anahtar sözcük)
+│   ├── filter/      JobQuery (gerçek OData + kelime sorgusu kurucu)
 │   ├── memory/      JobArchiveStore, SearchHistoryStore, RagStore (BM25)
 │   ├── pipeline/    ApplicationPipeline (sorgu→arama→brifing→bellek→mektup)
 │   ├── mail/        GmailSender (SMTP), MailIntentSender, CvLoader, MailTemplate
@@ -132,14 +131,59 @@ OData süzgeçleri (`active eq true`, `apply_email ne null`, eyalet), `orderby`,
 gün içinde artar, uygulamadaki eşleşme sayısı da onunla birlikte değişir.
 Bir aramada kaç ilan çekileceği Ayarlar'dan seçilir (20–200).
 
-### Mimarlık süzgeci
-1. SOC kodu `17-` ile başlıyorsa (Architecture & Engineering) veya
-   17-1011/17-1012/17-1013/17-3011-3013/27-1025 ise elenir.
-2. Başlık/meslek adında `architect`, `drafter`, `autocad`, `revit`,
-   `urban planner`, `interior design` … geçiyorsa elenir.
-   "Landscaping and Groundskeeping" gibi bahçe işleri **elenmez**; yalnızca
-   tam ifade olarak `landscape architect` elenir.
-3. Açıksa model kalanları bir kez daha denetler.
+### Süzgeçler — hepsi sunucuda çalışır
+
+Uydurma süzgeç yoktur: her anahtar, dizindeki gerçek bir alana dönüşür.
+Uygulamada **"Sunucuya giden sorguyu göster"** düğmesi gönderilen `search` ve
+`filter` dizelerini olduğu gibi yazar.
+
+| Arayüzdeki anahtar | Sunucuya giden ifade |
+|---|---|
+| Tarım dışı (H-2B) | `visa_class eq 'H-2B' and not (soc_code_id ge '45-' and soc_code_id lt '46-')` |
+| E-postası olan | `apply_email ne null and apply_email ne 'N/A'` |
+| Eyalet | `worksite_state eq 'TEXAS'` |
+| Sıralama | `orderby accepted_date desc` / `basic_rate_from desc` / `begin_date asc` |
+| Yasaklı kelime | `search: -lbs -pounds` |
+| Zorunlu kelime | `search: housing` (searchMode=all) |
+| *Başvurulanları gizle* | **tek istisna** — gönderim geçmişi cihazda tutulduğu için cihazda uygulanır |
+
+**Tarım dışı** ABD'nin resmî ayrımını kullanır: **H-2A** tarım işçiliği,
+**H-2B** tarım dışı işler (otel, restoran, peyzaj, inşaat, temizlik). Ek olarak
+SOC 45 (*Farming, Fishing, and Forestry*) ana grubu da elenir. Şu an bu süzgeçle
+e-postası olan **2590** aktif ilan var; H-2B'nin en kalabalık meslekleri
+peyzaj (504), aşçı (304), garson (172), temizlik (133), kat görevlisi (131).
+
+`startswith` Azure Search'te desteklenmez; SOC elemesi bu yüzden aralık
+karşılaştırmasıyla (`ge '45-' and lt '46-'`) yapılır — canlı uçta sınandı.
+
+### Kelime süzgeci
+
+İlanın başlığı, görev tanımı ve özel şartları içinde arar — **sonuçlar
+geldikten sonra değil, sunucuda**. Virgülle ayrılır.
+
+Arama tam kelime eşler, bu yüzden varyantların hepsi gerekir. Ağırlık birimi
+örneği (aktif ilanlarda geçen sayı):
+
+| Kelime | İlan |
+|---|---|
+| `lbs` | 2675 |
+| `pounds` | 1458 |
+| `lb` | 106 |
+| `pound` | 90 |
+
+Ayarlar'da hazır listeler var: **Ağırlık** (`lbs, lb, pounds, pound`),
+**Kaldırma işi**, **Gece vardiyası**.
+
+### Tümünü çek ve tazelik
+
+- **Tümünü çek** — süzgece uyan bütün ilanları 1000'lik turlarla toplar
+  (~8000 ilan, 8 istek, ~5 MB). Liste isteğinde uzun metinler alınmaz;
+  görev tanımı kart açılınca o ilan için ayrıca çekilir.
+- **Arşivi tazele** — arşivdeki ilan numaralarını `search.in(case_number, …)`
+  ile siteye sorar, `active eq true` dönmeyenleri siler. Siteden kalkan ilan
+  uygulamadan da kalkar.
+- Normal aramada zaten `active eq true and display eq true` gider; yayından
+  kalkmış ilan hiçbir sayfada geri gelmez.
 
 ---
 

@@ -9,7 +9,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.satran.jobapply.SatranApp
-import com.satran.jobapply.data.filter.ArchitecturalFilter
+import com.satran.jobapply.data.filter.JobQuery
 import com.satran.jobapply.data.mail.CvFile
 import com.satran.jobapply.data.mail.CvLoader
 import com.satran.jobapply.data.mail.GmailSender
@@ -80,7 +80,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         visa: String? = _jobs.value.visaClass,
         sort: SeasonalJobsApi.Sort = _jobs.value.sort,
         emailOnly: Boolean = _jobs.value.emailOnly,
-        hideArchitectural: Boolean = _jobs.value.hideArchitectural,
+        excludeAgricultural: Boolean = _jobs.value.excludeAgricultural,
         hideApplied: Boolean = _jobs.value.hideApplied,
     ) {
         _jobs.update {
@@ -89,12 +89,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 visaClass = visa,
                 sort = sort,
                 emailOnly = emailOnly,
-                hideArchitectural = hideArchitectural,
+                excludeAgricultural = excludeAgricultural,
                 hideApplied = hideApplied,
             )
         }
         search(reset = true)
     }
+
+    fun toggleQueryPanel() = _jobs.update { it.copy(showQueryPanel = !it.showQueryPanel) }
 
     /** Aşağı çekip yenileme ve yenile düğmesi — aynı noktadan taze veri çeker. */
     fun refresh() {
@@ -139,10 +141,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
 
             val query = SeasonalJobsApi.Query(
-                text = current.query,
-                state = current.selectedState,
-                visaClass = current.visaClass,
-                emailOnly = current.emailOnly,
+                input = queryInput(current, config),
                 sort = current.sort,
                 offset = offset,
                 limit = config.jobsPerSearch,
@@ -175,6 +174,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             duplicatesSkipped = if (append) state.duplicatesSkipped + skipped else skipped,
                             lastUpdatedAt = System.currentTimeMillis(),
                             stateFacets = page.stateFacets.ifEmpty { state.stateFacets },
+                            sentFilter = page.sentFilter,
+                            sentSearch = page.sentSearch,
                             endReached = page.jobs.size < query.safeLimit,
                         )
                     }
@@ -194,7 +195,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     if (shown.isEmpty() && page.jobs.isNotEmpty()) {
                         _message.value = "Bu sayfadaki $skipped ilanı daha önce görmüştün. 'Sonraki sayfa'ya bas."
                     }
-                    maybeAiClassify()
                 }
                 .onFailure { error ->
                     _jobs.update {
@@ -204,39 +204,158 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** UI durumunu + ayarları sunucuya gidecek gerçek sorgu girdisine çevirir. */
+    private fun queryInput(state: JobsUiState, config: AppSettings) = JobQuery.Input(
+        text = state.query,
+        state = state.selectedState,
+        visaClass = state.visaClass,
+        emailOnly = state.emailOnly,
+        excludeAgricultural = state.excludeAgricultural,
+        blockedWords = config.blockedWordList,
+        requiredWords = config.requiredWordList,
+    )
+
+    /**
+     * Sunucuda ifade edilemeyen tek süzgeç: "zaten başvurduklarımı gizle".
+     * Gönderim geçmişi cihazda tutulduğu için bu istemcide uygulanır.
+     */
     private fun applyLocalFilters(jobs: List<Job>, state: JobsUiState): List<Job> {
-        var out = jobs
-        if (state.hideArchitectural) out = ArchitecturalFilter.keepNonArchitectural(out)
-        if (state.hideApplied) {
-            val applied = container.historyStore.appliedCaseNumbers
-            out = out.filterNot { it.caseNumber in applied }
-        }
-        return out
+        if (!state.hideApplied) return jobs
+        val applied = container.historyStore.appliedCaseNumbers
+        return jobs.filterNot { it.caseNumber in applied }
     }
 
-    private fun maybeAiClassify() {
-        val state = _jobs.value
-        val config = settings.value
-        if (!state.hideArchitectural || !config.aiFilterArchitectural || !config.aiReady) return
+    /**
+     * Süzgeçlere uyan **bütün** ilanları çeker (~8000, 1000'lik turlar hâlinde).
+     * Uzun metinler alınmaz; açıklama kart açılınca ayrıca getirilir.
+     */
+    fun fetchAllJobs() {
+        val current = _jobs.value
+        if (current.bulkFetching) return
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            val config = settings.value
+            _jobs.update {
+                it.copy(bulkFetching = true, bulkFetched = 0, bulkTotal = 0, error = null, view = JobsView.LIVE)
+            }
 
-        val unchecked = state.results.filter { it.caseNumber !in state.aiChecked }.take(40)
-        if (unchecked.isEmpty()) return
+            runCatching {
+                container.jobsApi.fetchAll(
+                    input = queryInput(current, config),
+                    sort = current.sort,
+                ) { fetched, total ->
+                    _jobs.update { it.copy(bulkFetched = fetched, bulkTotal = total) }
+                }
+            }
+                .onSuccess { page ->
+                    val filtered = applyLocalFilters(page.jobs, current)
+                    val fresh = container.jobArchive.recordAndFilterNew(filtered, current.query)
+                    val shown = if (config.hideSeenJobs) fresh else filtered
 
-        viewModelScope.launch {
-            runCatching { container.aiClient().classifyArchitectural(unchecked) }
-                .onSuccess { verdicts ->
-                    if (verdicts.isEmpty()) return@onSuccess
-                    _jobs.update { current ->
-                        val architectural = verdicts.filterValues { it }.keys
-                        current.copy(
-                            results = current.results.filterNot { it.caseNumber in architectural },
-                            aiChecked = current.aiChecked + unchecked.map { it.caseNumber },
-                            aiRemoved = current.aiRemoved + architectural.size,
+                    _jobs.update { state ->
+                        state.copy(
+                            bulkFetching = false,
+                            loading = false,
+                            results = shown,
+                            offset = 0,
+                            fetchedThisSearch = page.jobs.size,
+                            total = page.totalCount,
+                            duplicatesSkipped = filtered.size - fresh.size,
+                            lastUpdatedAt = System.currentTimeMillis(),
+                            stateFacets = page.stateFacets.ifEmpty { state.stateFacets },
+                            sentFilter = page.sentFilter,
+                            sentSearch = page.sentSearch,
+                            endReached = true,
                         )
                     }
+                    container.searchHistory.add(
+                        SearchEntry(
+                            query = current.query,
+                            state = current.selectedState,
+                            sortLabel = "TÜMÜ",
+                            offset = 0,
+                            fetched = page.jobs.size,
+                            newJobs = fresh.size,
+                            totalMatches = page.totalCount,
+                        ),
+                    )
+                    _message.value = "${page.jobs.size} ilan çekildi (${page.totalCount} eşleşmeden), ${fresh.size} tanesi yeni."
+                }
+                .onFailure { error ->
+                    _jobs.update { it.copy(bulkFetching = false, error = error.friendly()) }
                 }
         }
     }
+
+    /**
+     * Arşivi siteyle karşılaştırır: yayından kalkmış ilanları siler.
+     * "Sitede bir ilan kalkarsa uygulamadan da kalksın" bunu sağlar.
+     */
+    fun refreshArchive() {
+        if (_jobs.value.refreshingArchive) return
+        viewModelScope.launch {
+            _jobs.update { it.copy(refreshingArchive = true, removedStale = 0) }
+            val cases = container.jobArchive.archive.value.map { it.job.caseNumber }
+            if (cases.isEmpty()) {
+                _jobs.update { it.copy(refreshingArchive = false) }
+                _message.value = "Arşiv boş."
+                return@launch
+            }
+            runCatching { container.jobsApi.stillActive(cases) }
+                .onSuccess { alive ->
+                    val removed = container.jobArchive.retainOnly(alive)
+                    _jobs.update { it.copy(refreshingArchive = false, removedStale = removed) }
+                    // Listede duran ama artık yayında olmayanları da düşür.
+                    _jobs.update { state ->
+                        state.copy(
+                            results = state.results.filter { it.caseNumber in alive },
+                            selected = state.selected.filterKeys { it in alive },
+                        )
+                    }
+                    _message.value = if (removed == 0) {
+                        "Arşivdeki ${cases.size} ilanın hepsi hâlâ yayında ✓"
+                    } else {
+                        "$removed ilan siteden kalkmış, listeden çıkarıldı."
+                    }
+                }
+                .onFailure {
+                    _jobs.update { it.copy(refreshingArchive = false) }
+                    _message.value = it.friendly()
+                }
+        }
+    }
+
+    /** Kart açıldığında görev tanımını ve özel şartları ayrıca getirir. */
+    fun loadDetails(job: Job) {
+        val state = _jobs.value
+        if (job.caseNumber in state.details || job.caseNumber in state.loadingDetails) return
+        if (job.duties != null) return
+
+        viewModelScope.launch {
+            _jobs.update { it.copy(loadingDetails = it.loadingDetails + job.caseNumber) }
+            runCatching { container.jobsApi.detailsFor(job.caseNumber) }
+                .onSuccess { full ->
+                    _jobs.update { current ->
+                        current.copy(
+                            details = if (full != null) current.details + (job.caseNumber to full) else current.details,
+                            loadingDetails = current.loadingDetails - job.caseNumber,
+                        )
+                    }
+                }
+                .onFailure {
+                    _jobs.update { it.copy(loadingDetails = it.loadingDetails - job.caseNumber) }
+                }
+        }
+    }
+
+    /** Kart açılır ve açıklaması yoksa hemen çekilir. */
+    fun toggleExpandedAndLoad(job: Job) {
+        toggleExpanded(job.caseNumber)
+        if (job.caseNumber in _jobs.value.expanded) loadDetails(job)
+    }
+
+    /** AI ve mektup için tam metinli sürüm; yoksa listedeki hafif sürüm. */
+    fun fullJob(job: Job): Job = _jobs.value.details[job.caseNumber] ?: job
 
     fun clearArchive() {
         container.jobArchive.clear()
@@ -308,12 +427,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         _jobs.update { it.copy(expanded = it.expanded + job.caseNumber) }
+        loadDetails(job)
         if (job.caseNumber in _jobs.value.summarizing) return
         if (_jobs.value.summaries.containsKey(job.caseNumber)) return
 
         viewModelScope.launch {
             _jobs.update { it.copy(summarizing = it.summarizing + job.caseNumber) }
-            runCatching { container.aiClient().summarizeInTurkish(job) }
+            runCatching { container.aiClient().summarizeInTurkish(fullJob(job)) }
                 .onSuccess { summary ->
                     _jobs.update {
                         it.copy(
@@ -493,7 +613,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun prepare(onlyCase: String? = null) {
         val selected = selectedJobs().let { list ->
             if (onlyCase != null) list.filter { it.caseNumber == onlyCase } else list
-        }
+        }.map { fullJob(it) }
         if (selected.isEmpty()) {
             _message.value = "Önce ilan seç."
             return

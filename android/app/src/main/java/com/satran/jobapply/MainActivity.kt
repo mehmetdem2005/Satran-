@@ -162,17 +162,25 @@ private fun AppRoot() {
                     onNextPage = viewModel::fetchNextPage,
                     onAiSearch = viewModel::aiSearch,
                     onViewChange = viewModel::setView,
-                    onFilter = { state, sort, hideArch, emailOnly, hideApplied ->
+                    onFilter = { state, sort, excludeAgri, emailOnly, hideApplied ->
                         viewModel.onFilterChange(
                             state = state,
                             sort = sort,
-                            hideArchitectural = hideArch,
+                            excludeAgricultural = excludeAgri,
                             emailOnly = emailOnly,
                             hideApplied = hideApplied,
                         )
                     },
+                    onFetchAll = viewModel::fetchAllJobs,
+                    onRefreshArchive = viewModel::refreshArchive,
+                    onToggleQueryPanel = viewModel::toggleQueryPanel,
                     onToggleSelect = viewModel::toggleSelected,
-                    onToggleExpand = viewModel::toggleExpanded,
+                    onToggleExpand = { case ->
+                        jobsState.results.plus(jobsState.archived.map { it.job })
+                            .firstOrNull { it.caseNumber == case }
+                            ?.let(viewModel::toggleExpandedAndLoad)
+                            ?: viewModel.toggleExpanded(case)
+                    },
                     onSummarize = viewModel::summarize,
                     onResearch = viewModel::research,
                     onOpenDetail = openUrl,
