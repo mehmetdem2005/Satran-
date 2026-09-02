@@ -27,6 +27,7 @@ import kotlinx.coroutines.Job as CoroutineJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -59,6 +60,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var searchJob: CoroutineJob? = null
     private var prepareJob: CoroutineJob? = null
 
+    private companion object {
+        /** Arşiv tazelik denetiminin en sık çalışma aralığı. */
+        const val ARCHIVE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000L
+    }
+
     init {
         viewModelScope.launch {
             container.jobArchive.archive.collect { archive ->
@@ -67,6 +73,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         rememberProfile()
         search(reset = true)
+        maybeAutoRefreshArchive()
+    }
+
+    /**
+     * Açılışta arşivi siteyle sessizce karşılaştırır: yayından kalkmış ilanlar
+     * Geçmiş görünümünden de düşer. Her açılışta ağ yakmamak için altı saatte
+     * bir çalışır; kullanıcı istediğinde düğmeyle hemen tetikleyebilir.
+     */
+    private fun maybeAutoRefreshArchive() {
+        val config = settings.value
+        if (!config.autoRefreshArchive) return
+        val age = System.currentTimeMillis() - config.lastArchiveCheckAt
+        if (age < ARCHIVE_CHECK_INTERVAL_MS) return
+        refreshArchive(silent = true)
     }
 
     // ============================================================ arama
@@ -291,36 +311,40 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * Arşivi siteyle karşılaştırır: yayından kalkmış ilanları siler.
      * "Sitede bir ilan kalkarsa uygulamadan da kalksın" bunu sağlar.
      */
-    fun refreshArchive() {
+    fun refreshArchive(silent: Boolean = false) {
         if (_jobs.value.refreshingArchive) return
         viewModelScope.launch {
             _jobs.update { it.copy(refreshingArchive = true, removedStale = 0) }
+            // Arşiv diskten yüklenene kadar bekle, yoksa boş sanıp atlarız.
+            container.jobArchive.ready.first { it }
             val cases = container.jobArchive.archive.value.map { it.job.caseNumber }
             if (cases.isEmpty()) {
                 _jobs.update { it.copy(refreshingArchive = false) }
-                _message.value = "Arşiv boş."
+                if (!silent) _message.value = "Arşiv boş."
                 return@launch
             }
             runCatching { container.jobsApi.stillActive(cases) }
                 .onSuccess { alive ->
                     val removed = container.jobArchive.retainOnly(alive)
-                    _jobs.update { it.copy(refreshingArchive = false, removedStale = removed) }
+                    updateSettings { it.copy(lastArchiveCheckAt = System.currentTimeMillis()) }
                     // Listede duran ama artık yayında olmayanları da düşür.
                     _jobs.update { state ->
                         state.copy(
+                            refreshingArchive = false,
+                            removedStale = removed,
                             results = state.results.filter { it.caseNumber in alive },
                             selected = state.selected.filterKeys { it in alive },
                         )
                     }
-                    _message.value = if (removed == 0) {
-                        "Arşivdeki ${cases.size} ilanın hepsi hâlâ yayında ✓"
-                    } else {
-                        "$removed ilan siteden kalkmış, listeden çıkarıldı."
+                    when {
+                        silent && removed == 0 -> Unit
+                        removed == 0 -> _message.value = "Arşivdeki ${cases.size} ilanın hepsi hâlâ yayında ✓"
+                        else -> _message.value = "$removed ilan siteden kalkmış, listeden çıkarıldı."
                     }
                 }
                 .onFailure {
                     _jobs.update { it.copy(refreshingArchive = false) }
-                    _message.value = it.friendly()
+                    if (!silent) _message.value = it.friendly()
                 }
         }
     }
@@ -626,11 +650,40 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         prepareJob = viewModelScope.launch {
             _apply.update { it.copy(preparing = true, prepared = emptyList(), notes = emptyList(), progress = null) }
 
+            // Kalkmış bir ilana başvuru göndermemek için son bir tazelik denetimi.
+            val notes = mutableListOf<String>()
+            val live = runCatching {
+                container.jobsApi.stillActive(selected.map { it.caseNumber })
+            }.getOrNull()
+
+            val targets = if (live == null) {
+                notes += "Tazelik denetimi yapılamadı; ilanlar olduğu gibi kullanıldı."
+                selected
+            } else {
+                val stale = selected.filterNot { it.caseNumber in live }
+                if (stale.isNotEmpty()) {
+                    notes += "${stale.size} ilan artık yayında değil, atlandı: " +
+                        stale.take(3).joinToString(", ") { it.employer }
+                    container.jobArchive.retainOnly(container.jobArchive.seenCaseNumbers - stale.map { it.caseNumber }.toSet())
+                    _jobs.update { state ->
+                        state.copy(selected = state.selected.filterKeys { it in live })
+                    }
+                }
+                selected.filter { it.caseNumber in live }
+            }
+
+            if (targets.isEmpty()) {
+                _apply.update {
+                    it.copy(preparing = false, progress = null, notes = notes + "Gönderilecek geçerli ilan kalmadı.")
+                }
+                return@launch
+            }
+            _apply.update { it.copy(notes = notes.toList()) }
+
             val pipeline = container.pipeline()
             val prepared = mutableListOf<QueuedMail>()
-            val notes = mutableListOf<String>()
 
-            selected.forEachIndexed { index, job ->
+            targets.forEachIndexed { index, job ->
                 if (job.email == null) {
                     notes += "${job.employer}: e-posta adresi yok, atlandı"
                     return@forEachIndexed
@@ -645,7 +698,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                     employer = job.employer,
                                     stepLabel = step.label,
                                     index = index + 1,
-                                    total = selected.size,
+                                    total = targets.size,
                                 ),
                             )
                         }

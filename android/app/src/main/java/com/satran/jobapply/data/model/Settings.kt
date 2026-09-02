@@ -144,6 +144,10 @@ data class AppSettings(
     val requiredWords: String = "",
     /** Daha önce görülen ilanlar bir daha listelenmesin. */
     val hideSeenJobs: Boolean = true,
+    /** Arşivin siteyle en son ne zaman karşılaştırıldığı (epoch ms). */
+    val lastArchiveCheckAt: Long = 0L,
+    /** Açılışta arşivi kendiliğinden denetle. */
+    val autoRefreshArchive: Boolean = true,
 
     // Bellek / RAG
     /** Geçmiş ilanlar ve gönderilen mektuplar mektup yazarken bağlam olarak kullanılsın. */
