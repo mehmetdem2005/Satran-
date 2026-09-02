@@ -18,9 +18,9 @@ import com.satran.jobapply.data.mail.CvLoader
 import com.satran.jobapply.data.mail.GmailSender
 import com.satran.jobapply.data.model.SendRecord
 import com.satran.jobapply.data.model.SendStatus
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
-import kotlin.coroutines.coroutineContext
 
 /**
  * Toplu gönderimi ön plan bildirimiyle yürütür. Tek SMTP oturumu açar,
@@ -56,7 +56,8 @@ class BulkSendWorker(
                 sender.connect()
 
                 queue.forEachIndexed { index, mail ->
-                    coroutineContext.ensureActive()
+                    currentCoroutineContext().ensureActive()
+                    if (isStopped) return@forEachIndexed
                     setForeground(foregroundInfo(index, queue.size, mail.employer))
                     setProgress(
                         workDataOf(

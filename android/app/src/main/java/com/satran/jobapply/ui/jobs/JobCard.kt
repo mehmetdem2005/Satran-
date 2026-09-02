@@ -13,7 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material.icons.outlined.OpenInNew
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.TravelExplore
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
@@ -168,7 +168,7 @@ fun JobCard(
                             Text(" İşvereni araştır")
                         }
                         TextButton(onClick = onOpenDetail) {
-                            Icon(Icons.Outlined.OpenInNew, null)
+                            Icon(Icons.AutoMirrored.Outlined.OpenInNew, null)
                             Text(" İlan sayfası")
                         }
                     }

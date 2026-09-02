@@ -32,6 +32,11 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+        freeCompilerArgs += listOf(
+            "-opt-in=androidx.compose.foundation.layout.ExperimentalLayoutApi",
+            "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api",
+            "-opt-in=androidx.compose.ui.ExperimentalComposeUiApi",
+        )
     }
 
     buildFeatures {
@@ -42,13 +47,12 @@ android {
         resources {
             excludes += setOf(
                 "META-INF/*.kotlin_module",
-                "META-INF/DEPENDENCIES",
-                "META-INF/LICENSE",
-                "META-INF/LICENSE.txt",
-                "META-INF/license.txt",
-                "META-INF/NOTICE",
-                "META-INF/NOTICE.txt",
-                "META-INF/notice.txt",
+                "META-INF/DEPENDENCIES*",
+                "META-INF/LICENSE*",
+                "META-INF/license*",
+                "META-INF/NOTICE*",
+                "META-INF/notice*",
+                "META-INF/*.md",
                 "META-INF/INDEX.LIST",
             )
         }

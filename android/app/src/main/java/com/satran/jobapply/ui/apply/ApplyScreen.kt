@@ -15,7 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Send
+import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -143,7 +143,7 @@ fun ApplyScreen(
                 }
                 if (state.prepared.isNotEmpty() && settings.sendMode == SendMode.SMTP) {
                     Button(onClick = onSendAll, enabled = running == null) {
-                        Icon(Icons.Outlined.Send, null)
+                        Icon(Icons.AutoMirrored.Outlined.Send, null)
                         Text(" Gönder (${state.prepared.size})")
                     }
                 }

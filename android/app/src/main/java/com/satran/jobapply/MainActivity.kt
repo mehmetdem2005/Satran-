@@ -13,7 +13,7 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.outlined.Send
+import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.WorkOutline
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -126,7 +126,7 @@ private fun AppRoot() {
                     icon = {
                         BadgedBox(badge = {
                             if (jobsState.selectedCount > 0) Badge { Text("${jobsState.selectedCount}") }
-                        }) { Icon(Icons.Outlined.Send, null) }
+                        }) { Icon(Icons.AutoMirrored.Outlined.Send, null) }
                     },
                     label = { Text("Başvuru") },
                 )
