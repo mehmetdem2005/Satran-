@@ -1,7 +1,6 @@
 package com.satran.jobapply.ui
 
 import android.app.Application
-import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.ExistingWorkPolicy
@@ -18,6 +17,8 @@ import com.satran.jobapply.data.memory.MemoryDoc
 import com.satran.jobapply.data.memory.SearchEntry
 import com.satran.jobapply.data.model.AppSettings
 import com.satran.jobapply.data.model.Job
+import com.satran.jobapply.data.model.SendRecord
+import com.satran.jobapply.data.model.SendStatus
 import com.satran.jobapply.data.pipeline.ApplicationPipeline
 import com.satran.jobapply.data.remote.SeasonalJobsApi
 import com.satran.jobapply.send.BulkSendWorker
@@ -74,6 +75,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         rememberProfile()
         search(reset = true)
         maybeAutoRefreshArchive()
+        refreshGmailAvailability()
     }
 
     /**
@@ -726,6 +728,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 it.copy(
                     preparing = false,
                     progress = null,
+                    gmailCursor = 0,
+                    openedInGmail = emptySet(),
                     prepared = prepared.toList(),
                     notes = if (prepared.isEmpty()) notes + "Gönderilecek ileti kalmadı." else notes,
                 )
@@ -769,6 +773,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _message.value = "${mails.size} başvuru kuyruğa alındı."
     }
 
+    /**
+     * Tek bir iletiyi Gmail'de açar: alıcı, konu, mesaj dolu, PDF ekli gelir.
+     * Kullanıcıya yalnızca Gönder'e basmak kalır.
+     */
     fun openInGmail(mail: QueuedMail) {
         viewModelScope.launch {
             val config = settings.value
@@ -776,18 +784,80 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 withContext(Dispatchers.IO) { runCatching { CvLoader.load(getApplication(), uri) }.getOrNull() }
             }
             if (config.cvUri.isNotBlank() && cv == null) {
-                _message.value = "CV okunamadı, ileti eksiz açılıyor."
+                _message.value = "CV okunamadı, ileti eksiz açılıyor. Ayarlar'dan CV'yi yeniden seç."
             }
-            val intent: Intent = MailIntentSender.buildIntent(
-                context = getApplication(),
-                to = mail.to,
-                subject = mail.subject,
-                body = mail.body,
-                cv = cv,
-            )
-            runCatching { MailIntentSender.open(getApplication(), intent) }
-                .onFailure { _message.value = "E-posta uygulaması açılamadı: ${it.message}" }
+            if (config.cvUri.isBlank()) {
+                _message.value = "CV seçilmemiş; ileti eksiz açılıyor."
+            }
+
+            runCatching {
+                MailIntentSender.open(
+                    context = getApplication(),
+                    to = mail.to,
+                    subject = mail.subject,
+                    body = mail.body,
+                    cv = cv,
+                    bccSelf = config.gmailAddress.takeIf { config.ccSelf },
+                )
+            }
+                .onSuccess {
+                    _apply.update { state ->
+                        val index = state.prepared.indexOfFirst { it.caseNumber == mail.caseNumber }
+                        state.copy(
+                            openedInGmail = state.openedInGmail + mail.caseNumber,
+                            gmailCursor = if (index >= 0) index + 1 else state.gmailCursor,
+                        )
+                    }
+                }
+                .onFailure {
+                    _message.value = "E-posta uygulaması açılamadı. Gmail kurulu mu? (${it.message})"
+                }
         }
+    }
+
+    /** Sıradaki hazırlanmış iletiyi Gmail'de açar. */
+    fun openNextInGmail() {
+        val state = _apply.value
+        val next = state.prepared.getOrNull(state.gmailCursor)
+            ?: state.prepared.firstOrNull { it.caseNumber !in state.openedInGmail }
+        if (next == null) {
+            _message.value = "Sırada açılacak ileti kalmadı."
+            return
+        }
+        openInGmail(next)
+    }
+
+    /**
+     * Gmail'de gönderdiğini işaretler.
+     *
+     * Uygulama, Gmail'in gerçekten gönderip göndermediğini göremez — bu yüzden
+     * onay kullanıcıdan gelir. İşaretlenen ilan geçmişe yazılır ve bir daha
+     * listelenmez.
+     */
+    fun markSentManually(mail: QueuedMail) {
+        container.historyStore.add(
+            SendRecord(
+                caseNumber = mail.caseNumber,
+                title = mail.title,
+                employer = mail.employer,
+                email = mail.to,
+                status = SendStatus.SENT,
+            ),
+        )
+        _apply.update { state ->
+            state.copy(
+                prepared = state.prepared.filterNot { it.caseNumber == mail.caseNumber },
+                openedInGmail = state.openedInGmail - mail.caseNumber,
+                gmailCursor = state.gmailCursor.coerceAtMost((state.prepared.size - 2).coerceAtLeast(0)),
+            )
+        }
+        _jobs.update { it.copy(selected = it.selected - mail.caseNumber) }
+        _message.value = "${mail.employer} gönderildi olarak işaretlendi."
+    }
+
+    fun refreshGmailAvailability() {
+        val installed = MailIntentSender.isGmailInstalled(getApplication())
+        _apply.update { it.copy(gmailInstalled = installed) }
     }
 
     fun selectedJobs(): List<Job> = _jobs.value.selected.values.toList()

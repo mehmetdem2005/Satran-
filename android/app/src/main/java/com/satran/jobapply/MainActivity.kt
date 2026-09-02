@@ -202,6 +202,8 @@ private fun AppRoot() {
                     onRemoveSelection = viewModel::removeFromSelection,
                     onSendAll = viewModel::sendAll,
                     onOpenInGmail = viewModel::openInGmail,
+                    onOpenNextInGmail = viewModel::openNextInGmail,
+                    onMarkSent = viewModel::markSentManually,
                     onPickCv = { cvPicker.launch(arrayOf("application/pdf")) },
                     onCancelPrepare = viewModel::cancelPrepare,
                     contentPadding = padding,

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material3.AssistChip
@@ -60,6 +61,8 @@ fun ApplyScreen(
     onRemoveSelection: (String) -> Unit,
     onSendAll: () -> Unit,
     onOpenInGmail: (QueuedMail) -> Unit,
+    onOpenNextInGmail: () -> Unit,
+    onMarkSent: (QueuedMail) -> Unit,
     onPickCv: () -> Unit,
     onCancelPrepare: () -> Unit,
     contentPadding: PaddingValues,
@@ -78,6 +81,18 @@ fun ApplyScreen(
         modifier = Modifier.fillMaxSize(),
     ) {
         item { ReadinessCard(settings = settings, selectedCount = selectedJobs.size, onPickCv = onPickCv) }
+
+        if (settings.sendMode == SendMode.INTENT && !state.gmailInstalled) {
+            item {
+                Surface(color = MaterialTheme.colorScheme.errorContainer, shape = MaterialTheme.shapes.medium) {
+                    Text(
+                        "Gmail uygulaması kurulu değil. İleti açılırken uygulama seçici çıkacak.",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(12.dp),
+                    )
+                }
+            }
+        }
 
         running?.let { info ->
             item {
@@ -216,10 +231,11 @@ fun ApplyScreen(
             items(state.prepared, key = { it.caseNumber }) { mail ->
                 PreparedMailCard(
                     mail = mail,
-                    sendMode = settings.sendMode,
+                    opened = state.openedInGmail.contains(mail.caseNumber),
                     onEdit = { subject, body -> onEdit(mail.caseNumber, subject, body) },
                     onDrop = { onDrop(mail.caseNumber) },
                     onOpenInGmail = { onOpenInGmail(mail) },
+                    onMarkSent = { onMarkSent(mail) },
                 )
             }
         }
@@ -312,10 +328,11 @@ private fun SelectedRow(job: Job, onRemove: () -> Unit, onPrepareOne: () -> Unit
 @Composable
 private fun PreparedMailCard(
     mail: QueuedMail,
-    sendMode: SendMode,
+    opened: Boolean,
     onEdit: (String, String) -> Unit,
     onDrop: () -> Unit,
     onOpenInGmail: () -> Unit,
+    onMarkSent: () -> Unit,
 ) {
     var editing by remember(mail.caseNumber) { mutableStateOf(false) }
     var subject by remember(mail.caseNumber) { mutableStateOf(mail.subject) }
@@ -363,13 +380,31 @@ private fun PreparedMailCard(
                 Spacer(Modifier.height(4.dp))
                 Text(mail.body, style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(4.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
                     TextButton(onClick = { editing = true }) { Text("Düzenle") }
-                    if (sendMode == SendMode.INTENT) {
-                        Button(onClick = onOpenInGmail) { Text("Gmail'de aç") }
+                    if (opened) {
+                        // Gmail'in gerçekten gönderdiğini uygulama göremez; onayı kullanıcı verir.
+                        Button(onClick = onMarkSent) {
+                            Icon(Icons.Outlined.Check, null)
+                            Text(" Gönderdim")
+                        }
+                        TextButton(onClick = onOpenInGmail) { Text("Tekrar aç") }
                     } else {
-                        TextButton(onClick = onOpenInGmail) { Text("Gmail'de aç") }
+                        Button(onClick = onOpenInGmail) {
+                            Icon(Icons.AutoMirrored.Outlined.Send, null)
+                            Text(" Gmail'de aç")
+                        }
                     }
+                }
+                if (opened) {
+                    Text(
+                        "Gmail'de açıldı. Gönderdiysen \"Gönderdim\"e bas — ilan geçmişe yazılır ve bir daha listelenmez.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline,
+                    )
                 }
             }
         }

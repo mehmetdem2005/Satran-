@@ -85,4 +85,10 @@ data class ApplyUiState(
     val loadingModels: Boolean = false,
     val verifying: Boolean = false,
     val sourceProof: SeasonalJobsApi.SourceProof? = null,
+
+    /** Gmail'de tek tek açarken sırada hangi ileti var. */
+    val gmailCursor: Int = 0,
+    /** Gmail'de açılmış (ama gönderildiği doğrulanamayan) iletiler. */
+    val openedInGmail: Set<String> = emptySet(),
+    val gmailInstalled: Boolean = true,
 )

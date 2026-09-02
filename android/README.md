@@ -14,7 +14,7 @@ Saf Android + Kotlin + Jetpack Compose. Ek sunucu yok, her şey telefonda çalı
 | Sekme | İçerik |
 |---|---|
 | **İlanlar** | Canlı arama, aşağı çekip yenileme, *Yeni / Geçmiş* görünümü, eyalet/sıralama süzgeçleri, "Tarım dışı (H-2B)" · "E-postası olan" · "Başvurulanları gizle" anahtarları, "Tümünü çek", "Arşivi tazele", gönderilen sorguyu gösteren panel. Her kartta çeviri tuşu; kart açılınca tam görev tanımı, özel şartlar, ücret, dönem, başvuru e-postası görünür. Kutucukla seçim, "Sonraki sayfa" ile yeni ilanlar. |
-| **Başvuru** | Seçilen ilanlar için konu + mesaj hazırlar (şablon veya AI), tek tek düzenletir, PDF CV ekler, toplu gönderir. İlerleme bildirimi ön plan servisiyle akar. |
+| **Başvuru** | Seçilen ilanlar için konu + mesaj hazırlar (şablon veya AI), tek tek düzenletir, PDF CV ekler. İki gönderim yolu: **doğrudan SMTP** (toplu, ön plan bildirimiyle) veya **Gmail'de aç** (alıcı/konu/mesaj dolu, PDF ekli — sana yalnızca Gönder'e basmak kalır). |
 | **Ayarlar** | Gmail hesabı, PDF CV, başvuru profili, mesaj şablonu, yapay zekâ sağlayıcısı, internet arama sağlayıcısı, gönderim geçmişi. |
 
 ### Yapay zekâ (isteğe bağlı)
@@ -88,6 +88,29 @@ Arama sağlayıcıları ve anahtar adresleri (Ayarlar'dan tek dokunuşla açıl�
 
 > Gmail günlük gönderim sınırı ücretsiz hesaplarda ~500 iletidir. Uygulama
 > iletiler arasına varsayılan 8 saniye koyar; Ayarlar'dan değiştirebilirsin.
+
+### İki gönderim yolu
+
+**1. Doğrudan gönder (Gmail SMTP)** — uygulama şifresi ister, tek dokunuşla
+hepsini arka planda yollar.
+
+**2. Gmail'de aç** — hiçbir şifre istemez. *Ayarlar → Gönderim yolu → "Gmail
+uygulamasında aç"*. Her ilanda **Gmail'de aç** düğmesi Gmail'i şu hâlde açar:
+
+- Alıcı dolu
+- Konu dolu
+- Mesaj gövdesi dolu
+- **PDF CV ekli**
+- (Ayarlar'da açıksa kendine gizli kopya da eklenmiş)
+
+Sana yalnızca **Gönder**'e basmak kalır. Dönünce **"Gönderdim"** düğmesine
+basarsan ilan geçmişe yazılır ve bir daha listelenmez — uygulama Gmail'in
+gerçekten gönderip göndermediğini göremediği için onayı sen verirsin.
+Listede sırayla ilerlemek için üstteki **"Gmail'de aç (3/12)"** düğmesi var.
+
+Ekin görünmesi için üç şey birden yapılır: dosya FileProvider ile
+`content://` adresine çevrilir, adres hem `EXTRA_STREAM` hem `ClipData`
+içine konur, ve Gmail'e `grantUriPermission` ile okuma izni verilir.
 
 ---
 
