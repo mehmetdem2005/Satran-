@@ -68,4 +68,6 @@ data class ApplyUiState(
     val notes: List<String> = emptyList(),
     val testing: Boolean = false,
     val loadingModels: Boolean = false,
+    val verifying: Boolean = false,
+    val sourceProof: SeasonalJobsApi.SourceProof? = null,
 )

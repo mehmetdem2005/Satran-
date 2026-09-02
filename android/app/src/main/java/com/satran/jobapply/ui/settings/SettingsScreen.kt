@@ -38,6 +38,7 @@ import com.satran.jobapply.data.model.AppSettings
 import com.satran.jobapply.data.model.SearchProvider
 import com.satran.jobapply.data.model.SendMode
 import com.satran.jobapply.data.memory.SearchEntry
+import com.satran.jobapply.data.remote.SeasonalJobsApi
 import com.satran.jobapply.data.model.SendRecord
 import com.satran.jobapply.data.model.SendStatus
 import com.satran.jobapply.ui.common.LabeledField
@@ -56,11 +57,14 @@ fun SettingsScreen(
     archiveSize: Int,
     testing: Boolean,
     loadingModels: Boolean,
+    verifying: Boolean,
+    sourceProof: SeasonalJobsApi.SourceProof?,
     onUpdate: ((AppSettings) -> AppSettings) -> Unit,
     onPickCv: () -> Unit,
     onTestSmtp: () -> Unit,
     onTestAi: () -> Unit,
     onTestSearch: () -> Unit,
+    onVerifySource: () -> Unit,
     onLoadModels: () -> Unit,
     onClearHistory: () -> Unit,
     onClearArchive: () -> Unit,
@@ -79,6 +83,53 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
+        // ------------------------------------------------------------ veri kaynağı
+        item { SectionTitle("İlan verisi nereden geliyor") }
+        item {
+            Text(
+                "İlanlar ABD Çalışma Bakanlığı'nın açık kaydından (seasonaljobs.dol.gov) canlı çekilir. " +
+                    "Bu veri için API anahtarı gerekmez — anahtar girmeden ilan görmen bu yüzden normaldir. " +
+                    "Uygulamanın içinde gömülü tek bir ilan yoktur; uçağa alma kipinde liste boş kalır.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline,
+            )
+        }
+        item {
+            Button(onClick = onVerifySource, enabled = !verifying) {
+                Text(if (verifying) "Sorgulanıyor…" else "Kaynağı şimdi doğrula")
+            }
+        }
+        sourceProof?.let { proof ->
+            item {
+                Card {
+                    Column(Modifier.padding(12.dp)) {
+                        Text("Canlı yanıt", fontWeight = FontWeight.SemiBold)
+                        ProofLine("Sunucu", proof.endpointHost)
+                        ProofLine("HTTP durumu", proof.httpCode.toString())
+                        proof.serverDate?.let { ProofLine("Sunucu saati", it) }
+                        ProofLine("Yanıt süresi", "${proof.elapsedMs} ms")
+                        ProofLine("Aktif ilan", proof.totalActive.toString())
+                        proof.newestCaseNumber?.let { ProofLine("En yeni ilan no", it) }
+                        proof.newestTitle?.let { ProofLine("En yeni başlık", it) }
+                        proof.newestEmployer?.let { ProofLine("İşveren", it) }
+                        proof.newestAcceptedDate?.let { ProofLine("Kabul tarihi", it) }
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "Bu satırlar her basışta değişir. Sunucu saati cihazının saatinden bağımsızdır; " +
+                                "gömülü veri bunu üretemez.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outline,
+                        )
+                    }
+                }
+            }
+        }
+        item {
+            OutlinedButton(onClick = { onOpenUrl("https://seasonaljobs.dol.gov/jobs") }) {
+                Text("Resmî siteyi aç ve karşılaştır")
+            }
+        }
+
         // ------------------------------------------------------------ Gmail
         item { SectionTitle("Gmail hesabı") }
         item {
@@ -492,6 +543,14 @@ fun SettingsScreen(
     }
 }
 
+
+@Composable
+private fun ProofLine(label: String, value: String) {
+    Row(Modifier.padding(vertical = 1.dp)) {
+        Text("$label: ", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+        Text(value, style = MaterialTheme.typography.bodySmall)
+    }
+}
 
 @Composable
 private fun NumberChoiceRow(

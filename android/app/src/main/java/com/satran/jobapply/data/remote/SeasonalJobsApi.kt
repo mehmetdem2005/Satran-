@@ -12,6 +12,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -92,6 +93,65 @@ class SeasonalJobsApi(
                 throw IOException("İlanlar alınamadı (HTTP ${response.code}). ${raw.take(200)}")
             }
             parse(raw)
+        }
+    }
+
+    /** Canlı kaynak doğrulaması: ham HTTP durumu, sunucu saati ve en yeni kayıt. */
+    data class SourceProof(
+        val endpointHost: String,
+        val httpCode: Int,
+        val serverDate: String?,
+        val totalActive: Int,
+        val newestCaseNumber: String?,
+        val newestTitle: String?,
+        val newestEmployer: String?,
+        val newestAcceptedDate: String?,
+        val fetchedAt: Long,
+        val elapsedMs: Long,
+    )
+
+    /**
+     * Uygulamanın gerçekten ağa çıktığını kullanıcının kendi gözüyle görmesi için.
+     * Anahtar kullanmaz; ilan verisi kamuya açıktır.
+     */
+    suspend fun verifySource(): SourceProof = withContext(Dispatchers.IO) {
+        val started = System.currentTimeMillis()
+        val payload = buildJsonObject {
+            put("search", JsonPrimitive("*"))
+            put("count", JsonPrimitive(true))
+            put("top", JsonPrimitive(1))
+            put("filter", JsonPrimitive("active eq true and display eq true"))
+            put("orderby", JsonPrimitive("accepted_date desc"))
+            put("select", JsonPrimitive("case_number,job_title,employer_business_name,accepted_date"))
+        }
+        val request = Request.Builder()
+            .url(endpoint)
+            .addHeader("Content-Type", "application/json")
+            .addHeader("User-Agent", "SatranJobs/1.0 (Android)")
+            .post(Net.json.encodeToString(JsonObject.serializer(), payload).toRequestBody(JSON_MEDIA))
+            .build()
+
+        Net.client.newCall(request).execute().use { response ->
+            val raw = response.body?.string().orEmpty()
+            val elapsed = System.currentTimeMillis() - started
+            if (!response.isSuccessful) {
+                throw IOException("Kaynak yanıt vermedi (HTTP ${response.code}). ${raw.take(160)}")
+            }
+            val root = Net.json.parseToJsonElement(raw).jsonObject
+            val newest = root["value"]?.jsonArray?.firstOrNull()?.jsonObject
+            SourceProof(
+                endpointHost = endpoint.substringAfter("://").substringBefore('/'),
+                httpCode = response.code,
+                // Sunucunun kendi saati: cihaz saatinden bağımsız, taze veri kanıtı.
+                serverDate = response.header("Date"),
+                totalActive = root["@odata.count"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
+                newestCaseNumber = newest?.get("case_number")?.jsonPrimitive?.contentOrNull,
+                newestTitle = newest?.get("job_title")?.jsonPrimitive?.contentOrNull,
+                newestEmployer = newest?.get("employer_business_name")?.jsonPrimitive?.contentOrNull,
+                newestAcceptedDate = newest?.get("accepted_date")?.jsonPrimitive?.contentOrNull?.substringBefore('T'),
+                fetchedAt = System.currentTimeMillis(),
+                elapsedMs = elapsed,
+            )
         }
     }
 

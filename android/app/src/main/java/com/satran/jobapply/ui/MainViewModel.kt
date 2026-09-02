@@ -468,6 +468,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Canlı kaynak kanıtı: gerçekten ağa çıkıp ham yanıtı gösterir. */
+    fun verifySource() {
+        viewModelScope.launch {
+            _apply.update { it.copy(verifying = true, sourceProof = null) }
+            runCatching { container.jobsApi.verifySource() }
+                .onSuccess { proof ->
+                    _apply.update { it.copy(sourceProof = proof) }
+                    _message.value = "Canlı kaynak yanıt verdi ✓ ${proof.totalActive} aktif ilan"
+                }
+                .onFailure { _message.value = it.friendly() }
+            _apply.update { it.copy(verifying = false) }
+        }
+    }
+
     fun clearHistory() {
         container.historyStore.clear()
         _message.value = "Gönderim geçmişi temizlendi."
@@ -615,7 +629,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 }
 
 private fun Throwable.friendly(): String = when (this) {
-    is java.net.UnknownHostException -> "İnternet bağlantısı yok gibi görünüyor."
+    is java.net.UnknownHostException ->
+        "api.seasonaljobs.dol.gov adresine ulaşılamadı — internet bağlantın yok. " +
+            "İlanlar canlı çekildiği için bağlantı olmadan liste boş kalır."
     is java.net.SocketTimeoutException -> "Sunucu zamanında yanıt vermedi, tekrar dene."
+    is java.net.ConnectException -> "Sunucuya bağlanılamadı. Bağlantını kontrol et."
     else -> message ?: this::class.java.simpleName
 }
