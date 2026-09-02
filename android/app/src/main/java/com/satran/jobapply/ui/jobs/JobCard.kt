@@ -61,7 +61,7 @@ fun JobCard(
             },
         ),
     ) {
-        Column(Modifier.padding(12.dp)) {
+        Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
             Row(verticalAlignment = Alignment.Top) {
                 Checkbox(
                     checked = selected,
@@ -73,16 +73,19 @@ fun JobCard(
                         .weight(1f)
                         .padding(start = 4.dp),
                 ) {
-                    Text(job.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Text(
-                        job.employer,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        job.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     )
                     Text(
-                        job.location,
+                        "${job.employer} · ${job.location}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.outline,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     )
                 }
                 // Çeviri tuşu kart kapalıyken de görünür: ilana dokunmadan Türkçe özet alınır.
@@ -109,13 +112,25 @@ fun JobCard(
                 }
             }
 
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                job.wage?.let { Tag(it) }
-                job.visaClass?.let { Tag(it) }
-                job.positions?.let { Tag("$it kişi") }
-                job.period?.let { Tag(it) }
-                if (!job.canEmail) Tag("e-posta yok", warning = true)
-                archivedNote?.let { Tag(it) }
+            // Kapalı kartta yalnızca en ayırt edici bilgiler; gerisi açılınca gelir.
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.padding(start = 48.dp, top = 2.dp, bottom = 2.dp),
+            ) {
+                job.wage?.let { Meta(it, strong = true) }
+                job.visaClass?.let { Meta(it) }
+                job.positions?.let { Meta("$it kişi") }
+                if (!job.canEmail) Meta("e-posta yok", warning = true)
+                archivedNote?.let { Meta(it) }
+            }
+            if (expanded) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.padding(start = 48.dp),
+                ) {
+                    job.period?.let { Tag(it) }
+                    job.schedule?.let { Tag(it) }
+                }
             }
 
             AnimatedVisibility(visible = expanded) {
@@ -202,6 +217,21 @@ fun JobCard(
             }
         }
     }
+}
+
+/** Kart başlığının altındaki ince bilgi satırı — çip değil, yer kaplamaz. */
+@Composable
+private fun Meta(text: String, strong: Boolean = false, warning: Boolean = false) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = if (strong) FontWeight.SemiBold else FontWeight.Normal,
+        color = when {
+            warning -> MaterialTheme.colorScheme.error
+            strong -> MaterialTheme.colorScheme.primary
+            else -> MaterialTheme.colorScheme.onSurfaceVariant
+        },
+    )
 }
 
 @Composable

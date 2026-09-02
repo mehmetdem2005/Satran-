@@ -65,6 +65,12 @@ data class JobsUiState(
     val removedStale: Int = 0,
 ) {
     val selectedCount: Int get() = selected.size
+
+    /** Bir ağ işi sürerken yeni sayfalama isteği kabul edilmez. */
+    val isBusy: Boolean get() = loading || loadingMore || refreshing || bulkFetching
+
+    /** Sonraki sayfanın başlangıç kaydı. */
+    val nextOffset: Int get() = offset + fetchedThisSearch
 }
 
 /** Zincirin bir ilan için nerede olduğunu gösteren satır. */

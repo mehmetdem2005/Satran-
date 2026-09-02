@@ -64,6 +64,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private companion object {
         /** Arşiv tazelik denetiminin en sık çalışma aralığı. */
         const val ARCHIVE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000L
+
+        /** Tamamı görülmüş sayfalarda en fazla kaç kez ileri atlanacağı. */
+        const val MAX_EMPTY_PAGE_SKIPS = 6
     }
 
     init {
@@ -132,17 +135,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun fetchNextPage() {
         val state = _jobs.value
-        if (state.loading || state.loadingMore) return
-        search(reset = false, offsetOverride = state.offset + state.fetchedThisSearch)
+        if (state.isBusy) return
+        if (state.endReached) {
+            _message.value = "Bu süzgeçte son sayfadasın. Süzgeci değiştir ya da Yenile'ye bas."
+            return
+        }
+        search(reset = false, offsetOverride = state.nextOffset)
     }
 
+    /** Liste sonundaki "Daha fazla yükle" — mevcut listeye ekler. */
     fun loadMore() {
         val state = _jobs.value
-        if (state.loading || state.loadingMore || state.endReached) return
-        search(reset = false, offsetOverride = state.offset + state.fetchedThisSearch, append = true)
+        if (state.isBusy || state.endReached) return
+        search(reset = false, offsetOverride = state.nextOffset, append = true)
     }
 
     private fun search(reset: Boolean, offsetOverride: Int? = null, append: Boolean = false) {
+        // Yeni bir arama (reset) çalışan işi devirebilir; sayfalama devremez,
+        // yoksa iptal edilen iş loadingMore'u açık bırakıp sayfalamayı kilitler.
+        if (!reset && searchJob?.isActive == true) return
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
             val config = settings.value
@@ -169,60 +180,89 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 limit = config.jobsPerSearch,
             )
 
-            runCatching { container.jobsApi.search(query) }
-                .onSuccess { page ->
-                    // 1. Mimarlık ve "başvuruldu" süzgeçleri.
-                    val filtered = applyLocalFilters(page.jobs, current)
+            // Bir sayfadaki ilanların tamamı zaten görülmüşse ekran boş kalmasın:
+            // yeni ilan çıkana kadar sonraki sayfalara geç.
+            var attemptOffset = offset
+            var attempts = 0
+            var lastError: Throwable? = null
 
-                    // 2. Arşive işle; yalnızca daha önce hiç görülmemişleri al.
-                    val fresh = container.jobArchive.recordAndFilterNew(filtered, current.query)
-                    val shown = if (config.hideSeenJobs) fresh else filtered
-                    val skipped = filtered.size - fresh.size
+            while (attempts < MAX_EMPTY_PAGE_SKIPS) {
+                attempts++
+                val attemptQuery = query.copy(offset = attemptOffset)
+                val result = runCatching { container.jobsApi.search(attemptQuery) }
+                if (result.isFailure) {
+                    lastError = result.exceptionOrNull()
+                    break
+                }
+                val page = result.getOrThrow()
 
-                    _jobs.update { state ->
-                        val merged = if (append) {
-                            (state.results + shown).distinctBy { it.caseNumber }
-                        } else {
-                            shown
-                        }
-                        state.copy(
-                            loading = false,
-                            loadingMore = false,
-                            refreshing = false,
-                            results = merged,
-                            offset = offset,
-                            fetchedThisSearch = page.jobs.size,
-                            total = page.totalCount,
-                            duplicatesSkipped = if (append) state.duplicatesSkipped + skipped else skipped,
-                            lastUpdatedAt = System.currentTimeMillis(),
-                            stateFacets = page.stateFacets.ifEmpty { state.stateFacets },
-                            sentFilter = page.sentFilter,
-                            sentSearch = page.sentSearch,
-                            endReached = page.jobs.size < query.safeLimit,
-                        )
+                val filtered = applyLocalFilters(page.jobs, current)
+                val fresh = container.jobArchive.recordAndFilterNew(filtered, current.query)
+                val shown = if (config.hideSeenJobs) fresh else filtered
+                val skipped = filtered.size - fresh.size
+                val exhausted = page.jobs.size < attemptQuery.safeLimit
+
+                container.searchHistory.add(
+                    SearchEntry(
+                        query = current.query,
+                        state = current.selectedState,
+                        sortLabel = current.sort.name,
+                        offset = attemptOffset,
+                        fetched = page.jobs.size,
+                        newJobs = fresh.size,
+                        totalMatches = page.totalCount,
+                    ),
+                )
+
+                val shouldSkip = shown.isEmpty() && !exhausted && page.jobs.isNotEmpty() && !append
+                if (shouldSkip) {
+                    attemptOffset += page.jobs.size
+                    continue
+                }
+
+                val landedOffset = attemptOffset
+                _jobs.update { state ->
+                    val merged = if (append) {
+                        (state.results + shown).distinctBy { it.caseNumber }
+                    } else {
+                        shown
                     }
-
-                    container.searchHistory.add(
-                        SearchEntry(
-                            query = current.query,
-                            state = current.selectedState,
-                            sortLabel = current.sort.name,
-                            offset = offset,
-                            fetched = page.jobs.size,
-                            newJobs = fresh.size,
-                            totalMatches = page.totalCount,
-                        ),
+                    state.copy(
+                        loading = false,
+                        loadingMore = false,
+                        refreshing = false,
+                        results = merged,
+                        offset = landedOffset,
+                        fetchedThisSearch = page.jobs.size,
+                        total = page.totalCount,
+                        duplicatesSkipped = if (append) state.duplicatesSkipped + skipped else skipped,
+                        lastUpdatedAt = System.currentTimeMillis(),
+                        stateFacets = page.stateFacets.ifEmpty { state.stateFacets },
+                        sentFilter = page.sentFilter,
+                        sentSearch = page.sentSearch,
+                        endReached = exhausted,
                     )
+                }
 
-                    if (shown.isEmpty() && page.jobs.isNotEmpty()) {
-                        _message.value = "Bu sayfadaki $skipped ilanı daha önce görmüştün. 'Sonraki sayfa'ya bas."
+                if (shown.isEmpty()) {
+                    _message.value = if (exhausted) {
+                        "Bu süzgeçte gösterilecek yeni ilan kalmadı."
+                    } else {
+                        "Bu sayfadaki ilanların hepsini daha önce görmüştün."
                     }
                 }
-                .onFailure { error ->
-                    _jobs.update {
-                        it.copy(loading = false, loadingMore = false, refreshing = false, error = error.friendly())
-                    }
+                lastError = null
+                break
+            }
+
+            lastError?.let { error ->
+                _jobs.update {
+                    it.copy(loading = false, loadingMore = false, refreshing = false, error = error.friendly())
                 }
+            }
+            if (lastError == null && attempts >= MAX_EMPTY_PAGE_SKIPS) {
+                _jobs.update { it.copy(loading = false, loadingMore = false, refreshing = false) }
+            }
         }
     }
 
