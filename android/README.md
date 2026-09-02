@@ -13,23 +13,62 @@ Saf Android + Kotlin + Jetpack Compose. Ek sunucu yok, her şey telefonda çalı
 
 | Sekme | İçerik |
 |---|---|
-| **İlanlar** | Canlı arama, eyalet/sıralama süzgeçleri, "Mimarlık dışı" · "E-postası olan" · "Başvurulanları gizle" anahtarları. Her kart açılınca tam görev tanımı, özel şartlar, ücret, dönem, başvuru e-postası görünür. Kutucukla seçim. |
+| **İlanlar** | Canlı arama, aşağı çekip yenileme, *Yeni / Geçmiş* görünümü, eyalet/sıralama süzgeçleri, "Mimarlık dışı" · "E-postası olan" · "Başvurulanları gizle" anahtarları. Her kartta çeviri tuşu; kart açılınca tam görev tanımı, özel şartlar, ücret, dönem, başvuru e-postası görünür. Kutucukla seçim, "Sonraki sayfa" ile yeni ilanlar. |
 | **Başvuru** | Seçilen ilanlar için konu + mesaj hazırlar (şablon veya AI), tek tek düzenletir, PDF CV ekler, toplu gönderir. İlerleme bildirimi ön plan servisiyle akar. |
 | **Ayarlar** | Gmail hesabı, PDF CV, başvuru profili, mesaj şablonu, yapay zekâ sağlayıcısı, internet arama sağlayıcısı, gönderim geçmişi. |
 
 ### Yapay zekâ (isteğe bağlı)
-- **İlana özel başvuru mektubu** — profilin + ilanın görev tanımı okunarak yazılır.
-- **Türkçe özet** — İngilizce ilan metnini maddeleyip çevirir.
+- **İlana özel başvuru mektubu** — profilin + ilanın görev tanımı + web araması + bellek okunarak yazılır.
+- **Türkçeye çevir** — her kartta görünür çeviri tuşu; İngilizce ilan metnini maddeleyip çevirir.
 - **Mimarlık süzgeci** — anahtar sözcüklerin kaçırdığı ilanları model eler.
 - **Akıllı arama** — "Florida'da otel temizlik işi" yazarsın, model arama sorgusuna çevirir.
 
 Sağlayıcılar: **DeepSeek** (varsayılan), **Claude**, **OpenAI**, **OpenRouter** veya
-OpenAI uyumlu kendi sunucun. Model adı serbest metindir; sağlayıcı yeni sürüm
-çıkardığında Ayarlar'a yazman yeterli.
+OpenAI uyumlu kendi sunucun.
 
-### İnternet araması
-Tavily, Serper.dev (Google), Brave Search ya da anahtarsız DuckDuckGo. İşveren
-hakkında toplanan bilgi hem karta yazılır hem de istersen mektuba bağlam olur.
+**Model listesi canlı çekilir.** Ayarlar → *Modelleri çek* düğmesi sağlayıcının
+`GET /models` ucunu çağırır ve yayımlanan **bütün** modelleri listeler. DeepSeek
+yeni bir sürüm çıkardığında (V4, V5, …) listede kendiliğinden görünür; uygulamayı
+güncellemeye gerek yoktur. Varsayılan `deepseek-v4-pro`.
+
+### İnternet araması — kim ne yapıyor
+
+DeepSeek'in `/chat/completions` ucunda **gömülü web araması yoktur**. Modelin
+internete bakabilmesi için arama işini uygulama yapar. Zincir şöyle:
+
+```
+1. Sorgu     DeepSeek → "Deer Valley Resort Park City Utah H-2B worker reviews"
+2. Arama     Tavily / Serper / Brave → gerçek web sonuçları
+3. Brifing   DeepSeek → sonuçları işveren özetine çevirir
+4. Bellek    RAG → benzer geçmiş ilanları ve mektupları getirir
+5. Mektup    DeepSeek → brifing + bellek + ilan ile mektubu yazar
+6. Kayıt     RAG → mektup ve brifing belleğe geri yazılır
+```
+
+Kapalı olan adım sessizce atlanır; zincir kırılmaz, en kötü ihtimalle şablona düşer.
+
+Arama sağlayıcıları ve anahtar adresleri (Ayarlar'dan tek dokunuşla açılır):
+
+| Sağlayıcı | Anahtar | Ücretsiz katman |
+|---|---|---|
+| **Tavily** | <https://app.tavily.com/home> | ayda 1000 arama |
+| **Serper.dev** (Google) | <https://serper.dev/api-key> | 2500 arama |
+| **Brave Search** | <https://api-dashboard.search.brave.com/app/keys> | ayda 2000 arama |
+| DuckDuckGo | gerekmez | yalnızca ansiklopedik özet, zayıf |
+
+### Bellek, arşiv ve tekrar engelleme
+
+- **Arşiv** — görülen her ilan `job_archive.json` içinde saklanır (2000 kayıt).
+  Silinmez; *Geçmiş* sekmesinde okunmaya devam eder.
+- **Tekrar engelleme** — bir kez listelenen ilan *Yeni* listesinde bir daha çıkmaz.
+- **Sonraki sayfa** — düğmeye bastıkça API'de kaldığın yerden devam eder
+  (`skip` büyür), eski ilanlar arşive düşer.
+- **Arama geçmişi** — hangi sorguyu ne zaman, kaçıncı kayıttan, kaç yeni sonuçla
+  çalıştırdığın Ayarlar'da en yeniden eskiye listelenir.
+- **RAG belleği** — ilanlar, yazdığın mektuplar, işveren brifingleri ve profil
+  notun BM25 ile aranabilir bir bellekte tutulur. Yeni bir mektup yazılırken en
+  yakın parçalar bağlam olarak modele verilir. Sunucu ya da embedding servisi
+  gerekmez, tamamı telefonda çalışır.
 
 ---
 
@@ -77,6 +116,8 @@ android/app/src/main/java/com/satran/jobapply/
 │   ├── model/       Job, AppSettings, SendRecord
 │   ├── remote/      SeasonalJobsApi (Azure Search), AiClient, WebSearchClient
 │   ├── filter/      ArchitecturalFilter (SOC + anahtar sözcük)
+│   ├── memory/      JobArchiveStore, SearchHistoryStore, RagStore (BM25)
+│   ├── pipeline/    ApplicationPipeline (sorgu→arama→brifing→bellek→mektup)
 │   ├── mail/        GmailSender (SMTP), MailIntentSender, CvLoader, MailTemplate
 │   └── prefs/       SettingsStore (şifreli), HistoryStore
 ├── send/            SendQueueStore + BulkSendWorker (ön plan servisi)
@@ -87,7 +128,9 @@ android/app/src/main/java/com/satran/jobapply/
 `POST https://api.seasonaljobs.dol.gov/datahub/search?api-version=2020-06-30`
 — sitenin kendi kullandığı, anahtar istemeyen Azure Cognitive Search uç noktası.
 OData süzgeçleri (`active eq true`, `apply_email ne null`, eyalet), `orderby`,
-`facets` ve `skip/top` sayfalaması desteklenir.
+`facets` ve `skip/top` sayfalaması desteklenir. Veri **canlıdır**: DOL kayıtları
+gün içinde artar, uygulamadaki eşleşme sayısı da onunla birlikte değişir.
+Bir aramada kaç ilan çekileceği Ayarlar'dan seçilir (20–200).
 
 ### Mimarlık süzgeci
 1. SOC kodu `17-` ile başlıyorsa (Architecture & Engineering) veya

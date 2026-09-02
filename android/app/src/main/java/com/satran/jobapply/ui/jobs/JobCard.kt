@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
+import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.material.icons.outlined.TravelExplore
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
@@ -47,6 +48,7 @@ fun JobCard(
     onSummarize: () -> Unit,
     onResearch: () -> Unit,
     onOpenDetail: () -> Unit,
+    archivedNote: String? = null,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -82,6 +84,22 @@ fun JobCard(
                         color = MaterialTheme.colorScheme.outline,
                     )
                 }
+                // Çeviri tuşu kart kapalıyken de görünür: ilana dokunmadan Türkçe özet alınır.
+                IconButton(onClick = onSummarize, enabled = !summarizing) {
+                    if (summarizing) {
+                        SmallSpinner()
+                    } else {
+                        Icon(
+                            imageVector = Icons.Outlined.Translate,
+                            contentDescription = "Türkçeye çevir",
+                            tint = if (summary != null) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                    }
+                }
                 IconButton(onClick = onToggleExpand) {
                     Icon(
                         imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
@@ -96,6 +114,7 @@ fun JobCard(
                 job.positions?.let { Tag("$it kişi") }
                 job.period?.let { Tag(it) }
                 if (!job.canEmail) Tag("e-posta yok", warning = true)
+                archivedNote?.let { Tag(it) }
             }
 
             AnimatedVisibility(visible = expanded) {
@@ -159,9 +178,8 @@ fun JobCard(
                     Spacer(Modifier.height(4.dp))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         TextButton(onClick = onSummarize, enabled = !summarizing) {
-                            if (summarizing) SmallSpinner() else Icon(Icons.Outlined.AutoAwesome, null)
-                            Spacer(Modifier.height(0.dp))
-                            Text(" Türkçe özet")
+                            if (summarizing) SmallSpinner() else Icon(Icons.Outlined.Translate, null)
+                            Text(" Türkçeye çevir")
                         }
                         TextButton(onClick = onResearch, enabled = !researching) {
                             if (researching) SmallSpinner() else Icon(Icons.Outlined.TravelExplore, null)

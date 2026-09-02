@@ -1,17 +1,32 @@
 package com.satran.jobapply.ui
 
+import com.satran.jobapply.data.memory.ArchivedJob
 import com.satran.jobapply.data.model.Job
 import com.satran.jobapply.data.remote.SeasonalJobsApi
 import com.satran.jobapply.send.QueuedMail
 
+/** İlanlar sekmesi hangi listeyi gösteriyor. */
+enum class JobsView(val label: String) {
+    LIVE("Yeni"),
+    ARCHIVE("Geçmiş"),
+}
+
 data class JobsUiState(
     val query: String = "",
     val results: List<Job> = emptyList(),
-    val rawCount: Int = 0,
+    val archived: List<ArchivedJob> = emptyList(),
+    val view: JobsView = JobsView.LIVE,
+
+    /** Bu sorguda API'de kaçıncı kayda kadar gelindi. */
+    val offset: Int = 0,
+    val fetchedThisSearch: Int = 0,
     val total: Int = 0,
-    val page: Int = 0,
+    val duplicatesSkipped: Int = 0,
+    val lastUpdatedAt: Long = 0L,
+
     val loading: Boolean = false,
     val loadingMore: Boolean = false,
+    val refreshing: Boolean = false,
     val endReached: Boolean = false,
     val error: String? = null,
 
@@ -37,9 +52,20 @@ data class JobsUiState(
     val selectedCount: Int get() = selected.size
 }
 
+/** Zincirin bir ilan için nerede olduğunu gösteren satır. */
+data class PrepareProgress(
+    val caseNumber: String,
+    val employer: String,
+    val stepLabel: String,
+    val index: Int,
+    val total: Int,
+)
+
 data class ApplyUiState(
     val preparing: Boolean = false,
     val prepared: List<QueuedMail> = emptyList(),
-    val progressText: String? = null,
+    val progress: PrepareProgress? = null,
+    val notes: List<String> = emptyList(),
     val testing: Boolean = false,
+    val loadingModels: Boolean = false,
 )

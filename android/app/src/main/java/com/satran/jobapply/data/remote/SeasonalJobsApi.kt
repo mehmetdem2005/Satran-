@@ -30,7 +30,10 @@ class SeasonalJobsApi(
 
     companion object {
         const val DEFAULT_ENDPOINT = "https://api.seasonaljobs.dol.gov/datahub/search?api-version=2020-06-30"
-        const val PAGE_SIZE = 40
+
+        /** Azure Search tek istekte en çok 1000 kayıt döndürür; biz makul bir tavan koyuyoruz. */
+        const val MAX_LIMIT = 200
+        const val DEFAULT_LIMIT = 40
 
         /** Arayüzde gösterilecek alanlar; yanıtı küçük tutar. */
         private const val SELECT_FIELDS =
@@ -50,8 +53,13 @@ class SeasonalJobsApi(
         val visaClass: String? = null,
         val emailOnly: Boolean = true,
         val sort: Sort = Sort.NEWEST,
-        val page: Int = 0,
-    )
+        /** Kaçıncı kayıttan başlanacak — "sonraki sayfa" bunu büyütür. */
+        val offset: Int = 0,
+        /** Bu aramada kaç ilan çekilecek. */
+        val limit: Int = DEFAULT_LIMIT,
+    ) {
+        val safeLimit: Int get() = limit.coerceIn(1, MAX_LIMIT)
+    }
 
     enum class Sort(val odata: String?) {
         RELEVANCE(null),
@@ -89,7 +97,7 @@ class SeasonalJobsApi(
 
     /** Tek bir ilanı case_number ile getirir. */
     suspend fun byCaseNumber(caseNumber: String): Job? {
-        val page = search(Query(text = "\"$caseNumber\"", emailOnly = false, sort = Sort.RELEVANCE))
+        val page = search(Query(text = "\"$caseNumber\"", emailOnly = false, sort = Sort.RELEVANCE, limit = 5))
         return page.jobs.firstOrNull { it.caseNumber == caseNumber }
     }
 
@@ -99,8 +107,8 @@ class SeasonalJobsApi(
         put("searchMode", JsonPrimitive("any"))
         put("queryType", JsonPrimitive("simple"))
         put("count", JsonPrimitive(true))
-        put("top", JsonPrimitive(PAGE_SIZE))
-        put("skip", JsonPrimitive(query.page * PAGE_SIZE))
+        put("top", JsonPrimitive(query.safeLimit))
+        put("skip", JsonPrimitive(query.offset.coerceAtLeast(0)))
         put("select", JsonPrimitive(SELECT_FIELDS))
         put("filter", JsonPrimitive(buildFilter(query)))
         query.sort.odata?.let { put("orderby", JsonPrimitive(it)) }

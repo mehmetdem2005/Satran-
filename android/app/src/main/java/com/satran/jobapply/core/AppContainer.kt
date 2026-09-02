@@ -1,6 +1,10 @@
 package com.satran.jobapply.core
 
 import android.content.Context
+import com.satran.jobapply.data.memory.JobArchiveStore
+import com.satran.jobapply.data.memory.RagStore
+import com.satran.jobapply.data.memory.SearchHistoryStore
+import com.satran.jobapply.data.pipeline.ApplicationPipeline
 import com.satran.jobapply.data.prefs.HistoryStore
 import com.satran.jobapply.data.prefs.SettingsStore
 import com.satran.jobapply.data.remote.AiClient
@@ -16,8 +20,20 @@ class AppContainer(context: Context) {
     val sendQueueStore = SendQueueStore(context)
     val jobsApi = SeasonalJobsApi()
 
+    // Bellek katmanı: arşiv (tekrar engelleme + geçmiş), arama geçmişi, RAG.
+    val jobArchive = JobArchiveStore(context)
+    val searchHistory = SearchHistoryStore(context)
+    val ragStore = RagStore(context)
+
     /** İstemciler o anki ayarlara bağlı olduğundan her çağrıda yeniden kurulur. */
     fun aiClient() = AiClient(settingsStore.settings.value)
 
     fun searchClient() = WebSearchClient(settingsStore.settings.value)
+
+    fun pipeline() = ApplicationPipeline(
+        settings = settingsStore.settings.value,
+        ai = aiClient(),
+        search = searchClient(),
+        rag = ragStore,
+    )
 }

@@ -61,6 +61,7 @@ fun ApplyScreen(
     onSendAll: () -> Unit,
     onOpenInGmail: (QueuedMail) -> Unit,
     onPickCv: () -> Unit,
+    onCancelPrepare: () -> Unit,
     contentPadding: PaddingValues,
 ) {
     val running = workInfos.firstOrNull { it.state == WorkInfo.State.RUNNING }
@@ -136,6 +137,8 @@ fun ApplyScreen(
                     Text(
                         when {
                             state.preparing -> "Hazırlanıyor…"
+                            settings.aiWriteLetters && settings.aiReady && settings.researchBeforeSending &&
+                                settings.searchReady -> "Ara + yaz (${selectedJobs.size})"
                             settings.aiWriteLetters && settings.aiReady -> "AI ile hazırla (${selectedJobs.size})"
                             else -> "Şablonla hazırla (${selectedJobs.size})"
                         },
@@ -150,10 +153,45 @@ fun ApplyScreen(
             }
         }
 
-        state.progressText?.let {
-            item { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline) }
+        state.progress?.let { progress ->
+            item {
+                Card {
+                    Column(Modifier.padding(12.dp)) {
+                        Text(
+                            "Zincir ${progress.index}/${progress.total} — ${progress.employer}",
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(progress.stepLabel, style = MaterialTheme.typography.bodySmall)
+                        Spacer(Modifier.height(6.dp))
+                        LinearProgressIndicator(
+                            progress = { progress.index.toFloat() / progress.total.coerceAtLeast(1) },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+            }
         }
-        if (state.preparing) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+        if (state.preparing) {
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    LinearProgressIndicator(Modifier.weight(1f))
+                    TextButton(onClick = onCancelPrepare) { Text("Durdur") }
+                }
+            }
+        }
+        if (state.notes.isNotEmpty()) {
+            item {
+                Column {
+                    state.notes.takeLast(6).forEach { note ->
+                        Text(
+                            "• $note",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outline,
+                        )
+                    }
+                }
+            }
+        }
 
         if (state.prepared.isEmpty()) {
             item {
@@ -209,6 +247,22 @@ private fun ReadinessCard(settings: AppSettings, selectedCount: Int, onPickCv: (
                 "Yapay zekâ",
                 settings.aiReady,
                 if (settings.aiReady) "${settings.aiProvider.label} · ${settings.effectiveModel}" else "kapalı (şablon kullanılır)",
+                optional = true,
+            )
+            CheckLine(
+                "İnternet araması",
+                settings.searchReady && settings.researchBeforeSending,
+                when {
+                    !settings.researchBeforeSending -> "kapalı"
+                    settings.searchReady -> "${settings.searchProvider.label} · ${settings.searchResultsPerJob} sonuç/ilan"
+                    else -> "${settings.searchProvider.label} anahtarı eksik"
+                },
+                optional = true,
+            )
+            CheckLine(
+                "Bellek (RAG)",
+                settings.useRagMemory,
+                if (settings.useRagMemory) "${settings.ragContextSize} parça bağlam" else "kapalı",
                 optional = true,
             )
             Spacer(Modifier.height(6.dp))

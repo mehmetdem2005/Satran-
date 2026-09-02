@@ -14,10 +14,11 @@ import com.satran.jobapply.data.mail.CvFile
 import com.satran.jobapply.data.mail.CvLoader
 import com.satran.jobapply.data.mail.GmailSender
 import com.satran.jobapply.data.mail.MailIntentSender
-import com.satran.jobapply.data.mail.MailTemplate
+import com.satran.jobapply.data.memory.MemoryDoc
+import com.satran.jobapply.data.memory.SearchEntry
 import com.satran.jobapply.data.model.AppSettings
 import com.satran.jobapply.data.model.Job
-import com.satran.jobapply.data.model.SendMode
+import com.satran.jobapply.data.pipeline.ApplicationPipeline
 import com.satran.jobapply.data.remote.SeasonalJobsApi
 import com.satran.jobapply.send.BulkSendWorker
 import com.satran.jobapply.send.QueuedMail
@@ -37,6 +38,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     val settings: StateFlow<AppSettings> = container.settingsStore.settings
     val history = container.historyStore.records
+    val searchHistory = container.searchHistory.entries
+    val memory = container.ragStore.docs
 
     private val _jobs = MutableStateFlow(JobsUiState())
     val jobs: StateFlow<JobsUiState> = _jobs.asStateFlow()
@@ -54,14 +57,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }.asStateFlow()
 
     private var searchJob: CoroutineJob? = null
+    private var prepareJob: CoroutineJob? = null
 
     init {
-        refresh()
+        viewModelScope.launch {
+            container.jobArchive.archive.collect { archive ->
+                _jobs.update { it.copy(archived = archive) }
+            }
+        }
+        rememberProfile()
+        search(reset = true)
     }
 
-    // -------------------------------------------------------------- ilan listesi
+    // ============================================================ arama
 
     fun onQueryChange(value: String) = _jobs.update { it.copy(query = value) }
+
+    fun setView(view: JobsView) = _jobs.update { it.copy(view = view) }
 
     fun onFilterChange(
         state: String? = _jobs.value.selectedState,
@@ -81,70 +93,115 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 hideApplied = hideApplied,
             )
         }
-        refresh()
+        search(reset = true)
     }
 
+    /** Aşağı çekip yenileme ve yenile düğmesi — aynı noktadan taze veri çeker. */
     fun refresh() {
-        searchJob?.cancel()
-        searchJob = viewModelScope.launch {
-            _jobs.update { it.copy(loading = true, error = null, page = 0) }
-            runCatching { container.jobsApi.search(currentQuery(page = 0)) }
-                .onSuccess { page ->
-                    _jobs.update { state ->
-                        state.copy(
-                            loading = false,
-                            results = applyLocalFilters(page.jobs, state),
-                            rawCount = page.jobs.size,
-                            total = page.totalCount,
-                            stateFacets = page.stateFacets,
-                            endReached = page.jobs.size < SeasonalJobsApi.PAGE_SIZE,
-                        )
-                    }
-                    maybeAiClassify()
-                }
-                .onFailure { error ->
-                    _jobs.update { it.copy(loading = false, error = error.friendly()) }
-                }
-        }
+        _jobs.update { it.copy(refreshing = true) }
+        search(reset = true)
+    }
+
+    /**
+     * "Sonraki sayfa": API'de kaldığı yerden devam eder, daha önce görülmüş
+     * ilanları atlar. Eski ilanlar silinmez, Geçmiş görünümünde durur.
+     */
+    fun fetchNextPage() {
+        val state = _jobs.value
+        if (state.loading || state.loadingMore) return
+        search(reset = false, offsetOverride = state.offset + state.fetchedThisSearch)
     }
 
     fun loadMore() {
         val state = _jobs.value
         if (state.loading || state.loadingMore || state.endReached) return
-        viewModelScope.launch {
-            _jobs.update { it.copy(loadingMore = true) }
-            val nextPage = state.page + 1
-            runCatching { container.jobsApi.search(currentQuery(page = nextPage)) }
+        search(reset = false, offsetOverride = state.offset + state.fetchedThisSearch, append = true)
+    }
+
+    private fun search(reset: Boolean, offsetOverride: Int? = null, append: Boolean = false) {
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            val config = settings.value
+            val current = _jobs.value
+            val offset = when {
+                offsetOverride != null -> offsetOverride
+                reset -> 0
+                else -> current.offset
+            }
+
+            _jobs.update {
+                it.copy(
+                    loading = reset && !it.refreshing,
+                    loadingMore = !reset,
+                    error = null,
+                    view = JobsView.LIVE,
+                )
+            }
+
+            val query = SeasonalJobsApi.Query(
+                text = current.query,
+                state = current.selectedState,
+                visaClass = current.visaClass,
+                emailOnly = current.emailOnly,
+                sort = current.sort,
+                offset = offset,
+                limit = config.jobsPerSearch,
+            )
+
+            runCatching { container.jobsApi.search(query) }
                 .onSuccess { page ->
-                    _jobs.update { current ->
-                        val merged = (current.results + applyLocalFilters(page.jobs, current))
-                            .distinctBy { it.caseNumber }
-                        current.copy(
+                    // 1. Mimarlık ve "başvuruldu" süzgeçleri.
+                    val filtered = applyLocalFilters(page.jobs, current)
+
+                    // 2. Arşive işle; yalnızca daha önce hiç görülmemişleri al.
+                    val fresh = container.jobArchive.recordAndFilterNew(filtered, current.query)
+                    val shown = if (config.hideSeenJobs) fresh else filtered
+                    val skipped = filtered.size - fresh.size
+
+                    _jobs.update { state ->
+                        val merged = if (append) {
+                            (state.results + shown).distinctBy { it.caseNumber }
+                        } else {
+                            shown
+                        }
+                        state.copy(
+                            loading = false,
                             loadingMore = false,
-                            page = nextPage,
+                            refreshing = false,
                             results = merged,
-                            rawCount = current.rawCount + page.jobs.size,
-                            endReached = page.jobs.size < SeasonalJobsApi.PAGE_SIZE,
+                            offset = offset,
+                            fetchedThisSearch = page.jobs.size,
+                            total = page.totalCount,
+                            duplicatesSkipped = if (append) state.duplicatesSkipped + skipped else skipped,
+                            lastUpdatedAt = System.currentTimeMillis(),
+                            stateFacets = page.stateFacets.ifEmpty { state.stateFacets },
+                            endReached = page.jobs.size < query.safeLimit,
                         )
+                    }
+
+                    container.searchHistory.add(
+                        SearchEntry(
+                            query = current.query,
+                            state = current.selectedState,
+                            sortLabel = current.sort.name,
+                            offset = offset,
+                            fetched = page.jobs.size,
+                            newJobs = fresh.size,
+                            totalMatches = page.totalCount,
+                        ),
+                    )
+
+                    if (shown.isEmpty() && page.jobs.isNotEmpty()) {
+                        _message.value = "Bu sayfadaki $skipped ilanı daha önce görmüştün. 'Sonraki sayfa'ya bas."
                     }
                     maybeAiClassify()
                 }
                 .onFailure { error ->
-                    _jobs.update { it.copy(loadingMore = false, error = error.friendly()) }
+                    _jobs.update {
+                        it.copy(loading = false, loadingMore = false, refreshing = false, error = error.friendly())
+                    }
                 }
         }
-    }
-
-    private fun currentQuery(page: Int): SeasonalJobsApi.Query {
-        val state = _jobs.value
-        return SeasonalJobsApi.Query(
-            text = state.query,
-            state = state.selectedState,
-            visaClass = state.visaClass,
-            emailOnly = state.emailOnly,
-            sort = state.sort,
-            page = page,
-        )
     }
 
     private fun applyLocalFilters(jobs: List<Job>, state: JobsUiState): List<Job> {
@@ -157,7 +214,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         return out
     }
 
-    /** Anahtar sözcük süzgecinden geçenleri modele de doğrulatır. */
     private fun maybeAiClassify() {
         val state = _jobs.value
         val config = settings.value
@@ -182,7 +238,42 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // -------------------------------------------------------------- seçim
+    fun clearArchive() {
+        container.jobArchive.clear()
+        _message.value = "İlan arşivi temizlendi; ilanlar yeniden görünecek."
+    }
+
+    fun clearSearchHistory() {
+        container.searchHistory.clear()
+        _message.value = "Arama geçmişi temizlendi."
+    }
+
+    fun clearMemory() {
+        container.ragStore.clear()
+        rememberProfile()
+        _message.value = "Yapay zekâ belleği temizlendi."
+    }
+
+    /** Profil metni de belleğe girer; mektup yazarken bağlam olur. */
+    private fun rememberProfile() {
+        val config = settings.value
+        if (config.summary.isBlank() && config.fullName.isBlank()) return
+        container.ragStore.put(
+            MemoryDoc(
+                id = "profile:self",
+                kind = MemoryDoc.Kind.PROFILE,
+                title = "Başvuru profili — ${config.fullName}",
+                text = listOfNotNull(
+                    config.fullName.takeIf { it.isNotBlank() }?.let { "Ad: $it" },
+                    config.nationality.takeIf { it.isNotBlank() }?.let { "Uyruk: $it" },
+                    config.phone.takeIf { it.isNotBlank() }?.let { "Telefon: $it" },
+                    config.summary.takeIf { it.isNotBlank() },
+                ).joinToString("\n"),
+            ),
+        )
+    }
+
+    // ============================================================ seçim
 
     fun toggleExpanded(caseNumber: String) = _jobs.update {
         val next = if (caseNumber in it.expanded) it.expanded - caseNumber else it.expanded + caseNumber
@@ -197,7 +288,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun selectAllVisible() = _jobs.update { state ->
         val selected = state.selected.toMutableMap()
-        state.results.filter { it.canEmail }.forEach { selected[it.caseNumber] = it }
+        val source = if (state.view == JobsView.LIVE) state.results else state.archived.map { it.job }
+        source.filter { it.canEmail }.forEach { selected[it.caseNumber] = it }
         state.copy(selected = selected)
     }
 
@@ -207,15 +299,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         it.copy(selected = it.selected - caseNumber)
     }
 
-    // -------------------------------------------------------------- yapay zekâ
+    // ============================================================ yapay zekâ
 
-    /** İlan açıklamasını Türkçeye çevirip özetler. */
+    /** İlan açıklamasını Türkçeye çevirip özetler. Kartı da açar. */
     fun summarize(job: Job) {
         if (!settings.value.aiReady) {
             _message.value = "Önce Ayarlar'dan yapay zekâ API anahtarını gir."
             return
         }
+        _jobs.update { it.copy(expanded = it.expanded + job.caseNumber) }
         if (job.caseNumber in _jobs.value.summarizing) return
+        if (_jobs.value.summaries.containsKey(job.caseNumber)) return
+
         viewModelScope.launch {
             _jobs.update { it.copy(summarizing = it.summarizing + job.caseNumber) }
             runCatching { container.aiClient().summarizeInTurkish(job) }
@@ -234,24 +329,41 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** İşvereni internetten araştırıp kısa bir brifing çıkarır. */
+    /** İşvereni internetten araştırır: sorguyu model yazar, aramayı API yapar. */
     fun research(job: Job) {
         val config = settings.value
         if (!config.searchReady) {
-            _message.value = "${config.searchProvider.label} için arama API anahtarı gerekli."
+            _message.value = "${config.searchProvider.label} için arama API anahtarı gerekli (Ayarlar > İnternet araması)."
             return
         }
+        _jobs.update { it.copy(expanded = it.expanded + job.caseNumber) }
         if (job.caseNumber in _jobs.value.researching) return
+
         viewModelScope.launch {
             _jobs.update { it.copy(researching = it.researching + job.caseNumber) }
             runCatching {
-                val results = container.searchClient().researchEmployer(job.employer, job.location)
-                if (config.aiReady) {
-                    container.aiClient().summarizeResearch(job, results)
+                val client = container.searchClient()
+                val query = if (config.aiReady) {
+                    runCatching { container.aiClient().buildEmployerQuery(job) }.getOrNull()
                 } else {
-                    results.joinToString("\n\n") { "• ${it.title}\n${it.url}\n${it.snippet}" }
-                        .ifBlank { "Sonuç bulunamadı." }
+                    null
+                } ?: "${job.employer} ${job.location} employer reviews"
+
+                val results = client.search(query, config.searchResultsPerJob)
+                val text = when {
+                    results.isEmpty() -> "\"$query\" için sonuç bulunamadı."
+                    config.aiReady -> container.aiClient().summarizeResearch(job, results)
+                    else -> results.joinToString("\n\n") { "• ${it.title}\n${it.url}\n${it.snippet}" }
                 }
+                container.ragStore.put(
+                    MemoryDoc(
+                        id = "research:${job.caseNumber}",
+                        kind = MemoryDoc.Kind.RESEARCH,
+                        title = "${job.employer} araştırması",
+                        text = text,
+                    ),
+                )
+                text
             }
                 .onSuccess { text ->
                     _jobs.update {
@@ -268,7 +380,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Serbest Türkçe isteği arama sorgusuna çevirir ve aramayı yeniler. */
     fun aiSearch(naturalRequest: String) {
         if (!settings.value.aiReady) {
             _message.value = "Önce Ayarlar'dan yapay zekâ API anahtarını gir."
@@ -279,7 +390,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             runCatching { container.aiClient().buildSearchQuery(naturalRequest) }
                 .onSuccess { query ->
                     _jobs.update { it.copy(query = query) }
-                    refresh()
+                    search(reset = true)
                 }
                 .onFailure { error ->
                     _jobs.update { it.copy(loading = false) }
@@ -288,20 +399,41 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // -------------------------------------------------------------- ayarlar
+    // ============================================================ ayarlar
 
-    fun updateSettings(transform: (AppSettings) -> AppSettings) = container.settingsStore.update(transform)
+    fun updateSettings(transform: (AppSettings) -> AppSettings) {
+        container.settingsStore.update(transform)
+        rememberProfile()
+    }
 
     fun onCvPicked(uriString: String, fileName: String) {
         updateSettings { it.copy(cvUri = uriString, cvFileName = fileName) }
         _message.value = "CV seçildi: $fileName"
     }
 
+    /** Sağlayıcının bütün modellerini çeker; yeni sürümler listede kendiliğinden çıkar. */
+    fun loadModels() {
+        viewModelScope.launch {
+            _apply.update { it.copy(loadingModels = true) }
+            runCatching { container.aiClient().listModels() }
+                .onSuccess { models ->
+                    if (models.isEmpty()) {
+                        _message.value = "Sağlayıcı boş model listesi döndürdü."
+                    } else {
+                        updateSettings { it.copy(discoveredModels = models) }
+                        _message.value = "${models.size} model bulundu: ${models.take(4).joinToString(", ")}…"
+                    }
+                }
+                .onFailure { _message.value = it.friendly() }
+            _apply.update { it.copy(loadingModels = false) }
+        }
+    }
+
     fun testAi() {
         viewModelScope.launch {
             _apply.update { it.copy(testing = true) }
             runCatching { container.aiClient().ping() }
-                .onSuccess { _message.value = "Yapay zekâ bağlantısı çalışıyor ✓" }
+                .onSuccess { _message.value = "Yapay zekâ çalışıyor ✓ (${settings.value.effectiveModel})" }
                 .onFailure { _message.value = it.friendly() }
             _apply.update { it.copy(testing = false) }
         }
@@ -311,11 +443,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _apply.update { it.copy(testing = true) }
             runCatching {
-                withContext(Dispatchers.IO) {
-                    GmailSender(settings.value).use { it.connect() }
-                }
+                withContext(Dispatchers.IO) { GmailSender(settings.value).use { it.connect() } }
             }
                 .onSuccess { _message.value = "Gmail bağlantısı çalışıyor ✓" }
+                .onFailure { _message.value = it.friendly() }
+            _apply.update { it.copy(testing = false) }
+        }
+    }
+
+    /** Arama API'sini gerçekten çağırıp kaç sonuç döndüğünü söyler. */
+    fun testSearch() {
+        viewModelScope.launch {
+            _apply.update { it.copy(testing = true) }
+            runCatching { container.searchClient().search("H-2A seasonal farm work employer reviews", 5) }
+                .onSuccess { results ->
+                    _message.value = if (results.isEmpty()) {
+                        "${settings.value.searchProvider.label} bağlandı ama sonuç dönmedi."
+                    } else {
+                        "Arama çalışıyor ✓ ${results.size} sonuç — ilki: ${results.first().title.take(60)}"
+                    }
+                }
                 .onFailure { _message.value = it.friendly() }
             _apply.update { it.copy(testing = false) }
         }
@@ -326,9 +473,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _message.value = "Gönderim geçmişi temizlendi."
     }
 
-    // -------------------------------------------------------------- gönderim
+    // ============================================================ hazırlık ve gönderim
 
-    /** Seçili ilanlar için önizleme üretir; AI açıksa mektupları modele yazdırır. */
+    /** Seçili ilanlar için zinciri çalıştırır: sorgu → arama → brifing → bellek → mektup. */
     fun prepare(onlyCase: String? = null) {
         val selected = selectedJobs().let { list ->
             if (onlyCase != null) list.filter { it.caseNumber == onlyCase } else list
@@ -337,69 +484,72 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             _message.value = "Önce ilan seç."
             return
         }
-        val config = settings.value
-        if (config.fullName.isBlank()) {
+        if (settings.value.fullName.isBlank()) {
             _message.value = "Ayarlar'dan adını soyadını gir; mektupta imza olarak kullanılıyor."
         }
 
-        viewModelScope.launch {
-            _apply.update { it.copy(preparing = true, prepared = emptyList(), progressText = null) }
+        prepareJob?.cancel()
+        prepareJob = viewModelScope.launch {
+            _apply.update { it.copy(preparing = true, prepared = emptyList(), notes = emptyList(), progress = null) }
+
+            val pipeline = container.pipeline()
             val prepared = mutableListOf<QueuedMail>()
+            val notes = mutableListOf<String>()
 
             selected.forEachIndexed { index, job ->
-                val to = job.email
-                if (to == null) {
-                    _apply.update { it.copy(progressText = "${job.employer}: e-posta adresi yok, atlandı") }
+                if (job.email == null) {
+                    notes += "${job.employer}: e-posta adresi yok, atlandı"
                     return@forEachIndexed
                 }
 
-                _apply.update {
-                    it.copy(progressText = "Hazırlanıyor ${index + 1}/${selected.size} — ${job.employer}")
-                }
-
-                var subject = MailTemplate.render(config.subjectTemplate, job, config)
-                var body = MailTemplate.render(config.bodyTemplate, job, config)
-
-                if (config.aiWriteLetters && config.aiReady) {
-                    val research = if (config.researchBeforeSending && config.searchReady) {
-                        runCatching {
-                            val results = container.searchClient().researchEmployer(job.employer, job.location)
-                            container.aiClient().summarizeResearch(job, results)
-                        }.getOrNull()
-                    } else {
-                        null
+                val outcome = runCatching {
+                    pipeline.run(job) { step ->
+                        _apply.update {
+                            it.copy(
+                                progress = PrepareProgress(
+                                    caseNumber = job.caseNumber,
+                                    employer = job.employer,
+                                    stepLabel = step.label,
+                                    index = index + 1,
+                                    total = selected.size,
+                                ),
+                            )
+                        }
                     }
-
-                    runCatching { container.aiClient().writeLetter(job, research) }
-                        .onSuccess { letter ->
-                            letter.subject?.takeIf { it.isNotBlank() }?.let { subject = it }
-                            if (letter.body.isNotBlank()) body = letter.body
-                        }
-                        .onFailure { error ->
-                            _apply.update {
-                                it.copy(progressText = "${job.employer}: mektup üretilemedi, şablon kullanıldı (${error.message})")
-                            }
-                        }
                 }
 
-                prepared += QueuedMail(
-                    caseNumber = job.caseNumber,
-                    title = job.title,
-                    employer = job.employer,
-                    to = to,
-                    subject = subject,
-                    body = body,
-                )
+                outcome
+                    .onSuccess { result ->
+                        prepared += result.mail
+                        val detail = buildList {
+                            if (result.searchHits > 0) add("${result.searchHits} web sonucu")
+                            if (result.memoryHits > 0) add("${result.memoryHits} bellek parçası")
+                            result.warning?.let { add(it) }
+                        }
+                        if (detail.isNotEmpty()) notes += "${job.employer}: ${detail.joinToString(" · ")}"
+                        _apply.update { it.copy(prepared = prepared.toList(), notes = notes.toList()) }
+                    }
+                    .onFailure { error ->
+                        notes += "${job.employer}: ${error.message ?: "hazırlanamadı"}"
+                        _apply.update { it.copy(notes = notes.toList()) }
+                    }
             }
 
             _apply.update {
                 it.copy(
                     preparing = false,
-                    prepared = prepared,
-                    progressText = if (prepared.isEmpty()) "Gönderilecek ileti kalmadı." else null,
+                    progress = null,
+                    prepared = prepared.toList(),
+                    notes = if (prepared.isEmpty()) notes + "Gönderilecek ileti kalmadı." else notes,
                 )
             }
         }
+    }
+
+    fun cancelPrepare() {
+        prepareJob?.cancel()
+        _apply.update { it.copy(preparing = false, progress = null) }
+        _message.value = "Hazırlık durduruldu."
     }
 
     fun editPrepared(caseNumber: String, subject: String, body: String) = _apply.update { state ->
@@ -414,7 +564,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         state.copy(prepared = state.prepared.filterNot { it.caseNumber == caseNumber })
     }
 
-    /** Hazırlanan iletileri SMTP kuyruğuna alıp arka plan işini başlatır. */
     fun sendAll() {
         val mails = _apply.value.prepared
         if (mails.isEmpty()) {
@@ -433,14 +582,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _message.value = "${mails.size} başvuru kuyruğa alındı."
     }
 
-    /** Tek bir iletiyi Gmail uygulamasında açar. */
     fun openInGmail(mail: QueuedMail) {
         viewModelScope.launch {
             val config = settings.value
             val cv: CvFile? = config.cvUri.takeIf { it.isNotBlank() }?.let { uri ->
-                withContext(Dispatchers.IO) {
-                    runCatching { CvLoader.load(getApplication(), uri) }.getOrNull()
-                }
+                withContext(Dispatchers.IO) { runCatching { CvLoader.load(getApplication(), uri) }.getOrNull() }
             }
             if (config.cvUri.isNotBlank() && cv == null) {
                 _message.value = "CV okunamadı, ileti eksiz açılıyor."

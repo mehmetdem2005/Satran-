@@ -18,6 +18,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -36,6 +37,7 @@ import com.satran.jobapply.data.model.AiProvider
 import com.satran.jobapply.data.model.AppSettings
 import com.satran.jobapply.data.model.SearchProvider
 import com.satran.jobapply.data.model.SendMode
+import com.satran.jobapply.data.memory.SearchEntry
 import com.satran.jobapply.data.model.SendRecord
 import com.satran.jobapply.data.model.SendStatus
 import com.satran.jobapply.ui.common.LabeledField
@@ -49,12 +51,21 @@ import java.util.Locale
 fun SettingsScreen(
     settings: AppSettings,
     history: List<SendRecord>,
+    searchHistory: List<SearchEntry>,
+    memorySize: Int,
+    archiveSize: Int,
     testing: Boolean,
+    loadingModels: Boolean,
     onUpdate: ((AppSettings) -> AppSettings) -> Unit,
     onPickCv: () -> Unit,
     onTestSmtp: () -> Unit,
     onTestAi: () -> Unit,
+    onTestSearch: () -> Unit,
+    onLoadModels: () -> Unit,
     onClearHistory: () -> Unit,
+    onClearArchive: () -> Unit,
+    onClearSearchHistory: () -> Unit,
+    onClearMemory: () -> Unit,
     onOpenUrl: (String) -> Unit,
     contentPadding: PaddingValues,
 ) {
@@ -253,13 +264,40 @@ fun SettingsScreen(
             )
         }
         item {
-            LabeledField(
-                label = "Model",
-                value = settings.aiModel,
-                onValueChange = { v -> onUpdate { it.copy(aiModel = v.trim()) } },
-                hint = "Boş bırakırsan ${settings.aiProvider.defaultModel.ifBlank { "sağlayıcı varsayılanı" }} kullanılır.",
-                modifier = Modifier.fillMaxWidth(),
-            )
+            Column {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = onLoadModels, enabled = !loadingModels && settings.aiApiKey.isNotBlank()) {
+                        Text(if (loadingModels) "Çekiliyor…" else "Modelleri çek")
+                    }
+                    Text(
+                        if (settings.discoveredModels.isEmpty()) {
+                            "Sağlayıcıdan canlı liste al"
+                        } else {
+                            "${settings.discoveredModels.size} model bulundu"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                if (settings.modelChoices.isNotEmpty()) {
+                    EnumPicker(
+                        label = "Model",
+                        current = settings.effectiveModel,
+                        options = settings.modelChoices.map { it to it },
+                        onSelect = { model -> onUpdate { it.copy(aiModel = model) } },
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                LabeledField(
+                    label = "Model adını elle yaz",
+                    value = settings.aiModel,
+                    onValueChange = { v -> onUpdate { it.copy(aiModel = v.trim()) } },
+                    hint = "Boş bırakırsan ${settings.aiProvider.defaultModel.ifBlank { "sağlayıcı varsayılanı" }} kullanılır.",
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
         if (settings.aiProvider == AiProvider.CUSTOM) {
             item {
@@ -306,11 +344,27 @@ fun SettingsScreen(
         // ------------------------------------------------------------ arama
         item { SectionTitle("İnternet araması") }
         item {
+            Text(
+                "DeepSeek'in sohbet ucunda gömülü web araması yok. Bu yüzden iş bölümü şöyle: " +
+                    "aranacak sorguyu model yazar, aramayı buradaki API yapar, gelen sonuçları " +
+                    "model okuyup işveren brifingine çevirir.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline,
+            )
+        }
+        item {
             EnumPicker(
                 label = "Arama sağlayıcısı",
                 current = settings.searchProvider.label,
                 options = SearchProvider.entries.map { it.label to it },
                 onSelect = { provider -> onUpdate { it.copy(searchProvider = provider) } },
+            )
+        }
+        item {
+            Text(
+                settings.searchProvider.hint,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline,
             )
         }
         if (settings.searchProvider.needsKey) {
@@ -325,12 +379,86 @@ fun SettingsScreen(
             }
         }
         item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { onOpenUrl(settings.searchProvider.signupUrl) }) {
+                    Text("Anahtar al")
+                }
+                Button(onClick = onTestSearch, enabled = !testing && settings.searchReady) {
+                    Text(if (testing) "Deneniyor…" else "Aramayı test et")
+                }
+            }
+        }
+        item {
             SwitchRow(
                 title = "Göndermeden önce işvereni araştır",
-                subtitle = "Her ilan için web araması yapar; yavaşlatır ama mektubu güçlendirir",
+                subtitle = "Her ilan için gerçek web araması yapar; yavaşlatır ama mektubu güçlendirir",
                 checked = settings.researchBeforeSending,
                 onCheckedChange = { v -> onUpdate { it.copy(researchBeforeSending = v) } },
             )
+        }
+        item {
+            NumberChoiceRow(
+                label = "İşveren başına arama sonucu",
+                value = settings.searchResultsPerJob,
+                options = listOf(3, 5, 8, 10),
+                onSelect = { n -> onUpdate { it.copy(searchResultsPerJob = n) } },
+            )
+        }
+
+        // ------------------------------------------------------------ arama davranışı
+        item { SectionTitle("Arama davranışı ve bellek") }
+        item {
+            NumberChoiceRow(
+                label = "Bir aramada kaç ilan çekilsin",
+                value = settings.jobsPerSearch,
+                options = listOf(20, 40, 60, 100, 200),
+                onSelect = { n -> onUpdate { it.copy(jobsPerSearch = n) } },
+            )
+        }
+        item {
+            SwitchRow(
+                title = "Aynı ilanı bir daha gösterme",
+                subtitle = "Görülen ilanlar Geçmiş sekmesinde durur, Yeni listesinde tekrar çıkmaz",
+                checked = settings.hideSeenJobs,
+                onCheckedChange = { v -> onUpdate { it.copy(hideSeenJobs = v) } },
+            )
+        }
+        item {
+            SwitchRow(
+                title = "Bellek (RAG) kullan",
+                subtitle = "Geçmiş ilanlar ve yazdığın mektuplar yeni mektuba bağlam olur",
+                checked = settings.useRagMemory,
+                onCheckedChange = { v -> onUpdate { it.copy(useRagMemory = v) } },
+            )
+        }
+        item {
+            NumberChoiceRow(
+                label = "Mektuba eklenecek bellek parçası",
+                value = settings.ragContextSize,
+                options = listOf(2, 4, 6, 8),
+                onSelect = { n -> onUpdate { it.copy(ragContextSize = n) } },
+            )
+        }
+        item {
+            Column {
+                Text(
+                    "Arşiv: $archiveSize ilan · Bellek: $memorySize parça · Arama geçmişi: ${searchHistory.size} kayıt",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = onClearArchive) { Text("Arşivi sıfırla") }
+                    TextButton(onClick = onClearMemory) { Text("Belleği sıfırla") }
+                    TextButton(onClick = onClearSearchHistory) { Text("Arama geçmişi") }
+                }
+            }
+        }
+
+        // ------------------------------------------------------------ arama geçmişi
+        if (searchHistory.isNotEmpty()) {
+            item { SectionTitle("Son aramalar") }
+            items(searchHistory.take(20), key = { it.timestamp }) { entry ->
+                SearchHistoryRow(entry)
+            }
         }
 
         // ------------------------------------------------------------ geçmiş
@@ -357,6 +485,54 @@ fun SettingsScreen(
             Text(
                 "İlan verisi: seasonaljobs.dol.gov (ABD Çalışma Bakanlığı açık verisi). " +
                     "Gmail şifren ve API anahtarların yalnızca bu cihazda, şifreli olarak saklanır.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline,
+            )
+        }
+    }
+}
+
+
+@Composable
+private fun NumberChoiceRow(
+    label: String,
+    value: Int,
+    options: List<Int>,
+    onSelect: (Int) -> Unit,
+) {
+    Column {
+        Text(label, style = MaterialTheme.typography.labelMedium)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            options.forEach { option ->
+                FilterChip(
+                    selected = option == value,
+                    onClick = { onSelect(option) },
+                    label = { Text(option.toString()) },
+                )
+            }
+        }
+    }
+}
+
+private val SEARCH_FORMAT = SimpleDateFormat("dd.MM HH:mm", Locale("tr"))
+
+@Composable
+private fun SearchHistoryRow(entry: SearchEntry) {
+    Card {
+        Column(Modifier.padding(10.dp)) {
+            Text(
+                entry.query.ifBlank { "(tüm ilanlar)" },
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                buildString {
+                    append(SEARCH_FORMAT.format(Date(entry.timestamp)))
+                    append(" · ${entry.offset}. kayıttan ${entry.fetched} ilan")
+                    append(" · ${entry.newJobs} yeni")
+                    if (entry.totalMatches > 0) append(" · ${entry.totalMatches} eşleşme")
+                    entry.state?.let { append(" · ${it.lowercase().replaceFirstChar { c -> c.uppercase() }}") }
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.outline,
             )

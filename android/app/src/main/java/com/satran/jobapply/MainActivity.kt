@@ -12,6 +12,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.WorkOutline
@@ -19,6 +20,7 @@ import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -68,6 +70,8 @@ private fun AppRoot() {
     val history by viewModel.history.collectAsState()
     val workInfos by viewModel.sendWork.collectAsState()
     val message by viewModel.message.collectAsState()
+    val searchHistory by viewModel.searchHistory.collectAsState()
+    val memory by viewModel.memory.collectAsState()
 
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -109,7 +113,16 @@ private fun AppRoot() {
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text(TAB_TITLES[tab]) })
+            TopAppBar(
+                title = { Text(TAB_TITLES[tab]) },
+                actions = {
+                    if (tab == 0) {
+                        IconButton(onClick = viewModel::refresh, enabled = !jobsState.loading) {
+                            Icon(Icons.Filled.Refresh, contentDescription = "Yenile")
+                        }
+                    }
+                },
+            )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
@@ -145,7 +158,10 @@ private fun AppRoot() {
                     state = jobsState,
                     onQueryChange = viewModel::onQueryChange,
                     onSearch = viewModel::refresh,
+                    onRefresh = viewModel::refresh,
+                    onNextPage = viewModel::fetchNextPage,
                     onAiSearch = viewModel::aiSearch,
+                    onViewChange = viewModel::setView,
                     onFilter = { state, sort, hideArch, emailOnly, hideApplied ->
                         viewModel.onFilterChange(
                             state = state,
@@ -179,18 +195,28 @@ private fun AppRoot() {
                     onSendAll = viewModel::sendAll,
                     onOpenInGmail = viewModel::openInGmail,
                     onPickCv = { cvPicker.launch(arrayOf("application/pdf")) },
+                    onCancelPrepare = viewModel::cancelPrepare,
                     contentPadding = padding,
                 )
 
                 else -> SettingsScreen(
                     settings = settings,
                     history = history,
+                    searchHistory = searchHistory,
+                    memorySize = memory.size,
+                    archiveSize = jobsState.archived.size,
                     testing = applyState.testing,
+                    loadingModels = applyState.loadingModels,
                     onUpdate = viewModel::updateSettings,
                     onPickCv = { cvPicker.launch(arrayOf("application/pdf")) },
                     onTestSmtp = viewModel::testSmtp,
                     onTestAi = viewModel::testAi,
+                    onTestSearch = viewModel::testSearch,
+                    onLoadModels = viewModel::loadModels,
                     onClearHistory = viewModel::clearHistory,
+                    onClearArchive = viewModel::clearArchive,
+                    onClearSearchHistory = viewModel::clearSearchHistory,
+                    onClearMemory = viewModel::clearMemory,
                     onOpenUrl = openUrl,
                     contentPadding = padding,
                 )

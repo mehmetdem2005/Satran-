@@ -36,6 +36,37 @@ class AiClient(private val settings: AppSettings) {
 
     data class Letter(val subject: String?, val body: String)
 
+    /**
+     * Sağlayıcının yayımladığı bütün modelleri çeker (OpenAI uyumlu `GET /models`,
+     * Anthropic'te de aynı yol). Böylece DeepSeek yeni bir sürüm çıkardığında
+     * listede kendiliğinden görünür; uygulamaya model adı gömmeye gerek kalmaz.
+     */
+    suspend fun listModels(): List<String> = withContext(Dispatchers.IO) {
+        require(settings.aiApiKey.isNotBlank()) { "Önce API anahtarını gir." }
+        val builder = Request.Builder()
+            .url("${settings.effectiveBaseUrl}/models")
+            .addHeader("Accept", "application/json")
+            .get()
+
+        if (settings.aiProvider.anthropicStyle) {
+            builder.addHeader("x-api-key", settings.aiApiKey)
+            builder.addHeader("anthropic-version", "2023-06-01")
+        } else {
+            builder.addHeader("Authorization", "Bearer ${settings.aiApiKey}")
+        }
+
+        Net.client.newCall(builder.build()).execute().use { response ->
+            val raw = response.body?.string().orEmpty()
+            if (!response.isSuccessful) throw IOException(aiError(response.code, raw))
+            val root = Net.json.parseToJsonElement(raw).jsonObject
+            val entries = root["data"]?.jsonArray ?: root["models"]?.jsonArray
+            ?: throw IOException("Model listesi beklenen biçimde gelmedi.")
+            entries.mapNotNull { it.jsonObject["id"]?.jsonPrimitive?.contentOrNull }
+                .filter { it.isNotBlank() }
+                .sorted()
+        }
+    }
+
     suspend fun ping(): String = complete(
         system = "You reply with a single short word.",
         user = "Reply with: OK",
@@ -92,7 +123,11 @@ class AiClient(private val settings: AppSettings) {
      * İlana özel başvuru mektubu yazar. `research` doluysa işveren hakkında
      * internetten toplanan bilgi de göz önüne alınır.
      */
-    suspend fun writeLetter(job: Job, research: String? = null): Letter {
+    suspend fun writeLetter(
+        job: Job,
+        research: String? = null,
+        memory: String? = null,
+    ): Letter {
         val system = """
             You write short, concrete job application e-mails for seasonal work in the United States
             (H-2A / H-2B programme). Rules:
@@ -116,8 +151,14 @@ class AiClient(private val settings: AppSettings) {
             appendLine(job.toPromptBlock())
             if (!research.isNullOrBlank()) {
                 appendLine()
-                appendLine("EMPLOYER RESEARCH (from web search, may be incomplete)")
+                appendLine("EMPLOYER RESEARCH (fetched from a live web search, may be incomplete)")
                 appendLine(research.truncate(1500))
+            }
+            if (!memory.isNullOrBlank()) {
+                appendLine()
+                appendLine("PAST APPLICATIONS BY THIS APPLICANT (for tone and consistency only)")
+                appendLine("Do not copy them verbatim and do not mention them to the employer.")
+                appendLine(memory.truncate(2000))
             }
         }
 
@@ -147,6 +188,22 @@ class AiClient(private val settings: AppSettings) {
             }
         }
         return complete(system = system, user = user, maxTokens = 600).trim()
+    }
+
+    /**
+     * İşveren için web arama sorgusu üretir. Modelin kendi araması yoktur;
+     * sorguyu o yazar, aramayı uygulama yapar, sonucu yine ona veririz.
+     */
+    suspend fun buildEmployerQuery(job: Job): String {
+        val system = """
+            You write ONE web-search query that will reveal what kind of employer this is
+            and how it treats seasonal workers. Output only the query string, max 10 words,
+            no quotes, no explanation. Prefer the legal business name plus the town/state
+            plus one discriminating word (reviews, complaints, H-2A, H-2B, workers).
+        """.trimIndent()
+        val user = "Employer: ${job.employer}\nLocation: ${job.location}\nJob: ${job.title}"
+        val raw = complete(system = system, user = user, maxTokens = 60).trim().trim('"')
+        return raw.ifBlank { "${job.employer} ${job.location} employer reviews" }
     }
 
     /** Serbest Türkçe isteği arama sorgusuna çevirir. */

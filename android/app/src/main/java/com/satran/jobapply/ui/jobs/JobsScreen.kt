@@ -24,6 +24,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -31,8 +32,12 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -46,20 +51,29 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import com.satran.jobapply.data.model.Job
 import com.satran.jobapply.data.remote.SeasonalJobsApi
 import com.satran.jobapply.ui.JobsUiState
+import com.satran.jobapply.ui.JobsView
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun JobsScreen(
     state: JobsUiState,
     onQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
+    onRefresh: () -> Unit,
+    onNextPage: () -> Unit,
     onAiSearch: (String) -> Unit,
+    onViewChange: (JobsView) -> Unit,
     onFilter: (state: String?, sort: SeasonalJobsApi.Sort, hideArchitectural: Boolean, emailOnly: Boolean, hideApplied: Boolean) -> Unit,
-    onToggleSelect: (com.satran.jobapply.data.model.Job) -> Unit,
+    onToggleSelect: (Job) -> Unit,
     onToggleExpand: (String) -> Unit,
-    onSummarize: (com.satran.jobapply.data.model.Job) -> Unit,
-    onResearch: (com.satran.jobapply.data.model.Job) -> Unit,
+    onSummarize: (Job) -> Unit,
+    onResearch: (Job) -> Unit,
     onOpenDetail: (String) -> Unit,
     onSelectAll: () -> Unit,
     onClearSelection: () -> Unit,
@@ -75,7 +89,8 @@ fun JobsScreen(
             last >= state.results.size - 4 && state.results.isNotEmpty()
         }
     }
-    LaunchedEffect(listState) {
+    LaunchedEffect(listState, state.view) {
+        if (state.view != JobsView.LIVE) return@LaunchedEffect
         snapshotFlow { shouldLoadMore }.collect { if (it) onLoadMore() }
     }
 
@@ -111,6 +126,25 @@ fun JobsScreen(
             )
 
             Spacer(Modifier.height(6.dp))
+
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                JobsView.entries.forEachIndexed { index, view ->
+                    SegmentedButton(
+                        selected = state.view == view,
+                        onClick = { onViewChange(view) },
+                        shape = SegmentedButtonDefaults.itemShape(index, JobsView.entries.size),
+                    ) {
+                        Text(
+                            when (view) {
+                                JobsView.LIVE -> "Yeni (${state.results.size})"
+                                JobsView.ARCHIVE -> "Geçmiş (${state.archived.size})"
+                            },
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(6.dp))
             FilterBar(state = state, onFilter = onFilter)
 
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -120,11 +154,20 @@ fun JobsScreen(
                     color = MaterialTheme.colorScheme.outline,
                     modifier = Modifier.weight(1f),
                 )
-                if (state.results.isNotEmpty()) {
-                    TextButton(onClick = onSelectAll) { Text("Tümünü seç") }
-                }
+                TextButton(onClick = onSelectAll) { Text("Tümünü seç") }
                 if (state.selectedCount > 0) {
-                    TextButton(onClick = onClearSelection) { Text("Temizle") }
+                    TextButton(onClick = onClearSelection) { Text("Bırak") }
+                }
+            }
+
+            if (state.view == JobsView.LIVE) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = onNextPage,
+                        enabled = !state.loading && !state.loadingMore,
+                        modifier = Modifier.weight(1f),
+                    ) { Text("Sonraki sayfa →") }
+                    OutlinedButton(onClick = onRefresh, enabled = !state.loading) { Text("Yenile") }
                 }
             }
         }
@@ -139,50 +182,71 @@ fun JobsScreen(
             }
         }
 
-        if (!state.loading && state.error == null && state.results.isEmpty()) {
+        val visible: List<Pair<Job, String?>> = when (state.view) {
+            JobsView.LIVE -> state.results.map { it to null }
+            JobsView.ARCHIVE -> state.archived.map { it.job to "görüldü ${ARCHIVE_FORMAT.format(Date(it.lastSeenAt))}" }
+        }
+
+        if (!state.loading && state.error == null && visible.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
-                    "Sonuç yok. Aramayı ya da süzgeçleri değiştir.",
+                    when (state.view) {
+                        JobsView.ARCHIVE -> "Arşiv boş. Arama yaptıkça ilanlar buraya birikir."
+                        JobsView.LIVE ->
+                            if (state.duplicatesSkipped > 0) {
+                                "Bu sayfadaki ilanları daha önce gördün. 'Sonraki sayfa'ya bas."
+                            } else {
+                                "Sonuç yok. Aramayı ya da süzgeçleri değiştir."
+                            }
+                    },
                     color = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.padding(24.dp),
                 )
             }
         }
 
-        LazyColumn(
-            state = listState,
-            contentPadding = PaddingValues(
-                start = 12.dp,
-                end = 12.dp,
-                top = 4.dp,
-                bottom = contentPadding.calculateBottomPadding() + 12.dp,
-            ),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+        PullToRefreshBox(
+            isRefreshing = state.refreshing,
+            onRefresh = onRefresh,
             modifier = Modifier.fillMaxSize(),
         ) {
-            items(state.results, key = { it.caseNumber }) { job ->
-                JobCard(
-                    job = job,
-                    selected = state.selected.containsKey(job.caseNumber),
-                    expanded = state.expanded.contains(job.caseNumber),
-                    summary = state.summaries[job.caseNumber],
-                    summarizing = state.summarizing.contains(job.caseNumber),
-                    research = state.research[job.caseNumber],
-                    researching = state.researching.contains(job.caseNumber),
-                    onToggleSelect = { onToggleSelect(job) },
-                    onToggleExpand = { onToggleExpand(job.caseNumber) },
-                    onSummarize = { onSummarize(job) },
-                    onResearch = { onResearch(job) },
-                    onOpenDetail = { onOpenDetail(job.detailUrl) },
-                )
-            }
-            if (state.loadingMore) {
-                item {
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        contentAlignment = Alignment.Center,
-                    ) { CircularProgressIndicator() }
+            LazyColumn(
+                state = listState,
+                contentPadding = PaddingValues(
+                    start = 12.dp,
+                    end = 12.dp,
+                    top = 4.dp,
+                    bottom = contentPadding.calculateBottomPadding() + 12.dp,
+                ),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                items(visible, key = { it.first.caseNumber }) { (job, note) ->
+                    JobCard(
+                        job = job,
+                        selected = state.selected.containsKey(job.caseNumber),
+                        expanded = state.expanded.contains(job.caseNumber),
+                        summary = state.summaries[job.caseNumber],
+                        summarizing = state.summarizing.contains(job.caseNumber),
+                        research = state.research[job.caseNumber],
+                        researching = state.researching.contains(job.caseNumber),
+                        onToggleSelect = { onToggleSelect(job) },
+                        onToggleExpand = { onToggleExpand(job.caseNumber) },
+                        onSummarize = { onSummarize(job) },
+                        onResearch = { onResearch(job) },
+                        onOpenDetail = { onOpenDetail(job.detailUrl) },
+                        archivedNote = note,
+                    )
+                }
+                if (state.loadingMore) {
+                    item {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center,
+                        ) { CircularProgressIndicator() }
+                    }
                 }
             }
         }
@@ -268,9 +332,20 @@ private fun SeasonalJobsApi.Sort.label(): String = when (this) {
     SeasonalJobsApi.Sort.STARTING_SOON -> "Yakında başlayan"
 }
 
+private val ARCHIVE_FORMAT = SimpleDateFormat("dd.MM HH:mm", Locale("tr"))
+private val UPDATED_FORMAT = SimpleDateFormat("HH:mm:ss", Locale("tr"))
+
 private fun summaryLine(state: JobsUiState): String = buildString {
-    append("${state.results.size} ilan")
-    if (state.total > state.results.size) append(" / ${state.total} eşleşme")
-    if (state.aiRemoved > 0) append(" · AI ${state.aiRemoved} mimarlık ilanı eledi")
+    when (state.view) {
+        JobsView.ARCHIVE -> append("${state.archived.size} arşivlenmiş ilan")
+        JobsView.LIVE -> {
+            append("${state.results.size} yeni")
+            if (state.total > 0) append(" / ${state.total} eşleşme")
+            if (state.offset > 0) append(" · ${state.offset}. kayıttan")
+            if (state.duplicatesSkipped > 0) append(" · ${state.duplicatesSkipped} tekrar atlandı")
+            if (state.aiRemoved > 0) append(" · AI ${state.aiRemoved} eledi")
+        }
+    }
     if (state.selectedCount > 0) append(" · ${state.selectedCount} seçili")
+    if (state.lastUpdatedAt > 0) append(" · ${UPDATED_FORMAT.format(Date(state.lastUpdatedAt))}")
 }

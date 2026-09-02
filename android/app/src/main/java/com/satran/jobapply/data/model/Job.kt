@@ -47,7 +47,8 @@ data class JobDto(
     @SerialName("work_hour_num_basic") val weeklyHours: Double? = null,
 )
 
-/** Arayüzde kullanılan, temizlenmiş iş kaydı. */
+/** Arayüzde kullanılan, temizlenmiş iş kaydı. Arşive yazıldığı için serileştirilebilir. */
+@Serializable
 data class Job(
     val caseNumber: String,
     val title: String,

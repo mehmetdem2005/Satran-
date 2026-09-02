@@ -2,25 +2,90 @@ package com.satran.jobapply.data.model
 
 import kotlinx.serialization.Serializable
 
-/** Yapay zekâ sağlayıcıları. Hepsi OpenAI uyumlu; Claude ayrı protokol kullanır. */
+/**
+ * Yapay zekâ sağlayıcıları. Hepsi OpenAI uyumlu; Claude ayrı protokol kullanır.
+ *
+ * `fallbackModels` yalnızca sağlayıcının model listesi çekilemediğinde gösterilir.
+ * Normalde Ayarlar'daki "Modelleri çek" düğmesi `GET /models` ile canlı listeyi
+ * alır; sağlayıcı yeni model yayımladığında uygulamayı güncellemeye gerek kalmaz.
+ */
 enum class AiProvider(
     val label: String,
     val baseUrl: String,
     val defaultModel: String,
     val anthropicStyle: Boolean = false,
+    val fallbackModels: List<String> = emptyList(),
 ) {
-    DEEPSEEK("DeepSeek", "https://api.deepseek.com/v1", "deepseek-chat"),
-    CLAUDE("Claude (Anthropic)", "https://api.anthropic.com/v1", "claude-sonnet-5", anthropicStyle = true),
-    OPENAI("OpenAI", "https://api.openai.com/v1", "gpt-4o-mini"),
-    OPENROUTER("OpenRouter", "https://openrouter.ai/api/v1", "deepseek/deepseek-chat"),
-    CUSTOM("Özel (OpenAI uyumlu)", "", ""),
+    DEEPSEEK(
+        label = "DeepSeek",
+        baseUrl = "https://api.deepseek.com/v1",
+        defaultModel = "deepseek-v4-pro",
+        fallbackModels = listOf(
+            "deepseek-v4-pro",
+            "deepseek-v4-flash",
+            "deepseek-v4-flash-vision-exp",
+            // Eski takma adlar; DeepSeek bunları kaldırıyor, yalnızca yedek olarak duruyor.
+            "deepseek-chat",
+            "deepseek-reasoner",
+        ),
+    ),
+    CLAUDE(
+        label = "Claude (Anthropic)",
+        baseUrl = "https://api.anthropic.com/v1",
+        defaultModel = "claude-sonnet-5",
+        anthropicStyle = true,
+        fallbackModels = listOf("claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5-20251001"),
+    ),
+    OPENAI(
+        label = "OpenAI",
+        baseUrl = "https://api.openai.com/v1",
+        defaultModel = "gpt-4o-mini",
+    ),
+    OPENROUTER(
+        label = "OpenRouter",
+        baseUrl = "https://openrouter.ai/api/v1",
+        defaultModel = "deepseek/deepseek-v4-pro",
+    ),
+    CUSTOM(label = "Özel (OpenAI uyumlu)", baseUrl = "", defaultModel = ""),
 }
 
-enum class SearchProvider(val label: String, val needsKey: Boolean) {
-    TAVILY("Tavily", true),
-    SERPER("Serper.dev (Google)", true),
-    BRAVE("Brave Search", true),
-    DUCKDUCKGO("DuckDuckGo (anahtarsız, sınırlı)", false),
+/**
+ * İnternet arama sağlayıcıları.
+ *
+ * DeepSeek'in sohbet ucunda gömülü web araması yoktur: modelin internete
+ * bakabilmesi için aramayı uygulama yapar, sonucu modele geri verir.
+ * `signupUrl` anahtarın alınacağı adrestir; Ayarlar'dan tek dokunuşla açılır.
+ */
+enum class SearchProvider(
+    val label: String,
+    val needsKey: Boolean,
+    val signupUrl: String,
+    val hint: String,
+) {
+    TAVILY(
+        label = "Tavily",
+        needsKey = true,
+        signupUrl = "https://app.tavily.com/home",
+        hint = "Yapay zekâ için tasarlanmış arama. Ücretsiz katman: ayda 1000 arama. Anahtar 'tvly-' ile başlar.",
+    ),
+    SERPER(
+        label = "Serper.dev (Google)",
+        needsKey = true,
+        signupUrl = "https://serper.dev/api-key",
+        hint = "Gerçek Google sonuçları. Kayıt olunca 2500 ücretsiz arama verir.",
+    ),
+    BRAVE(
+        label = "Brave Search",
+        needsKey = true,
+        signupUrl = "https://api-dashboard.search.brave.com/app/keys",
+        hint = "Bağımsız dizin. Ücretsiz katman: ayda 2000 arama (kart doğrulaması ister).",
+    ),
+    DUCKDUCKGO(
+        label = "DuckDuckGo (anahtarsız, sınırlı)",
+        needsKey = false,
+        signupUrl = "https://duckduckgo.com",
+        hint = "Anahtar istemez ama yalnızca ansiklopedik özet döndürür; işveren araştırması için zayıftır.",
+    ),
 }
 
 /** Gönderim yolu. */
@@ -61,11 +126,27 @@ data class AppSettings(
     val aiTranslateToTurkish: Boolean = true,
     val aiFilterArchitectural: Boolean = true,
     val letterLanguage: String = "İngilizce",
+    /** Sağlayıcıdan çekilen canlı model listesi; Ayarlar'daki seçicide gösterilir. */
+    val discoveredModels: List<String> = emptyList(),
 
     // Web arama
     val searchProvider: SearchProvider = SearchProvider.TAVILY,
     val searchApiKey: String = "",
     val researchBeforeSending: Boolean = false,
+    /** İşveren başına kaç arama sonucu modele verilecek. */
+    val searchResultsPerJob: Int = 5,
+
+    // Arama davranışı
+    /** Bir aramada kaç ilan çekilecek (API'den sayfa sayfa toplanır). */
+    val jobsPerSearch: Int = 40,
+    /** Daha önce görülen ilanlar bir daha listelenmesin. */
+    val hideSeenJobs: Boolean = true,
+
+    // Bellek / RAG
+    /** Geçmiş ilanlar ve gönderilen mektuplar mektup yazarken bağlam olarak kullanılsın. */
+    val useRagMemory: Boolean = true,
+    /** Mektup yazarken kaç geçmiş parça bağlama eklenecek. */
+    val ragContextSize: Int = 4,
 ) {
     val effectiveModel: String
         get() = aiModel.trim().ifEmpty { aiProvider.defaultModel }
@@ -81,6 +162,10 @@ data class AppSettings(
 
     val searchReady: Boolean
         get() = !searchProvider.needsKey || searchApiKey.isNotBlank()
+
+    /** Model seçicide gösterilecek liste: canlı liste varsa o, yoksa yedek. */
+    val modelChoices: List<String>
+        get() = discoveredModels.ifEmpty { aiProvider.fallbackModels }
 
     companion object {
         const val DEFAULT_BODY_TEMPLATE = """Dear Hiring Manager at {{employer}},
