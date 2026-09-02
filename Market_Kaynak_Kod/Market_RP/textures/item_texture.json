@@ -1,0 +1,18 @@
+{
+  "resource_pack_name": "market",
+  "texture_name": "atlas.items",
+  "texture_data": {
+    "mk_kitap": {
+      "textures": "textures/items/mk_kitap"
+    },
+    "market_soru": {
+      "textures": "textures/items/market_soru"
+    },
+    "market_sandik": {
+      "textures": "textures/items/market_sandik"
+    },
+    "market_endersandik": {
+      "textures": "textures/items/market_endersandik"
+    }
+  }
+}

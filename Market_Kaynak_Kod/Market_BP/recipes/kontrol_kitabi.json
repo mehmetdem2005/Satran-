@@ -1,0 +1,12 @@
+{
+  "format_version": "1.21.50",
+  "minecraft:recipe_shapeless": {
+    "description": { "identifier": "mk:kontrol_kitabi_tarif" },
+    "tags": ["crafting_table"],
+    "ingredients": [
+      { "item": "minecraft:book" },
+      { "item": "minecraft:gold_ingot" }
+    ],
+    "result": { "item": "mk:kontrol_kitabi", "count": 1 }
+  }
+}

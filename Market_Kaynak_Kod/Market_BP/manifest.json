@@ -1,0 +1,49 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "Market & Ekonomi BP v2.0",
+    "description": "v2.0 | Market ve takasta oyundaki TUM esyalar listeleniyor: paketle gelen vanilla katalogu + oyunun kayitlari harmanlaniyor, her esya dogrulanip fiyatlaniyor.",
+    "uuid": "bb41fa3d-7901-4559-8e61-d650ac191764",
+    "version": [
+      2,
+      0,
+      0
+    ],
+    "min_engine_version": [
+      1,
+      21,
+      90
+    ]
+  },
+  "modules": [
+    {
+      "type": "script",
+      "language": "javascript",
+      "uuid": "b9808c32-f7e3-4a89-93e1-f00313e58099",
+      "version": [
+        2,
+        0,
+        0
+      ],
+      "entry": "scripts/main.js"
+    }
+  ],
+  "dependencies": [
+    {
+      "module_name": "@minecraft/server",
+      "version": "2.0.0"
+    },
+    {
+      "module_name": "@minecraft/server-ui",
+      "version": "2.0.0"
+    },
+    {
+      "uuid": "201cbafc-bcfc-4212-a13f-428a03328b5b",
+      "version": [
+        2,
+        0,
+        0
+      ]
+    }
+  ]
+}
