@@ -46,6 +46,47 @@ v2.0'da:
 Aynı test ortamında (oyun kaydı bilerek eksik döndürülerek) eski kod 460
 eşya listeliyordu, yeni kod 1601 eşya listeliyor.
 
+## Arsa / bölge sistemi (v2.0'da düzeltilenler)
+
+**"Koruma çalışmıyor" sorununun asıl nedeni:** `adminMi()` fonksiyonu
+`commandPermissionLevel >= 1` diyordu. Hile açık bir dünyada dünya sahibi ve
+bütün operatörler bu eşiği geçiyor, `korumaKontrol` onlara "izinli" diyor ve
+arsa koruması hiç uygulanmıyordu. Test eden kişi genelde dünyanın sahibi
+olduğu için sistem "hiç çalışmıyor" gibi görünüyordu.
+
+Düzeltmeler:
+
+1. **Operatörler artık arsa korumasını geçmiyor.** Muafiyet yalnızca
+   `market_admin` etiketiyle: `/tag "Oyuncu" add market_admin`. Operatörlerin
+   yine geçmesini istersen `arsa.js` içinde `ARSA_CFG.adminGecebilir = true`
+   yap. Market admin paneli için eşik de sıkılaştırıldı.
+2. **Varlık koruması eklendi.** Eskiden sadece blok kırma/koyma/etkileşim
+   korunuyordu; yabancı biri arsadaki eşya çerçevelerinden eşya alabiliyor,
+   zırh standını soyabiliyor, hayvanları öldürebiliyordu. Artık
+   `playerInteractWithEntity` engelleniyor ve arsadaki canlılara vuran
+   yabancının verdiği hasar geri veriliyor (`ARSA_CFG.hayvanKorumasi`).
+   Tek vuruşta öldüren hasar geri alınamaz — bu bir caydırıcı, mutlak kalkan
+   değil.
+3. **Veri önbelleğe alındı.** Her blok kırmada ve her tikte dynamic property
+   okunup `JSON.parse` ediliyordu; kalabalık dünyada belirgin gecikme
+   yapıyordu. Artık bellekte tutuluyor, yazınca tazeleniyor.
+4. **Giriş/çıkış bildirimi 5 saniyede bir yerine ~1 saniyede bir.** Oyuncu
+   arsaya girip çıktığında çoğu zaman hiçbir şey görmüyordu.
+5. **Köşe 1 artık diske yazılıyor.** Script yeniden yüklenince (dünya
+   kapanıp açılınca) seçtiğin köşe kaybolmuyor.
+6. **"Koruma Durumu" ekranı eklendi** (Arsa menüsü > Koruma Durumu): hangi
+   korumanın kayıt olduğunu, kaç arsa olduğunu ve senin muaf olup
+   olmadığını yazar. Bir şey çalışmıyorsa ilk buraya bak.
+7. **"Sınırları Göster"**: arsanın sınırlarını parçacıkla çizer — arsanın
+   gerçekten nerede olduğunu gözle görürsün.
+8. **Çevrimdışı oyuncu üye eklenebiliyor** (elle isim yazarak). Eskiden
+   online kimse yoksa üye eklenemiyordu.
+9. Çakışma mesajı artık hangi arsayla çakıştığını söylüyor; küçük alan
+   uyarısı ne yapman gerektiğini yazıyor.
+
+Arsa ayarları `arsa.js` en başındaki `ARSA_CFG` içinde: blok başı fiyat,
+en küçük/en büyük kenar, oyuncu başına arsa sayısı, iade oranı.
+
 ## Klasör yapısı
 
 ```

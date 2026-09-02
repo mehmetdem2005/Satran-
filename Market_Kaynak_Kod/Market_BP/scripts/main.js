@@ -80,9 +80,13 @@ function paraEkle(p, v) { paraYaz(p, paraOku(p) + v); }
 function fmt(n) { return CFG.simge + Math.floor(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, "."); }
 
 function adminMi(p) {
+  try { if (p.hasTag?.("market_admin")) return true; } catch { }
+  // playerPermissionLevel: 0 Ziyaretci, 1 Uye, 2 Operator
   try { if (p.playerPermissionLevel >= 2) return true; } catch { }
-  try { if (p.commandPermissionLevel >= 1) return true; } catch { }
-  return p.hasTag?.("market_admin") ?? false;
+  // commandPermissionLevel'de esik 1 idi; hile acik dunyalarda sıradan
+  // oyuncular da 1 dondurebiliyor ve herkes admin sayiliyordu.
+  try { if (p.commandPermissionLevel >= 2) return true; } catch { }
+  return false;
 }
 
 // ============ ISIM: tamamen oyunun kendi dil paketinden ============
@@ -310,6 +314,9 @@ function yardim(p) {
       `§f!para !ilanlarim !rehber !bakiye !id !kitap\n`+
       `§f!yenile§7 (esya listesini tazeler) §f!liste§7 (liste durumu)\n\n` +
       `§e§lSLASH\n§f/${CFG.ad}:menu  /${CFG.ad}:market  /${CFG.ad}:sat  /${CFG.ad}:takas  /${CFG.ad}:para\n\n` +
+      `§e§lARSA / BÖLGE\n§7Köşe 1'i koy, karşı köşeye yürü, satın al.\n` +
+      `§7Arsanda senden ve üyelerinden başkası blok kıramaz, koyamaz,\n§7sandık açamaz, hayvanlarına vuramaz.\n` +
+      `§7Bir şey çalışmıyorsa: §fArsa menüsü > Koruma Durumu§7.\n\n` +
       `§e§lKITAP KAYBOLURSA\n§f!kitap§7 , §f/give @s mk:kontrol_kitabi§7 ya da\n§7Crafting Table'da §f1 Kitap + 1 Gold Ingot§7.`
     )
     .button("§7< Geri")
@@ -1631,13 +1638,17 @@ guvenli("playerSpawn", () => {
 
 let sayac = 0;
 guvenli("dongu kontrolu", () => {
+  // 20 tik = ~1 sn. Arsa giris/cikis bildirimi eskiden 5 saniyede bir
+  // bakiliyordu; oyuncu arsaya girip cikinca hicbir sey gormuyordu.
   system.runInterval(() => {
-    for (const p of world.getAllPlayers()) {
-      try { oyuncuyuHazirla(p); } catch { }
+    sayac++;
+    const oyuncular = world.getAllPlayers();
+    for (const p of oyuncular) {
       try { Arsa.arsaTick(API, p); } catch { }
     }
-    if (++sayac % 30 === 0) { try { suresiDolanlariIsle(); } catch (e) { console.warn("[Market] sure: " + e); } }
-  }, 100);
+    if (sayac % 5 === 0) for (const p of oyuncular) { try { oyuncuyuHazirla(p); } catch { } }
+    if (sayac % 150 === 0) { try { suresiDolanlariIsle(); } catch (e) { console.warn("[Market] sure: " + e); } }
+  }, 20);
 });
 
 // Esya listesini dunya acilir acilmaz arka planda kur: oyuncu menuyu actiginda
