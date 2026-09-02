@@ -1,0 +1,276 @@
+package com.satran.jobapply.ui.jobs
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Clear
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.dp
+import com.satran.jobapply.data.remote.SeasonalJobsApi
+import com.satran.jobapply.ui.JobsUiState
+
+@Composable
+fun JobsScreen(
+    state: JobsUiState,
+    onQueryChange: (String) -> Unit,
+    onSearch: () -> Unit,
+    onAiSearch: (String) -> Unit,
+    onFilter: (state: String?, sort: SeasonalJobsApi.Sort, hideArchitectural: Boolean, emailOnly: Boolean, hideApplied: Boolean) -> Unit,
+    onToggleSelect: (com.satran.jobapply.data.model.Job) -> Unit,
+    onToggleExpand: (String) -> Unit,
+    onSummarize: (com.satran.jobapply.data.model.Job) -> Unit,
+    onResearch: (com.satran.jobapply.data.model.Job) -> Unit,
+    onOpenDetail: (String) -> Unit,
+    onSelectAll: () -> Unit,
+    onClearSelection: () -> Unit,
+    onLoadMore: () -> Unit,
+    contentPadding: PaddingValues,
+) {
+    val listState = rememberLazyListState()
+    val keyboard = LocalSoftwareKeyboardController.current
+
+    val shouldLoadMore by remember {
+        derivedStateOf {
+            val last = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            last >= state.results.size - 4 && state.results.isNotEmpty()
+        }
+    }
+    LaunchedEffect(listState) {
+        snapshotFlow { shouldLoadMore }.collect { if (it) onLoadMore() }
+    }
+
+    Column(Modifier.fillMaxSize()) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+            OutlinedTextField(
+                value = state.query,
+                onValueChange = onQueryChange,
+                label = { Text("Ara: iş, işveren, şehir…") },
+                singleLine = true,
+                leadingIcon = { Icon(Icons.Filled.Search, null) },
+                trailingIcon = {
+                    Row {
+                        if (state.query.isNotEmpty()) {
+                            IconButton(onClick = { onQueryChange("") }) {
+                                Icon(Icons.Outlined.Clear, "Temizle")
+                            }
+                        }
+                        IconButton(onClick = {
+                            keyboard?.hide()
+                            onAiSearch(state.query)
+                        }) {
+                            Icon(Icons.Outlined.AutoAwesome, "Yapay zekâ ile ara")
+                        }
+                    }
+                },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = {
+                    keyboard?.hide()
+                    onSearch()
+                }),
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            Spacer(Modifier.height(6.dp))
+            FilterBar(state = state, onFilter = onFilter)
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = summaryLine(state),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.weight(1f),
+                )
+                if (state.results.isNotEmpty()) {
+                    TextButton(onClick = onSelectAll) { Text("Tümünü seç") }
+                }
+                if (state.selectedCount > 0) {
+                    TextButton(onClick = onClearSelection) { Text("Temizle") }
+                }
+            }
+        }
+
+        if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+
+        state.error?.let { error ->
+            Column(Modifier.padding(16.dp)) {
+                Text(error, color = MaterialTheme.colorScheme.error)
+                Spacer(Modifier.height(8.dp))
+                Button(onClick = onSearch) { Text("Tekrar dene") }
+            }
+        }
+
+        if (!state.loading && state.error == null && state.results.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    "Sonuç yok. Aramayı ya da süzgeçleri değiştir.",
+                    color = MaterialTheme.colorScheme.outline,
+                )
+            }
+        }
+
+        LazyColumn(
+            state = listState,
+            contentPadding = PaddingValues(
+                start = 12.dp,
+                end = 12.dp,
+                top = 4.dp,
+                bottom = contentPadding.calculateBottomPadding() + 12.dp,
+            ),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            items(state.results, key = { it.caseNumber }) { job ->
+                JobCard(
+                    job = job,
+                    selected = state.selected.containsKey(job.caseNumber),
+                    expanded = state.expanded.contains(job.caseNumber),
+                    summary = state.summaries[job.caseNumber],
+                    summarizing = state.summarizing.contains(job.caseNumber),
+                    research = state.research[job.caseNumber],
+                    researching = state.researching.contains(job.caseNumber),
+                    onToggleSelect = { onToggleSelect(job) },
+                    onToggleExpand = { onToggleExpand(job.caseNumber) },
+                    onSummarize = { onSummarize(job) },
+                    onResearch = { onResearch(job) },
+                    onOpenDetail = { onOpenDetail(job.detailUrl) },
+                )
+            }
+            if (state.loadingMore) {
+                item {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center,
+                    ) { CircularProgressIndicator() }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FilterBar(
+    state: JobsUiState,
+    onFilter: (String?, SeasonalJobsApi.Sort, Boolean, Boolean, Boolean) -> Unit,
+) {
+    var stateMenu by remember { mutableStateOf(false) }
+    var sortMenu by remember { mutableStateOf(false) }
+
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        FilterChip(
+            selected = state.hideArchitectural,
+            onClick = {
+                onFilter(state.selectedState, state.sort, !state.hideArchitectural, state.emailOnly, state.hideApplied)
+            },
+            label = { Text("Mimarlık dışı") },
+        )
+        FilterChip(
+            selected = state.emailOnly,
+            onClick = {
+                onFilter(state.selectedState, state.sort, state.hideArchitectural, !state.emailOnly, state.hideApplied)
+            },
+            label = { Text("E-postası olan") },
+        )
+        FilterChip(
+            selected = state.hideApplied,
+            onClick = {
+                onFilter(state.selectedState, state.sort, state.hideArchitectural, state.emailOnly, !state.hideApplied)
+            },
+            label = { Text("Başvurulanları gizle") },
+        )
+
+        Box {
+            OutlinedButton(onClick = { stateMenu = true }) {
+                Text(state.selectedState?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Eyalet")
+            }
+            DropdownMenu(expanded = stateMenu, onDismissRequest = { stateMenu = false }) {
+                DropdownMenuItem(
+                    text = { Text("Tüm eyaletler") },
+                    onClick = {
+                        stateMenu = false
+                        onFilter(null, state.sort, state.hideArchitectural, state.emailOnly, state.hideApplied)
+                    },
+                )
+                state.stateFacets.forEach { facet ->
+                    DropdownMenuItem(
+                        text = { Text("${facet.value.lowercase().replaceFirstChar { it.uppercase() }} (${facet.count})") },
+                        onClick = {
+                            stateMenu = false
+                            onFilter(facet.value, state.sort, state.hideArchitectural, state.emailOnly, state.hideApplied)
+                        },
+                    )
+                }
+            }
+        }
+
+        Box {
+            OutlinedButton(onClick = { sortMenu = true }) { Text(state.sort.label()) }
+            DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
+                SeasonalJobsApi.Sort.entries.forEach { sort ->
+                    DropdownMenuItem(
+                        text = { Text(sort.label()) },
+                        onClick = {
+                            sortMenu = false
+                            onFilter(state.selectedState, sort, state.hideArchitectural, state.emailOnly, state.hideApplied)
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun SeasonalJobsApi.Sort.label(): String = when (this) {
+    SeasonalJobsApi.Sort.RELEVANCE -> "En uygun"
+    SeasonalJobsApi.Sort.NEWEST -> "En yeni"
+    SeasonalJobsApi.Sort.WAGE_HIGH -> "Ücret yüksek"
+    SeasonalJobsApi.Sort.STARTING_SOON -> "Yakında başlayan"
+}
+
+private fun summaryLine(state: JobsUiState): String = buildString {
+    append("${state.results.size} ilan")
+    if (state.total > state.results.size) append(" / ${state.total} eşleşme")
+    if (state.aiRemoved > 0) append(" · AI ${state.aiRemoved} mimarlık ilanı eledi")
+    if (state.selectedCount > 0) append(" · ${state.selectedCount} seçili")
+}

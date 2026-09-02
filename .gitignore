@@ -23,3 +23,15 @@ hermes-gateway.log
 .vscode/
 .idea/
 .DS_Store
+
+# Android
+android/local.properties
+android/.gradle/
+android/build/
+android/app/build/
+android/captures/
+*.apk
+*.aab
+*.keystore
+.idea/
+*.iml
