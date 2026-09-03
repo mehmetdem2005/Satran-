@@ -1,4 +1,4 @@
-# Market & Ekonomi — Kaynak Kod (v2.1)
+# Market & Ekonomi — Kaynak Kod (v2.2)
 
 Bu klasör Minecraft Bedrock için yazılan Market/Ekonomi addon'ının tüm
 kaynak dosyalarını içerir. `.mcaddon` sadece bunların zip'lenmiş hali;
@@ -92,6 +92,57 @@ Düzeltmeler:
 Arsa ayarları `arsa.js` en başındaki `ARSA_CFG` içinde: blok başı fiyat,
 en küçük/en büyük kenar, oyuncu başına arsa sayısı, iade oranı.
 
+## Ticaret seviyesi (v2.2)
+
+Her eşya ilk dakikadan herkese açık değil. Oyuncu ticaret yaptıkça XP
+kazanır, **10 seviyeye** kadar çıkar; pahalı eşyalar seviye ile açılır.
+
+| Lv | Unvan | Açılan eşyalar (taban fiyat) |
+|---|---|---|
+| 1 | Çırak | ≤ 3 — toprak, taş, tahta, çubuk |
+| 2 | Seyyar Satıcı | ≤ 8 |
+| 3 | Pazarcı | ≤ 18 |
+| 4 | Esnaf | ≤ 40 |
+| 5 | Tüccar | ≤ 80 |
+| 6 | Kıdemli Tüccar | ≤ 160 |
+| 7 | Tacir | ≤ 320 |
+| 8 | Büyük Tacir | ≤ 700 — doğurma yumurtaları buraya düşer |
+| 9 | Lonca Üyesi | ≤ 1400 — elytra, ejderha yumurtası, nether yıldızı |
+| 10 | Pazar Ustası | üstü — netherite takımı, beacon |
+
+Kurallar:
+
+- **Satmak her seviyede serbest.** Yoksa yeni oyuncu hiç yükselemez;
+  kilit sadece satın almada. Kilitli eşya listede görünür ("Lv 8 gerekli"
+  yazar) — ne için çalıştığını görürsün.
+- XP: markete satışta her 10$ = 1 XP, alışta her 25$ = 1 XP, oyuncu
+  ilanı sat/al aynı formül, takas başına 15 XP. Tek işlemde en fazla
+  300 XP (tek seferde zıplamayı önler).
+- Seviye eşikleri: 0 / 300 / 800 / 1700 / 3200 / 5600 / 9500 / 15500 /
+  24000 / 36000 XP.
+- XP scoreboard'da (`mk_xp`) tutulur — para gibi, oyuncu çıkınca kaybolmaz.
+- `!seviye` ekranı seviyeni, XP çubuğunu ve her seviyede kaç eşya
+  açıldığını gösterir. Admin panelinden bir oyuncunun seviyesi elle
+  ayarlanabilir.
+- Ayarlar `scripts/seviye.js` içindeki `SEVIYE_CFG` ve `ESIK` /
+  `FIYAT_ESIK` dizilerinde. Oyuncu ilanlarında da seviye şartı istersen
+  `oyuncuMarketiKilitli = true` yap (varsayılan kapalı — oyuncular kendi
+  fiyatlarını koyuyor).
+
+## Eşya görselleri (v2.2)
+
+İkon yolları artık tahmin edilmiyor. `scripts/ikonlar.js`, Mojang'ın resmî
+vanilla resource pack verisinden (`item_texture.json`,
+`terrain_texture.json`, `blocks.json`) üretilmiş id → doku yolu haritasını
+taşıyor; **1607 eşyanın 1574'ü** çözülmüş durumda ve %97'si geçerli bir
+vanilla dokusuna işaret ediyor. Bedrock'ta doku adları id'den bağımsız
+olduğu için (kitap → `book_normal`, çiğ et → `beef_raw`, boya →
+`dye_powder_*`, plak → `record_*`) bu şart.
+
+Çözülemeyenler için sırasıyla: `icons.js` içindeki `OZEL` tablosu, renk
+ailesi şablonları, kök blok ikonu, son çare `textures/items/<id>` tahmini.
+Listeyi tazelemek için: `python3 ikon_guncelle.py`.
+
 ## Arsa sopası (claim wand)
 
 Craft masasında **2x2 çubuk (4 çubuk)** ile yapılır. `!sopa` komutu ya da
@@ -128,6 +179,8 @@ Market_BP/                 Behavior Pack (mantık, script, tarifler)
   scripts/
     main.js                  Ana mantık: menüler, ilanlar, komutlar, olaylar
     esyalar.js               Gömülü vanilla eşya katalogu + Türkçe arama sözlüğü
+    ikonlar.js               Resmî RP verisinden üretilmiş ikon haritası
+    seviye.js                Ticaret seviyesi (XP, eşikler, kilit)
     fiyat.js                 Fiyat motoru: ham madde tabanları + türetme kuralları
     arsa.js                  Arsa/bölge koruma sistemi
     icons.js                 Item id -> texture yolu çözücü
@@ -144,6 +197,7 @@ Market_RP/                 Resource Pack (görseller, dil)
 
 paketle.sh                 Klasörleri .mcaddon'a paketler
 katalog_guncelle.py        Vanilla eşya listesini Mojang metadata'sından tazeler
+ikon_guncelle.py           İkon haritasını resmî resource pack verisinden üretir
 ```
 
 ## Nasıl okunur / düzenlenir
@@ -174,7 +228,7 @@ kaynaktan kaç eşya topladığını yazıyor.
 ## Paketleme
 
 ```bash
-bash paketle.sh          # -> Market_v2.1.mcaddon
+bash paketle.sh          # -> Market_v2.2.mcaddon
 ```
 
 Sürüm numarası hem `manifest.json` dosyalarında hem de `main.js` içindeki

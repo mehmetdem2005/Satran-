@@ -1,6 +1,13 @@
 import * as mc from "@minecraft/server";
+import { resmiIkon, IKON_SAYISI } from "./ikonlar.js";
 
 export const VARSAYILAN = "textures/items/market_soru";
+
+// v2.2: ikon yollari artik tahmin edilmiyor. ikonlar.js, Mojang'in resmi
+// vanilla resource pack verisinden (item_texture.json + terrain_texture.json
+// + blocks.json) uretilmis id -> doku yolu haritasini tasiyor. Asagidaki
+// OZEL tablosu onun USTUNDE calisir: kendi cizdigimiz gorseller ve elle
+// duzeltmeler burada kalir.
 
 // Bedrock'ta bircok esyanin texture dosya adi item id'sinden farkli
 // (book -> book_normal, oak_planks -> planks_oak gibi). Asagisi o farki kapatir.
@@ -204,16 +211,23 @@ function renkliAile(ad) {
 
 const bellek = new Map();
 
+export function ikonSayisi() { return IKON_SAYISI; }
+
 export function ikon(typeId) {
   if (bellek.has(typeId)) return bellek.get(typeId);
   const tam = String(typeId).includes(":") ? String(typeId) : `minecraft:${typeId}`;
   const ad = tam.replace(/^minecraft:/, "");
 
-  let yol = OZEL[ad] ?? renkliAile(ad);
+  let yol = resmiIkon(ad) ?? OZEL[ad] ?? renkliAile(ad);
   if (!yol) {
     // dogurma yumurtalarinin tek bir texture'i vardir, rengi oyun boyar
     if (ad.endsWith("_spawn_egg")) yol = "textures/items/spawn_egg";
-    else if (ad.endsWith("_bed") || ad.endsWith("_banner") || ad.endsWith("_sign")) yol = VARSAYILAN;
+    else if (ad.endsWith("_bed") || ad.endsWith("_banner")) yol = VARSAYILAN;
+  }
+  if (!yol) {
+    // ikonlar.js'te yoksa kok blogun ikonunu dene (yeni aileler icin)
+    const kok = ad.replace(/_(double_slab|slab|stairs|wall|fence_gate|fence|button|pressure_plate|trapdoor|door|shelf|sign|hanging_sign)$/, "");
+    if (kok !== ad) yol = resmiIkon(kok) ?? resmiIkon(kok + "s") ?? resmiIkon(kok + "_planks") ?? resmiIkon(kok + "_block");
   }
   if (!yol) {
     let blokMu = false;
