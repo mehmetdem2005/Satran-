@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Clear
+import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -90,6 +92,7 @@ fun JobsScreen(
     onSelectAll: () -> Unit,
     onClearSelection: () -> Unit,
     onLoadMore: () -> Unit,
+    onTranslateAll: (Boolean) -> Unit,
     contentPadding: PaddingValues,
 ) {
     val listState = rememberLazyListState()
@@ -140,7 +143,7 @@ fun JobsScreen(
             Spacer(Modifier.height(6.dp))
 
             // Süzgeçler tek satırda kalır ve yana kayar; alt alta binip yer yemez.
-            FilterStrip(state = state, onFilter = onFilter)
+            FilterStrip(state = state, onFilter = onFilter, onTranslateAll = onTranslateAll)
 
             Spacer(Modifier.height(2.dp))
             SummaryRow(
@@ -222,6 +225,7 @@ fun JobsScreen(
                         onResearch = { onResearch(job) },
                         onOpenDetail = { onOpenDetail(job.detailUrl) },
                         archivedNote = note,
+                        translatedTitle = if (state.translateAll) state.translatedTitles[job.caseNumber] else null,
                     )
                 }
 
@@ -271,11 +275,27 @@ fun JobsScreen(
 private fun FilterStrip(
     state: JobsUiState,
     onFilter: (String?, SeasonalJobsApi.Sort, Boolean, Boolean, Boolean) -> Unit,
+    onTranslateAll: (Boolean) -> Unit,
 ) {
     var stateMenu by remember { mutableStateOf(false) }
     var sortMenu by remember { mutableStateOf(false) }
 
     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        item {
+            // Google'ın cihaz üstü çeviri modeli; yapay zekâ değil, anahtar istemez.
+            FilterChip(
+                selected = state.translateAll,
+                onClick = { onTranslateAll(!state.translateAll) },
+                leadingIcon = {
+                    if (state.translatingAll) {
+                        CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(14.dp))
+                    } else {
+                        Icon(Icons.Outlined.Translate, null, Modifier.size(18.dp))
+                    }
+                },
+                label = { Text(if (state.translatingAll) "Çevriliyor ${state.translateProgress}" else "Türkçe") },
+            )
+        }
         item {
             FilterChip(
                 selected = state.excludeAgricultural,

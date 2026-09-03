@@ -44,6 +44,12 @@ data class JobsUiState(
 
     val summaries: Map<String, String> = emptyMap(),
     val summarizing: Set<String> = emptySet(),
+
+    /** "Tümünü çevir" açıkken ilan başlıklarının Türkçesi. */
+    val translatedTitles: Map<String, String> = emptyMap(),
+    val translateAll: Boolean = false,
+    val translatingAll: Boolean = false,
+    val translateProgress: Int = 0,
     val research: Map<String, String> = emptyMap(),
     val researching: Set<String> = emptySet(),
 

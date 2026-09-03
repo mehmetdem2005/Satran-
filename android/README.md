@@ -19,6 +19,15 @@ Saf Android + Kotlin + Jetpack Compose. Ek sunucu yok, her şey telefonda çalı
 
 ### Çeviri — API anahtarı gerektirmez
 
+Süzgeç şeridindeki **"Türkçe"** anahtarı açılınca listedeki **bütün ilan
+başlıkları** kendiliğinden Türkçeye çevrilir; kart açıldığında görev tanımı da
+çevrilir. Motor Google'ın cihaz üstü çeviri modelidir — yapay zekâ değildir,
+anahtar istemez.
+
+İşveren adı, şehir ve eyalet **çevrilmez**: bunlar özel adlardır ve başvuru
+e-postasında olduğu gibi geçmelidir. Çevrilen başlığın altında İngilizce
+özgün hâli küçük punto ile durur.
+
 Her kartta çeviri tuşu vardır ve **hiçbir anahtar istemez**:
 
 1. **Cihaz üstü (varsayılan)** — Google ML Kit. Dil modeli ilk kullanımda bir

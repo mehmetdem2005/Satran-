@@ -50,6 +50,7 @@ fun JobCard(
     onOpenDetail: () -> Unit,
     archivedNote: String? = null,
     loadingDetails: Boolean = false,
+    translatedTitle: String? = null,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -74,12 +75,23 @@ fun JobCard(
                         .padding(start = 4.dp),
                 ) {
                     Text(
-                        job.title,
+                        translatedTitle ?: job.title,
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 2,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     )
+                    // Başvuru e-postasında İngilizce başlık geçtiği için özgün hâli
+                    // de görünür kalır.
+                    if (translatedTitle != null) {
+                        Text(
+                            job.title,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.outline,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        )
+                    }
                     Text(
                         "${job.employer} · ${job.location}",
                         style = MaterialTheme.typography.bodySmall,
@@ -144,7 +156,7 @@ fun JobCard(
                         ) {
                             Column(Modifier.padding(10.dp)) {
                                 Text(
-                                    "Türkçe özet",
+                                    "Türkçesi",
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = FontWeight.Bold,
                                 )

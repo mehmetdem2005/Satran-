@@ -187,6 +187,7 @@ private fun AppRoot() {
                     onSelectAll = viewModel::selectAllVisible,
                     onClearSelection = viewModel::clearSelection,
                     onLoadMore = viewModel::loadMore,
+                    onTranslateAll = viewModel::setTranslateAll,
                     contentPadding = padding,
                 )
 

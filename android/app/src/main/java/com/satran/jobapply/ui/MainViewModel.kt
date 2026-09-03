@@ -61,6 +61,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private var searchJob: CoroutineJob? = null
     private var prepareJob: CoroutineJob? = null
+    private var translateJob: CoroutineJob? = null
 
     private companion object {
         /** Arşiv tazelik denetiminin en sık çalışma aralığı. */
@@ -84,6 +85,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         search(reset = true)
         maybeAutoRefreshArchive()
         refreshGmailAvailability()
+        _jobs.update { it.copy(translateAll = settings.value.translateAllJobs) }
     }
 
     /**
@@ -248,6 +250,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         endReached = exhausted,
                     )
                 }
+
+                if (_jobs.value.translateAll) translateTitles()
 
                 if (shown.isEmpty()) {
                     _message.value = if (exhausted) {
@@ -422,7 +426,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** Kart açılır ve açıklaması yoksa hemen çekilir. */
     fun toggleExpandedAndLoad(job: Job) {
         toggleExpanded(job.caseNumber)
-        if (job.caseNumber in _jobs.value.expanded) loadDetails(job)
+        if (job.caseNumber !in _jobs.value.expanded) return
+        loadDetails(job)
+        // "Tümünü çevir" açıkken görev tanımı da kendiliğinden çevrilsin.
+        if (_jobs.value.translateAll && job.caseNumber !in _jobs.value.summaries) summarize(job)
     }
 
     /** AI ve mektup için tam metinli sürüm; yoksa listedeki hafif sürüm. */
@@ -490,6 +497,65 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ============================================================ yapay zekâ
+
+    /**
+     * Listedeki bütün ilan başlıklarını Türkçeye çevirir.
+     *
+     * Google'ın cihaz üstü çeviri modelini kullanır — yapay zekâ değildir,
+     * API anahtarı istemez. İşveren adı, şehir ve eyalet **çevrilmez**:
+     * bunlar özel adlardır ve başvuru e-postasında olduğu gibi geçmelidir.
+     * Görev tanımı, kart açıldığında ayrıca çevrilir.
+     */
+    fun setTranslateAll(enabled: Boolean) {
+        updateSettings { it.copy(translateAllJobs = enabled) }
+        _jobs.update { it.copy(translateAll = enabled) }
+        translateJob?.cancel()
+        if (!enabled) {
+            _jobs.update { it.copy(translatingAll = false, translateProgress = 0) }
+            return
+        }
+        translateTitles()
+    }
+
+    /** Henüz çevrilmemiş başlıkları sırayla çevirir; liste doldukça yenilenir. */
+    private fun translateTitles() {
+        val config = settings.value
+        translateJob?.cancel()
+        translateJob = viewModelScope.launch {
+            val state = _jobs.value
+            val pending = (state.results + state.archived.map { it.job })
+                .distinctBy { it.caseNumber }
+                .filter { it.caseNumber !in state.translatedTitles }
+            if (pending.isEmpty()) return@launch
+
+            _jobs.update { it.copy(translatingAll = true, translateProgress = 0) }
+            if (!container.translator.isModelReady()) {
+                _message.value = "Google çeviri modeli indiriliyor (~30 MB, yalnızca ilk seferde)."
+            }
+
+            var done = 0
+            pending.forEach { job ->
+                val source = listOfNotNull(job.title, job.socTitle?.takeIf { it != job.title })
+                    .joinToString(" — ")
+                val turkish = runCatching {
+                    container.translator.translateShort(source, config.translationWifiOnly)
+                }.getOrNull()
+
+                done++
+                _jobs.update { current ->
+                    current.copy(
+                        translatedTitles = if (turkish.isNullOrBlank()) {
+                            current.translatedTitles
+                        } else {
+                            current.translatedTitles + (job.caseNumber to turkish)
+                        },
+                        translateProgress = done,
+                    )
+                }
+            }
+            _jobs.update { it.copy(translatingAll = false) }
+        }
+    }
 
     /**
      * İlanı Türkçeye çevirir.

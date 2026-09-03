@@ -26,6 +26,20 @@ class JobTranslator(
 
     suspend fun downloadModel(requireWifi: Boolean) = onDevice.ensureModel(requireWifi)
 
+    /**
+     * Tek bir kısa metni çevirir (ilan başlığı, meslek adı gibi).
+     * Liste genelinde "tümünü çevir" bunu kullanır; ucuz ve hızlıdır.
+     */
+    suspend fun translateShort(text: String, requireWifi: Boolean): String {
+        if (text.isBlank()) return text
+        val device = runCatching {
+            onDevice.ensureModel(requireWifi)
+            onDevice.translate(text)
+        }.getOrNull()
+        if (!device.isNullOrBlank()) return device
+        return runCatching { http.translate(text) }.getOrNull()?.takeIf { it.isNotBlank() } ?: text
+    }
+
     suspend fun translate(job: Job, requireWifi: Boolean): Result {
         val source = buildSourceText(job)
         if (source.isBlank()) return Result("Çevrilecek metin yok.", Source.ON_DEVICE)
