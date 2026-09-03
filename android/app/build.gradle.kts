@@ -22,10 +22,24 @@ android {
         }
     }
 
+    signingConfigs {
+        // Yayın APK'sı da yan yüklenebilsin diye hata ayıklama anahtarıyla imzalanır.
+        // Mağazaya çıkarken burası kendi anahtarınla değiştirilmeli.
+        create("sideload") {
+            storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // R8 kullanılmayan kodu atıyor; ML Kit ile birlikte APK belirgin küçülüyor.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.getByName("sideload")
         }
     }
 

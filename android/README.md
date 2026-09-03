@@ -36,11 +36,18 @@ Cihaz üstü çeviri motoru her işlemci mimarisi için ayrı yerel kütüphane
 getirir. x86/x86_64 (yalnızca emülatör) paketlenmez ve mimari başına ayrı APK
 üretilir:
 
+Yayın (release) yapısı R8 ile küçültülür ve yan yüklenebilmesi için hata
+ayıklama anahtarıyla imzalanır:
+
 | APK | Boyut | Kime |
 |---|---|---|
-| `app-arm64-v8a-debug.apk` | ~38 MB | 2017 sonrası hemen her telefon |
-| `app-armeabi-v7a-debug.apk` | ~33 MB | eski 32-bit telefonlar |
-| `app-universal-debug.apk` | ~50 MB | hangisi olduğundan emin değilsen |
+| `app-arm64-v8a-release.apk` | ~19 MB | 2017 sonrası hemen her telefon |
+| `app-armeabi-v7a-release.apk` | ~15 MB | eski 32-bit telefonlar |
+| `app-universal-release.apk` | ~31 MB | hangisi olduğundan emin değilsen |
+
+R8 sınıf adlarını değiştirdiği için WorkManager işçisi, veri modelleri ve
+enum sabitleri `proguard-rules.pro` içinde açıkça korunur — yoksa kayıtlı
+ayarlar okunamaz hâle gelirdi.
 
 ### Yapay zekâ (isteğe bağlı)
 - **İlana özel başvuru mektubu** — profilin + ilanın görev tanımı + web araması + bellek okunarak yazılır.
@@ -143,7 +150,9 @@ içine konur, ve Gmail'e `grantUriPermission` ile okuma izni verilir.
 
 ```bash
 cd android
-./gradlew assembleDebug        # app/build/outputs/apk/debug/app-debug.apk
+./gradlew assembleRelease      # app/build/outputs/apk/release/*.apk
+./gradlew assembleDebug        # küçültülmemiş, hata ayıklama için
+./gradlew testDebugUnitTest    # birim testleri
 ```
 
 Gereken: JDK 17, Android SDK 35. `android/local.properties` içine

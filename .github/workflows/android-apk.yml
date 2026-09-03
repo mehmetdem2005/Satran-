@@ -23,14 +23,18 @@ jobs:
       - name: Gradle önbelleği
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Debug APK derle
+      - name: Testleri çalıştır
         working-directory: android
-        run: ./gradlew assembleDebug --stacktrace
+        run: ./gradlew testDebugUnitTest --stacktrace
 
-      - name: APK'yı yükle
+      - name: Release APK derle (R8 ile küçültülmüş)
+        working-directory: android
+        run: ./gradlew assembleRelease --stacktrace
+
+      - name: APK'ları yükle
         uses: actions/upload-artifact@v4
         with:
-          name: satran-jobs-debug-apk
-          path: android/app/build/outputs/apk/debug/*.apk
-          # arm64-v8a, armeabi-v7a ve universal olmak uzere uc APK uretilir.
+          name: satran-jobs-apk
+          # arm64-v8a (~19 MB), armeabi-v7a (~15 MB) ve universal (~31 MB).
+          path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
