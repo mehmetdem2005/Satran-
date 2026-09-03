@@ -68,12 +68,16 @@ class JobArchiveStore(context: Context) {
 
         val fresh = mutableListOf<Job>()
         jobs.forEach { job ->
+            // Arşiv yalnızca tekrar engelleme ve geçmiş listesi için; uzun metinleri
+            // saklamak dosyayı 2000 kayıtta ~7 MB'a çıkarırdı. Kart açılınca zaten
+            // tam metin ayrıca çekiliyor.
+            val slim = job.copy(duties = null, requirements = null)
             val previous = existing[job.caseNumber]
             if (previous == null) {
                 fresh += job
-                existing[job.caseNumber] = ArchivedJob(job, now, now, query)
+                existing[job.caseNumber] = ArchivedJob(slim, now, now, query)
             } else {
-                existing[job.caseNumber] = previous.copy(job = job, lastSeenAt = now)
+                existing[job.caseNumber] = previous.copy(job = slim, lastSeenAt = now)
             }
         }
 

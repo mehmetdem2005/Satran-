@@ -70,8 +70,12 @@ class SeasonalJobsApi(
         val offset: Int = 0,
         /** Bu aramada kaç ilan çekilecek. */
         val limit: Int = DEFAULT_LIMIT,
-        /** Uzun metinler de gelsin mi (tek ilan getirirken true). */
-        val full: Boolean = false,
+        /**
+         * Uzun metinler (görev tanımı, özel şartlar) de gelsin mi?
+         * Normal sayfada evet — 40 kayıt ~134 KB, kart açılınca ek istek gerekmez.
+         * "Tümünü çek" turlarında hayır — 8000 kayıt aksi hâlde ~27 MB olurdu.
+         */
+        val full: Boolean = true,
     ) {
         val safeLimit: Int get() = limit.coerceIn(1, MAX_LIMIT)
     }
@@ -193,7 +197,7 @@ class SeasonalJobsApi(
         var built = JobQuery.build(input)
 
         while (offset < hardCap) {
-            val page = search(Query(input = input, sort = sort, offset = offset, limit = BULK_LIMIT))
+            val page = search(Query(input = input, sort = sort, offset = offset, limit = BULK_LIMIT, full = false))
             built = JobQuery.Built(page.sentFilter, page.sentSearch, built.searchMode)
             if (page.stateFacets.isNotEmpty()) facets = page.stateFacets
             total = page.totalCount
@@ -258,21 +262,34 @@ class SeasonalJobsApi(
         return alive
     }
 
-    /** Kart açıldığında tek ilanın görev tanımını ve özel şartlarını getirir. */
-    suspend fun detailsFor(caseNumber: String): Job? {
-        val page = search(
-            Query(
-                input = JobQuery.Input(
-                    text = "\"$caseNumber\"",
-                    emailOnly = false,
-                    excludeAgricultural = false,
-                ),
-                sort = Sort.RELEVANCE,
-                limit = 5,
-                full = true,
-            ),
-        )
-        return page.jobs.firstOrNull { it.caseNumber == caseNumber }
+    /**
+     * Tek ilanın görev tanımını ve özel şartlarını getirir.
+     *
+     * İlan numarası tam metin dizininde aranabilir bir alan **değildir**;
+     * bu yüzden arama yerine doğrudan OData eşitliğiyle sorgulanır.
+     * (Aramayla denenirse sonuç boş döner ve açıklama hiç gelmez.)
+     */
+    suspend fun detailsFor(caseNumber: String): Job? = withContext(Dispatchers.IO) {
+        val payload = buildJsonObject {
+            put("search", JsonPrimitive("*"))
+            put("top", JsonPrimitive(1))
+            put("select", JsonPrimitive(SELECT_FULL))
+            put("filter", JsonPrimitive("case_number eq '${caseNumber.replace("'", "''")}'"))
+        }
+        val request = Request.Builder()
+            .url(endpoint)
+            .addHeader("Content-Type", "application/json")
+            .addHeader("User-Agent", "SatranJobs/1.0 (Android)")
+            .post(Net.json.encodeToString(JsonObject.serializer(), payload).toRequestBody(JSON_MEDIA))
+            .build()
+
+        Net.client.newCall(request).execute().use { response ->
+            val raw = response.body?.string().orEmpty()
+            if (!response.isSuccessful) throw IOException("İlan ayrıntısı alınamadı (HTTP ${response.code}).")
+            val element = Net.json.parseToJsonElement(raw).jsonObject["value"]?.jsonArray?.firstOrNull()
+                ?: return@use null
+            runCatching { Net.json.decodeFromJsonElement(JobDto.serializer(), element) }.getOrNull()?.toJob()
+        }
     }
 
     private fun buildRequestBody(query: Query): JsonObject {
@@ -298,8 +315,8 @@ class SeasonalJobsApi(
                 put(
                     "searchFields",
                     JsonPrimitive(
-                        "job_title,soc_title,job_duties,special_req,employer_business_name," +
-                            "worksite_city,worksite_state",
+                        "case_number,job_title,soc_title,job_duties,special_req," +
+                            "employer_business_name,worksite_city,worksite_state",
                     ),
                 )
             }

@@ -607,7 +607,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun aiSearch(naturalRequest: String) {
         if (!settings.value.aiReady) {
-            _message.value = "Önce Ayarlar'dan yapay zekâ API anahtarını gir."
+            _message.value = "✨ akıllı arama yapay zekâ anahtarı ister. " +
+                "Çeviri için anahtar gerekmez — kartın çeviri tuşunu kullan."
             return
         }
         viewModelScope.launch {
