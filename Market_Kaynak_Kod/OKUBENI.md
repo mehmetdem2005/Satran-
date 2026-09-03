@@ -1,4 +1,4 @@
-# Market & Ekonomi — Kaynak Kod (v2.2)
+# Market & Ekonomi — Kaynak Kod (v2.3)
 
 Bu klasör Minecraft Bedrock için yazılan Market/Ekonomi addon'ının tüm
 kaynak dosyalarını içerir. `.mcaddon` sadece bunların zip'lenmiş hali;
@@ -92,6 +92,51 @@ Düzeltmeler:
 Arsa ayarları `arsa.js` en başındaki `ARSA_CFG` içinde: blok başı fiyat,
 en küçük/en büyük kenar, oyuncu başına arsa sayısı, iade oranı.
 
+## Düello / PvP arenası (v2.3)
+
+İki oyuncu **eşit kitle**, ayrı bir arenada dövüşür. Kimse envanterini
+kaybetmez.
+
+**Akış:** `!dovus` → Meydan Oku → oyuncu ve (isteğe bağlı) bahis seç →
+karşı tarafa istek gider → kabul edilirse ikisi de arenaya ışınlanır →
+5 saniye geri sayım → dövüş → kazanan ödülü alır → **herkes isteği kabul
+ettiği konuma geri ışınlanır, envanteri ve zırhı aynen geri gelir.**
+
+**Kit** (ikisine de birebir aynı, `dovus.js` içindeki `KIT`):
+
+- Elmas kask, göğüslük, pantolon, bot
+- Elmas kılıç
+- Mızrak — üç dişli mızrak (trident). Sürümünde varsa `diamond_spear`
+  yedeğe yazılı; istersen sıralamayı `KIT.esyalar` içinden değiştir.
+- 8 pişmiş biftek. Ok ve yay yok.
+
+**Eşya kaybı neden olmuyor:**
+
+1. Dövüş başlarken envanter + zırh + el dışı slot + konum + bakış açısı
+   kaydedilir. Kayıt dünyanın dynamic property'sine yazılır, yani oyun
+   çökse bile durur.
+2. Canı `bitisCani` (varsayılan 2 kalp) altına düşen kaybeder — ölüm
+   beklenmez, dolayısıyla eşya düşmez.
+3. Yine de biri ölürse yedek plan: `entityDie` dövüşü bitirir, dövüş
+   alanına düşmüş eşyalar silinir (kit çoğalmasın), envanter kayıttan
+   geri yüklenir.
+4. Oyuncu dövüş sırasında çıkarsa rakip kazanır; çıkan oyuncunun kaydı
+   durur ve **oyuna girdiği anda** eşyaları iade edilir.
+5. Dövüş sırasında market ve arsa menüleri kapalıdır — yoksa kit satılıp
+   para basılabilirdi.
+
+**Arena:** İlk düelloda otomatik kurulur (varsayılan 30000, 120, 30000 —
+dünyadan uzak, boş bir nokta). Zemin döşenir, çevresine görünmez duvar
+(`barrier`) örülür, `tickingarea` ile yüklü tutulur. Admin "Arenayı
+Buraya Kur" ile istediği yere taşıyabilir. Arenadan uzaklaşan oyuncu geri
+ışınlanır.
+
+**Ödül:** Bahissizse kazanana 250$ (sistemden). Bahisliyse iki bahis de
+kazanana gider; berabere biterse bahisler iade edilir. Süre sınırı 5
+dakika — dolarsa canı fazla olan kazanır.
+
+Ayarlar `scripts/dovus.js` içindeki `DOVUS_CFG` ve `KIT` sabitlerinde.
+
 ## Ticaret seviyesi (v2.2)
 
 Her eşya ilk dakikadan herkese açık değil. Oyuncu ticaret yaptıkça XP
@@ -181,6 +226,7 @@ Market_BP/                 Behavior Pack (mantık, script, tarifler)
     esyalar.js               Gömülü vanilla eşya katalogu + Türkçe arama sözlüğü
     ikonlar.js               Resmî RP verisinden üretilmiş ikon haritası
     seviye.js                Ticaret seviyesi (XP, eşikler, kilit)
+    dovus.js                 Düello/PvP arenası (kit, yedekleme, ödül)
     fiyat.js                 Fiyat motoru: ham madde tabanları + türetme kuralları
     arsa.js                  Arsa/bölge koruma sistemi
     icons.js                 Item id -> texture yolu çözücü
@@ -228,7 +274,7 @@ kaynaktan kaç eşya topladığını yazıyor.
 ## Paketleme
 
 ```bash
-bash paketle.sh          # -> Market_v2.2.mcaddon
+bash paketle.sh          # -> Market_v2.3.mcaddon
 ```
 
 Sürüm numarası hem `manifest.json` dosyalarında hem de `main.js` içindeki

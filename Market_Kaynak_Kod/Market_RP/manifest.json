@@ -1,12 +1,12 @@
 {
   "format_version": 2,
   "header": {
-    "name": "Market & Ekonomi RP v2.2",
+    "name": "Market & Ekonomi RP v2.3",
     "description": "v2.0 | Kontrol kitabi, sandik ve market gorselleri.",
     "uuid": "201cbafc-bcfc-4212-a13f-428a03328b5b",
     "version": [
       2,
-      2,
+      3,
       0
     ],
     "min_engine_version": [
@@ -21,7 +21,7 @@
       "uuid": "551a0d01-3e84-4438-88a3-87bf7d3263c5",
       "version": [
         2,
-        2,
+        3,
         0
       ]
     }

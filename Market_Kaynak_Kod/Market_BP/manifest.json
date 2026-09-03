@@ -1,12 +1,12 @@
 {
   "format_version": 2,
   "header": {
-    "name": "Market & Ekonomi BP v2.2",
-    "description": "v2.2 | 10 seviyeli ticaret sistemi: pahali esyalar seviye ile acilir. Ikonlar Mojang'in resmi resource pack verisinden cozuluyor.",
+    "name": "Market & Ekonomi BP v2.3",
+    "description": "v2.3 | Duello arenasi: esit kit, esya kaybi yok. 10 seviyeli ticaret, tam vanilla katalog, arsa sopasi.",
     "uuid": "bb41fa3d-7901-4559-8e61-d650ac191764",
     "version": [
       2,
-      2,
+      3,
       0
     ],
     "min_engine_version": [
@@ -22,7 +22,7 @@
       "uuid": "b9808c32-f7e3-4a89-93e1-f00313e58099",
       "version": [
         2,
-        2,
+        3,
         0
       ],
       "entry": "scripts/main.js"
@@ -41,7 +41,7 @@
       "uuid": "201cbafc-bcfc-4212-a13f-428a03328b5b",
       "version": [
         2,
-        2,
+        3,
         0
       ]
     }

@@ -4,6 +4,7 @@ import { ikon, VARSAYILAN } from "./icons.js";
 import { fiyat, KATEGORILER, kategoriIndex, yasakMi, MAKAS } from "./fiyat.js";
 import { katalog, aramaGruplari } from "./esyalar.js";
 import * as Seviye from "./seviye.js";
+import * as Dovus from "./dovus.js";
 import * as Arsa from "./arsa.js";
 
 const { world, system, ItemStack } = mc;
@@ -11,7 +12,7 @@ const { ActionFormData, ModalFormData } = ui;
 
 // ==================== AYARLAR ====================
 const CFG = {
-  surum: "2.2",
+  surum: "2.3",
   ad: "m",
   objective: "money",
   simge: "$",
@@ -291,6 +292,10 @@ function tekliflerim(p) {
 
 // ==================== ANA MENU ====================
 function kitapMenu(p) {
+  if (Dovus.dovustaMi(p.name)) {
+    p.sendMessage("§c[Market] Düello sırasında market kullanılamaz.");
+    return;
+  }
   const ilanlar = ilanlariOku();
   const benim = ilanlar.filter(i => i.s === p.name).length;
   const gelen = tekliflerim(p).length;
@@ -313,6 +318,7 @@ function kitapMenu(p) {
   ekle("\u00a7l\u0130lanlar\u0131m\n\u00a7r\u00a77Geri \u00e7ek veya kontrol et", "minecraft:book", () => ilanlarimEkrani(p));
   ekle("\u00a7lArsa / B\u00f6lge\n\u00a7r\u00a77Yerini koru, \u00fcye ekle", "minecraft:grass_block", () => Arsa.arsaMenu(p, API));
   ekle("\u00a7lPara / E\u015fya G\u00f6nder", "minecraft:ender_pearl", () => paraMenu(p));
+  ekle(`\u00a7lD\u00fcello / PvP${Dovus.gelenIstekler(p).length ? ` \u00a7c(${Dovus.gelenIstekler(p).length})` : ""}\n\u00a7r\u00a77E\u015fit kit, arena, e\u015fya kayb\u0131 yok`, "minecraft:diamond_sword", () => Dovus.dovusMenu(p, API));
   ekle(`\u00a7lTicaret Seviyesi \u00a7r\u00a77Lv ${Seviye.seviye(p)}\n\u00a7r\u00a77Ne zaman ne a\u00e7\u0131l\u0131yor`, "minecraft:experience_bottle", () => seviyeEkrani(p));
   ekle("\u00a7lFiyat Rehberi\n\u00a7r\u00a77Piyasa ortalamalar\u0131", "minecraft:clock", () => rehberSec(p));
   ekle("\u00a7lBilgi ve Komutlar", "minecraft:writable_book", () => yardim(p));
@@ -338,7 +344,7 @@ function yardim(p) {
       `§e§lFIYAT YAZARKEN\n§7Sadece rakam yeter. §f1.500§7, §f1 500§7, §f1500 coin§7 hepsi calisir.\n§7Bos birakirsan hata verir.\n\n` +
       `§e§lCHAT KOMUTLARI\n` +
       `§f!menu !market !ara <kelime> !sat <adet> <fiyat>\n§f!takas <adet> !alim !teklif !teklifler\n` +
-      `§f!para !ilanlarim !rehber !bakiye !id !kitap !sopa !seviye\n`+
+      `§f!para !ilanlarim !rehber !bakiye !id !kitap !sopa !seviye !dovus\n`+
       `§f!yenile§7 (esya listesini tazeler) §f!liste§7 (liste durumu)\n\n` +
       `§e§lSLASH\n§f/${CFG.ad}:menu  /${CFG.ad}:market  /${CFG.ad}:sat  /${CFG.ad}:takas  /${CFG.ad}:para\n\n` +
       `§e§lTİCARET SEVİYESİ\n§7Ticaret yaptıkça XP kazanır, §f10 seviyeye§7 kadar çıkarsın.\n` +
@@ -1312,6 +1318,11 @@ function suresiDolanlariIsle() {
 
 // ==================== KOMUTLAR ====================
 function calistir(p, komut, arg) {
+  // Duello sirasinda market/arsa kapali: kit satilip para basilmasin.
+  if (Dovus.dovustaMi(p.name) && !["dovus", "duello", "pvp", "bakiye", "seviye"].includes(komut)) {
+    p.sendMessage("§c[Market] Düello sırasında market kullanılamaz.");
+    return;
+  }
   switch (komut) {
     case "sat": {
       const a = sayiOku(arg[0]), f = sayiOku(arg[1]);
@@ -1350,6 +1361,7 @@ function calistir(p, komut, arg) {
     case "kitap": return kitapVer(p);
     case "sopa": case "arsasopasi": return sopaVer(p);
     case "seviye": case "level": case "lvl": return seviyeEkrani(p);
+    case "dovus": case "duello": case "pvp": return Dovus.dovusMenu(p, API);
     case "yenile": case "refresh": return void listeYenile(p);
     case "liste": return p.sendMessage(
       `§7[Market] §fListe: §e${tumItemler().length}§f esya §8(aday ${RAPOR.aday}, ` +
@@ -1359,7 +1371,7 @@ function calistir(p, komut, arg) {
       return p.sendMessage(it ? `§a[Market] §fElindeki: §e${it.typeId}` : "§c[Market] Elinde bir esya yok.");
     }
     default:
-      p.sendMessage("§7[Market] §f!menu !market !ara !sat !takas !alim !teklif !teklifler !para !arsa !hazir !ilanlarim !rehber !bakiye !id !kitap !sopa !seviye !yenile !liste");
+      p.sendMessage("§7[Market] §f!menu !market !ara !sat !takas !alim !teklif !teklifler !para !arsa !hazir !ilanlarim !rehber !bakiye !id !kitap !sopa !seviye !dovus !yenile !liste");
   }
 }
 
@@ -1658,6 +1670,7 @@ function topluSat(p) {
 // Arsa modulunun ihtiyac duydugu kopru
 const API = {
   yukle, kaydet, paraOku, paraEkle, fmt, adminMi, sopaVer,
+  esyaVer: envantereVer,
   simge: CFG.simge,
   anaMenu: (p) => kitapMenu(p)
 };
@@ -1729,6 +1742,10 @@ guvenli("slash komutlari", () => {
 const hazirlananlar = new Set();
 function oyuncuyuHazirla(p) {
   if (!p?.isValid) return;
+  if (Dovus.dovustaMi(p.name)) return;   // duelloda envantere karisma
+
+  // Duello ortasinda cikmissa once esyalarini iade et, sonra normal hazirlik
+  try { Dovus.girisKontrol(API, p); } catch (e) { console.warn("[Market] duello iade: " + e); }
   let mevcut;
   try { mevcut = obj().getScore(p); } catch { mevcut = undefined; }
   if (mevcut === undefined) {
@@ -1741,6 +1758,7 @@ function oyuncuyuHazirla(p) {
   }
   if (hazirlananlar.has(p.id)) return;
   hazirlananlar.add(p.id);
+
 
   const bp = yukle(K_PARA_BEKLEYEN, {});
   if (bp[p.name]) {
@@ -1758,6 +1776,14 @@ function oyuncuyuHazirla(p) {
 
 guvenli("arsa korumasi", () => Arsa.arsaKur(API));
 
+guvenli("duello olum kontrolu", () => {
+  world.afterEvents.entityDie.subscribe(ev => {
+    const e = ev.deadEntity;
+    if (e?.typeId !== "minecraft:player") return;
+    system.run(() => { try { Dovus.olumKontrol(e.name); } catch (er) { console.warn("[Market] duello olum: " + er); } });
+  });
+});
+
 guvenli("playerSpawn", () => {
   world.afterEvents.playerSpawn.subscribe(ev => {
     if (!ev.initialSpawn) return;
@@ -1773,6 +1799,7 @@ guvenli("dongu kontrolu", () => {
     sayac++;
     const oyuncular = world.getAllPlayers();
     for (const p of oyuncular) {
+      if (Dovus.dovustaMi(p.name)) continue;
       try { Arsa.arsaTick(API, p); } catch { }
     }
     if (sayac % 5 === 0) for (const p of oyuncular) { try { oyuncuyuHazirla(p); } catch { } }
