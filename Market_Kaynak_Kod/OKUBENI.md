@@ -1,4 +1,4 @@
-# Market & Ekonomi — Kaynak Kod (v2.0)
+# Market & Ekonomi — Kaynak Kod (v2.1)
 
 Bu klasör Minecraft Bedrock için yazılan Market/Ekonomi addon'ının tüm
 kaynak dosyalarını içerir. `.mcaddon` sadece bunların zip'lenmiş hali;
@@ -15,12 +15,17 @@ oturum boyunca önbelleğe çakılıyordu — kötü bir ilk kurulum kalıcı ol
 
 v2.0'da:
 
-1. **Pakete gömülü vanilla katalog** (`scripts/esyalar.js`) eklendi. Aday
-   eşya id'leri aile şablonlarından üretiliyor (ahşap, renk, taş, bakır,
-   alet/zırh, doğurma yumurtaları, plaklar, çanak kırıntıları, zırh süsleme
-   şablonları, mercan, froglight...). Her aday `new ItemStack` ile
-   deneniyor; oyunda gerçekten olmayan id sessizce eleniyor. Yani fazla
-   üretmek zararsız, az üretmek eksik markete yol açar.
+1. **Pakete gömülü vanilla katalog** (`scripts/esyalar.js`) eklendi.
+   Listenin ana kaynağı Mojang'ın kendi metadata dosyası
+   (`bedrock-samples/metadata/vanilladata_modules/mojang-items.json`) —
+   oyunun **1607 vanilla eşya id'sinin tamamı**. Bu şart, çünkü Bedrock'ta
+   id'lerin çoğu tahmin edilemiyor: meşe kapısı `oak_door` değil
+   `wooden_door`, meşe çiti `oak_fence_gate` değil `fence_gate`, yatak
+   `white_bed` değil `bed`. İlk denemede bunları şablonla üretmeye
+   çalışmıştım ve 264 gerçek eşyayı kaçırıyordu. Resmî listenin yanında
+   eski sürüm/takma adlar için aile şablonları da duruyor. Her aday
+   `new ItemStack` ile deneniyor; oyunda olmayan id sessizce eleniyor.
+   Listeyi tazelemek için: `python3 katalog_guncelle.py`.
 2. **Kaynaklar harmanlanıyor:** oyunun eşya kaydı + blok kaydı + gömülü
    katalog + oyuncuların envanteri + açık ilanlar. Bir kaynak boş dönerse
    diğerleri listeyi tamamlıyor.
@@ -87,6 +92,27 @@ Düzeltmeler:
 Arsa ayarları `arsa.js` en başındaki `ARSA_CFG` içinde: blok başı fiyat,
 en küçük/en büyük kenar, oyuncu başına arsa sayısı, iade oranı.
 
+## Arsa sopası (claim wand)
+
+Craft masasında **2x2 çubuk (4 çubuk)** ile yapılır. `!sopa` komutu ya da
+Arsa menüsündeki "Arsa Sopası Al" düğmesi de envanterindeki 4 çubuğu alıp
+sopayı verir.
+
+| Hareket | Ne yapar |
+|---|---|
+| Bloğa **sol tık** | 1. köşeyi işaretler (blok kırılmaz) |
+| Bloğa **sağ tık** | 2. köşeyi işaretler ve satın alma ekranını açar |
+| Havaya **sağ tık** | Arsa menüsünü açar |
+
+Seçim diske yazılır: dünya kapanıp açılsa da köşeler durur. Menüde iki köşe
+ve seçili alanın fiyatı görünür, "Seçimi Temizle" ile sıfırlanır. 2. köşeyi
+sopayla seçmediysen durduğun yer 2. köşe sayılır (eski davranış).
+
+Sopa ve kontrol kitabı markete konamaz, satılamaz.
+
+Dosyaları: `Market_BP/items/arsa_sopasi.json`,
+`Market_BP/recipes/arsa_sopasi.json`, `Market_RP/textures/items/mk_sopa.png`.
+
 ## Klasör yapısı
 
 ```
@@ -95,8 +121,10 @@ Market_BP/                 Behavior Pack (mantık, script, tarifler)
   pack_icon.png              Pack kapak görseli
   items/
     kontrol_kitabi.json      Custom "Market Kontrol Kitabı" item tanımı
+    arsa_sopasi.json         Custom "Arsa Sopası" item tanımı
   recipes/
     kontrol_kitabi.json      Crafting Table tarifi (1 Kitap + 1 Gold Ingot)
+    arsa_sopasi.json         Crafting Table tarifi (2x2 çubuk)
   scripts/
     main.js                  Ana mantık: menüler, ilanlar, komutlar, olaylar
     esyalar.js               Gömülü vanilla eşya katalogu + Türkçe arama sözlüğü
@@ -115,6 +143,7 @@ Market_RP/                 Resource Pack (görseller, dil)
     languages.json
 
 paketle.sh                 Klasörleri .mcaddon'a paketler
+katalog_guncelle.py        Vanilla eşya listesini Mojang metadata'sından tazeler
 ```
 
 ## Nasıl okunur / düzenlenir
@@ -145,7 +174,7 @@ kaynaktan kaç eşya topladığını yazıyor.
 ## Paketleme
 
 ```bash
-bash paketle.sh          # -> Market_v2.0.mcaddon
+bash paketle.sh          # -> Market_v2.1.mcaddon
 ```
 
 Sürüm numarası hem `manifest.json` dosyalarında hem de `main.js` içindeki

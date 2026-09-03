@@ -24,7 +24,11 @@ export const ARSA_CFG = {
   sinirGosterme: true   // menude "Sinirlari Goster" (parcacikla cizer)
 };
 
-const kose = new Map();      // oyuncu.id -> {x,z,d}  (ayrica diske de yazilir)
+export const SOPA_ID = "mk:arsa_sopasi";
+const SOPA_AD = "§6Arsa Sopası";
+
+const kose = new Map();      // oyuncu.id -> {k1:{x,z,d}, k2:{x,z,d}} (diske de yazilir)
+let sopaTik = -99;           // blok tiklamasi ile havaya tiklamayi ayirmak icin
 const sonBolge = new Map();  // oyuncu.id -> arsa id / "yok"
 
 // Hangi korumanin gercekten kayit oldugunu tutar; teshis ekrani bunu gosterir.
@@ -64,24 +68,60 @@ function cakisiyorMu(api, d, x1, z1, x2, z2, haricId) {
     !(x2 < a.x1 || x1 > a.x2 || z2 < a.z1 || z1 > a.z2));
 }
 
-// Kose 1 hem bellekte hem diskte durur: script yeniden yuklenince kaybolmasin.
-function koseOku(api, p) {
+// Secim (kose 1 ve 2) hem bellekte hem diskte durur: script yeniden
+// yuklenince (dunya kapanip acilinca) secim kaybolmasin.
+function secimOku(api, p) {
   const bellekte = kose.get(p.id);
   if (bellekte) return bellekte;
+  let s = {};
   try {
     const hepsi = api.yukle(ARSA_CFG.koseAnahtar, {}) ?? {};
     const k = hepsi[p.name];
-    if (k) { kose.set(p.id, k); return k; }
+    if (k) s = (k.k1 || k.k2) ? k : { k1: k };   // eski tek-koseli bicim
   } catch { }
-  return undefined;
+  kose.set(p.id, s);
+  return s;
 }
-function koseYaz(api, p, k) {
-  if (k) kose.set(p.id, k); else kose.delete(p.id);
+function secimYaz(api, p, s) {
+  kose.set(p.id, s ?? {});
   try {
     const hepsi = api.yukle(ARSA_CFG.koseAnahtar, {}) ?? {};
-    if (k) hepsi[p.name] = k; else delete hepsi[p.name];
+    if (s && (s.k1 || s.k2)) hepsi[p.name] = s; else delete hepsi[p.name];
     api.kaydet(ARSA_CFG.koseAnahtar, hepsi);
   } catch { }
+}
+
+// ---- arsa sopasi ----
+export function sopaMi(item) { return item?.typeId === SOPA_ID; }
+
+export function sopaYap(mcRef) {
+  const it = new mcRef.ItemStack(SOPA_ID, 1);
+  it.nameTag = SOPA_AD;
+  it.setLore(["§7Sol tık: 1. köşe", "§7Sağ tık: 2. köşe + satın al", "§7Havaya sağ tık: arsa menüsü"]);
+  return it;
+}
+
+// Sopa ile secilen kose. no: 1 ya da 2.
+function koseAyarla(api, p, no, x, z, d) {
+  const s = secimOku(api, p);
+  const yeni = { ...s };
+  if (no === 1) yeni.k1 = { x, z, d }; else yeni.k2 = { x, z, d };
+  // farkli boyutta secim yapildiysa digerini dusur
+  if (yeni.k1 && yeni.k2 && yeni.k1.d !== yeni.k2.d) {
+    if (no === 1) delete yeni.k2; else delete yeni.k1;
+  }
+  secimYaz(api, p, yeni);
+  try { p.playSound(no === 1 ? "random.click" : "random.orb"); } catch { }
+
+  if (yeni.k1 && yeni.k2) {
+    const en = Math.abs(yeni.k1.x - yeni.k2.x) + 1;
+    const boy = Math.abs(yeni.k1.z - yeni.k2.z) + 1;
+    const fiyat = en * boy * ARSA_CFG.birimFiyat;
+    try { p.onScreenDisplay.setActionBar(`§eKöşe ${no}: §f${x}, ${z}  §8|  §7${en}x${boy} = §a${api.fmt(fiyat)}`); } catch { }
+  } else {
+    try { p.onScreenDisplay.setActionBar(`§eKöşe ${no}: §f${x}, ${z}  §8|  §7şimdi karşı köşeye sağ tıkla`); } catch { }
+  }
+  return yeni;
 }
 
 // ---- koruma ----
@@ -127,9 +167,47 @@ export function arsaKur(api) {
     uyar(p, a, tip);
   };
 
-  kayitEt("kirma", () => world.beforeEvents.playerBreakBlock.subscribe(ev => blokEngel(ev, "kirma")));
+  // ---- ARSA SOPASI ----
+  // Sol tik (blok kirma) = 1. kose, sag tik = 2. kose + satin alma ekrani.
+  // Sopa elde oldugu surece blok kirilmaz/kullanilmaz, sadece secim yapilir.
+  kayitEt("kirma", () => world.beforeEvents.playerBreakBlock.subscribe(ev => {
+    if (sopaMi(ev.itemStack)) {
+      ev.cancel = true;
+      const p = ev.player, b = ev.block;
+      const x = Math.floor(b.location.x), z = Math.floor(b.location.z), d = b.dimension.id;
+      system.run(() => { try { koseAyarla(api, p, 1, x, z, d); } catch (e) { console.warn("[Arsa] sopa: " + e); } });
+      return;
+    }
+    blokEngel(ev, "kirma");
+  }));
+
   kayitEt("koyma", () => world.beforeEvents.playerPlaceBlock.subscribe(ev => blokEngel(ev, "insaat")));
-  kayitEt("etkilesim", () => world.beforeEvents.playerInteractWithBlock.subscribe(ev => blokEngel(ev, "etkilesim")));
+
+  kayitEt("etkilesim", () => world.beforeEvents.playerInteractWithBlock.subscribe(ev => {
+    if (sopaMi(ev.itemStack)) {
+      ev.cancel = true;
+      const p = ev.player, b = ev.block;
+      const x = Math.floor(b.location.x), z = Math.floor(b.location.z), d = b.dimension.id;
+      sopaTik = system.currentTick;
+      system.run(() => {
+        try {
+          const s = koseAyarla(api, p, 2, x, z, d);
+          if (s.k1 && s.k2) arsaSatinAl(p, api);
+        } catch (e) { console.warn("[Arsa] sopa: " + e); }
+      });
+      return;
+    }
+    blokEngel(ev, "etkilesim");
+  }));
+
+  // Havaya sag tik: arsa menusu. (Bloga tiklandiginda ustteki olay zaten
+  // calisti, o yuzden ayni tikta menuyu acmiyoruz.)
+  kayitEt("sopa menusu", () => world.afterEvents.itemUse.subscribe(ev => {
+    if (!sopaMi(ev.itemStack)) return;
+    if (system.currentTick - sopaTik <= 2) return;
+    const p = ev.source;
+    system.run(() => { try { arsaMenu(p, api); } catch (e) { console.warn("[Arsa] sopa menu: " + e); } });
+  }));
 
   // Esya cercevesi, zirh standi, hayvan besleme/binme gibi VARLIK etkilesimleri.
   // Eskiden hic korunmuyordu: yabanci biri arsadaki cercevelerden esya alabiliyordu.
@@ -203,9 +281,17 @@ function sinirlariGoster(p, a) {
 export function arsaMenu(p, api) {
   const hepsi = arsalar(api);
   const benim = hepsi.filter(a => a.s === p.name);
-  const k = koseOku(api, p);
+  const sec = secimOku(api, p);
   const burada = arsaBul(api, p.dimension.id, p.location.x, p.location.z);
   const x = Math.floor(p.location.x), z = Math.floor(p.location.z);
+  const koseYazi = (k) => (k ? `${k.x}, ${k.z}` : "seçilmedi");
+  let olcu = "";
+  if (sec.k1) {
+    const k2 = sec.k2 ?? { x, z };
+    const en = Math.abs(sec.k1.x - k2.x) + 1, boy = Math.abs(sec.k1.z - k2.z) + 1;
+    olcu = `\n§7Seçili alan: §f${en} x ${boy} §8= §a${api.fmt(en * boy * ARSA_CFG.birimFiyat)}` +
+      (sec.k2 ? "" : " §8(2. köşe = durduğun yer)");
+  }
 
   const f = new ActionFormData()
     .title("§lARSA / BÖLGE")
@@ -214,22 +300,31 @@ export function arsaMenu(p, api) {
       `§7Arsan: §f${benim.length}§7 / ${ARSA_CFG.maxArsaOyuncu}  §8|  §7Dünyada: §f${hepsi.length}\n` +
       `§7Durduğun yer: §f${x}, ${z}\n` +
       `§7Buradasın: §f${burada ? `${burada.ad} (${burada.s})` : "serbest bölge"}\n` +
-      `§7Köşe 1: §f${k ? `${k.x}, ${k.z}` : "seçilmedi"}\n` +
+      `§7Köşe 1: §f${koseYazi(sec.k1)}  §8|  §7Köşe 2: §f${koseYazi(sec.k2)}${olcu}\n` +
       `§7Fiyat: §f${ARSA_CFG.birimFiyat}${api.simge}/blok  §8(en az ${ARSA_CFG.minKenar}x${ARSA_CFG.minKenar})`
     );
 
   const islem = [];
   const ekle = (yazi, ikon, fn) => { f.button(yazi, ikon); islem.push(fn); };
 
+  ekle("§lArsa Sopası Al\n§r§7Sol tık 1. köşe, sağ tık 2. köşe", "textures/items/mk_sopa", () => {
+    api.sopaVer(p);
+    arsaMenu(p, api);
+  });
   ekle("§lKöşe 1'i Buraya Koy\n§r§7Durduğun noktayı işaretle", "textures/items/wood_shovel", () => {
-    koseYaz(api, p, { x, z, d: p.dimension.id });
+    secimYaz(api, p, { ...secimOku(api, p), k1: { x, z, d: p.dimension.id } });
     p.sendMessage(`§a[Arsa] §fKöşe 1: §e${x}, ${z}`);
-    p.sendMessage("§7Şimdi karşı köşeye yürü ve 'Köşe 2 + Satın Al' de.");
+    p.sendMessage("§7Şimdi karşı köşeye yürü ve 'Köşe 2 + Satın Al' de. §8(Sopayla: sağ tık)");
     try { p.playSound("random.orb"); } catch { }
     arsaMenu(p, api);
   });
   ekle("§lKöşe 2 + Arsayı Satın Al\n§r§7Alanı tamamla ve öde", "textures/items/gold_ingot",
     () => arsaSatinAl(p, api));
+  if (sec.k1 || sec.k2) ekle("§7Seçimi Temizle", "textures/items/barrier", () => {
+    secimYaz(api, p, undefined);
+    p.sendMessage("§7[Arsa] Seçim temizlendi.");
+    arsaMenu(p, api);
+  });
   ekle("§lArsalarım\n§r§7Üye ekle, sil, sınır göster", "textures/items/book_normal",
     () => arsalarimMenu(p, api));
   ekle("§lBurası Kimin?\n§r§7Bulunduğun bölgeyi sorgula", "textures/items/compass_item", () => {
@@ -275,18 +370,21 @@ function arsaTeshis(p, api) {
 }
 
 function arsaSatinAl(p, api) {
-  const k = koseOku(api, p);
-  if (!k) { p.sendMessage("§c[Arsa] Önce Köşe 1'i koymalısın."); return arsaMenu(p, api); }
-  if (k.d !== p.dimension.id) { p.sendMessage("§c[Arsa] Köşe 1 başka bir boyutta."); return arsaMenu(p, api); }
+  const sec = secimOku(api, p);
+  const k = sec.k1 ?? sec.k2;
+  if (!k) { p.sendMessage("§c[Arsa] Önce bir köşe seçmelisin. §7Arsa sopasıyla sol tık, ya da menüden 'Köşe 1'i Buraya Koy'."); return arsaMenu(p, api); }
+  if (k.d !== p.dimension.id) { p.sendMessage("§c[Arsa] Seçtiğin köşe başka bir boyutta."); return arsaMenu(p, api); }
+  // 2. kose sopayla secilmediyse oyuncunun durdugu yer kullanilir
+  const k2 = (sec.k1 && sec.k2) ? sec.k2 : { x: Math.floor(p.location.x), z: Math.floor(p.location.z) };
 
-  const x1 = Math.min(k.x, Math.floor(p.location.x));
-  const x2 = Math.max(k.x, Math.floor(p.location.x));
-  const z1 = Math.min(k.z, Math.floor(p.location.z));
-  const z2 = Math.max(k.z, Math.floor(p.location.z));
+  const x1 = Math.min(k.x, k2.x);
+  const x2 = Math.max(k.x, k2.x);
+  const z1 = Math.min(k.z, k2.z);
+  const z2 = Math.max(k.z, k2.z);
   const en = x2 - x1 + 1, boy = z2 - z1 + 1;
 
   if (en < ARSA_CFG.minKenar || boy < ARSA_CFG.minKenar)
-    { p.sendMessage(`§c[Arsa] En küçük arsa ${ARSA_CFG.minKenar}x${ARSA_CFG.minKenar} olmalı. (şu an ${en}x${boy}) §7Köşe 1'den daha uzağa yürü.`); return arsaMenu(p, api); }
+    { p.sendMessage(`§c[Arsa] En küçük arsa ${ARSA_CFG.minKenar}x${ARSA_CFG.minKenar} olmalı. (şu an ${en}x${boy}) §7Köşeleri birbirinden daha uzağa koy.`); return arsaMenu(p, api); }
   if (en > ARSA_CFG.maxKenar || boy > ARSA_CFG.maxKenar)
     { p.sendMessage(`§c[Arsa] Tek kenar en fazla ${ARSA_CFG.maxKenar} olabilir. (şu an ${en}x${boy})`); return arsaMenu(p, api); }
 
@@ -328,7 +426,7 @@ function arsaSatinAl(p, api) {
           const yeni = { id: `a${Date.now()}${Math.floor(Math.random() * 999)}`, s: p.name, ad, d: p.dimension.id, x1, z1, x2, z2, u: [] };
           g.push(yeni);
           arsalariYaz(api, g);
-          koseYaz(api, p, undefined);
+          secimYaz(api, p, undefined);
           sonBolge.delete(p.id);
           try { p.playSound("random.levelup"); } catch { }
           p.sendMessage(`§a[Arsa] §f"${ad}" §aalındı! §7${en}x${boy}, §a-${api.fmt(fiyat)}`);

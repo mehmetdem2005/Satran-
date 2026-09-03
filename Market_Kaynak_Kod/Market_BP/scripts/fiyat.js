@@ -69,6 +69,13 @@ const TABAN = {
 
   // 1.20+ ile gelenler ve daha once listede olmayanlar
   copper: 45, netherite_upgrade_smithing_template: 200,
+  hardened_clay: 3, web: 5, waterlily: 2, noteblock: 12, grass_path: 1,
+  deadbush: 1, brick_block: 5, netherbrick: 2, snowball: 1, frog_spawn: 10,
+  cinnabar: 8, sulfur: 6, potent_sulfur: 20, sulfur_spike: 10, dried_ghast: 60,
+  copper_golem_statue: 60, copper_lantern: 16, copper_torch: 2, copper_bars: 5,
+  copper_chest: 12, lodestone_compass: 120, golden_dandelion: 6, red_shrub: 1,
+  pink_petals: 2, shelf_mushroom: 3, closed_eyeblossom: 5, open_eyeblossom: 5,
+  camel_husk_spawn_egg: 400,
   brick: 2, netherbrick: 2, mob_spawner: 800, nether_brick_item: 2,
   mace: 900, breeze_rod: 60, wind_charge: 8, heavy_core: 400,
   trial_key: 90, ominous_trial_key: 180, ominous_bottle: 60,
@@ -135,13 +142,14 @@ const CEVHER = {
 
 // alet/zirh malzeme degerleri
 const MALZEME = {
-  wooden: 1, wood: 1, stone: 1, golden: 18, gold: 18, iron: 12,
+  wooden: 1, wood: 1, stone: 1, copper: 5, golden: 18, gold: 18, iron: 12,
   diamond: 90, netherite: 1200, leather: 6, chainmail: 12, turtle: 40
 };
 // parca basina kac malzeme
 const PARCA = {
-  sword: 2, pickaxe: 3, axe: 3, shovel: 1, hoe: 2,
-  helmet: 5, chestplate: 8, leggings: 7, boots: 4
+  sword: 2, pickaxe: 3, axe: 3, shovel: 1, hoe: 2, spear: 3,
+  helmet: 5, chestplate: 8, leggings: 7, boots: 4,
+  nautilus_armor: 10, horse_armor: 8
 };
 
 // SATILAMAYACAK ESYALAR
@@ -162,7 +170,7 @@ const YASAK_TAM = new Set([
   "bubble_column", "standing_sign", "wall_sign", "standing_banner", "wall_banner",
   "flowing_lava", "lit_furnace", "lit_smoker", "lit_blast_furnace"
 ]);
-const YASAK_DESEN = [/^reserved/, /_command_block$/];
+const YASAK_DESEN = [/^reserved/, /_command_block$/, /^light_block(_\d+)?$/];
 
 const bellek = new Map();
 const sarmal = new Set();
@@ -195,6 +203,11 @@ function hesapla(a) {
   if (a.endsWith("_spawn_egg")) return 400;
   if (a.endsWith("_head") || a.endsWith("_skull") || a === "skull") return 120;
   if (a.endsWith("_pottery_sherd")) return 60;
+  if (a.endsWith("_shelf")) return 6;
+  if (a.endsWith("_cushion")) return 8;
+  if (a.endsWith("_nautilus_armor")) return 150;
+  if (a.endsWith("_pillar")) return D(a.slice(0, -7) + "_block") * 1.2 + 1;
+  if (a.endsWith("_chain") || a === "chain") return 12;
   if (a.endsWith("_froglight")) return 30;
   if (a.endsWith("_banner_pattern")) return 30;
   if (a.endsWith("_bundle") || a === "bundle") return 12;
@@ -317,12 +330,13 @@ const KURAL = [
 
   ["Alet, Zırh & Silah", "minecraft:diamond_sword", a =>
     /_(sword|pickaxe|axe|shovel|hoe|helmet|chestplate|leggings|boots|horse_armor)$/.test(a) ||
-    /(_smithing_template|_bucket)$/.test(a) ||
+    /(_smithing_template|_bucket|_spear|_nautilus_armor)$/.test(a) ||
     ["bow", "crossbow", "trident", "mace", "shield", "elytra", "arrow", "spectral_arrow",
      "tipped_arrow", "fishing_rod", "shears", "brush", "flint_and_steel", "bucket",
      "compass", "recovery_compass", "clock", "spyglass", "saddle", "lead", "name_tag",
      "book", "writable_book", "written_book", "enchanted_book", "experience_bottle",
      "wolf_armor", "carrot_on_a_stick", "warped_fungus_on_a_stick", "wind_charge",
+     "lodestone_compass", "trapdoor", "shears",
      "firework_rocket", "firework_star", "goat_horn", "totem_of_undying"].includes(a)],
 
   ["Madenler & Cevher", "minecraft:diamond", a =>
@@ -358,17 +372,18 @@ const KURAL = [
      "command_block_minecart"].includes(a)],
 
   ["Renkli & Dekor", "minecraft:white_wool", a =>
-    /_(wool|carpet|bed|banner|dye|concrete|concrete_powder|terracotta|glazed_terracotta|stained_glass|stained_glass_pane|candle|shulker_box|bundle|harness|banner_pattern|pottery_sherd|head|skull)$/.test(a) ||
+    /_(wool|carpet|bed|banner|dye|concrete|concrete_powder|terracotta|glazed_terracotta|stained_glass|stained_glass_pane|candle|shulker_box|bundle|harness|banner_pattern|pottery_sherd|head|skull|cushion)$/.test(a) ||
     ["terracotta", "candle", "shulker_box", "undyed_shulker_box", "bundle", "glass",
      "glass_pane", "tinted_glass", "item_frame", "glow_item_frame", "painting",
      "flower_pot", "decorated_pot", "armor_stand", "lectern", "chiseled_bookshelf",
      "bookshelf", "skull", "end_rod", "lantern", "soul_lantern", "torch", "soul_torch",
      "campfire", "soul_campfire", "chain", "iron_bars", "ladder", "scaffolding",
      "bell", "beehive", "bee_nest", "frame", "glow_frame", "fire_charge",
-     "bed", "banner", "sign"].includes(a)],
+     "bed", "banner", "sign", "filled_map", "hardened_clay", "noteblock",
+     "copper_lantern", "copper_torch", "copper_golem_statue"].includes(a)],
 
   ["Ahşap & Bitki", "minecraft:oak_log", a =>
-    /_(log|wood|stem|hyphae|planks|leaves|sapling|propagule|fungus|roots|mosaic|boat|raft|nylium)$/.test(a) ||
+    /_(log|wood|stem|hyphae|planks|leaves|sapling|propagule|fungus|roots|mosaic|boat|raft|nylium|shelf|petals|eyeblossom|shrub|dandelion)$/.test(a) ||
     /^stripped_/.test(a) || a === "boat" || a === "chest_boat" ||
     /(flower|tulip|orchid|rose|lilac|peony|fern|grass|vine|moss|mushroom_block|coral|azalea|dripleaf|sprouts|bush)/.test(a) ||
     ["stick", "dandelion", "poppy", "allium", "azure_bluet", "oxeye_daisy", "cornflower",
@@ -376,12 +391,13 @@ const KURAL = [
      "sea_pickle", "bamboo_block", "bamboo_raft", "bamboo_chest_raft", "spore_blossom",
      "glow_lichen", "hanging_roots", "leaf_litter", "wildflowers", "firefly_bush",
      "cactus_flower", "resin_clump", "creaking_heart", "chorus_plant",
-     "chorus_flower", "shroomlight", "bowl", "paper"].includes(a)],
+     "chorus_flower", "shroomlight", "bowl", "paper", "deadbush", "waterlily",
+     "web", "shelf_mushroom", "frog_spawn", "pink_petals"].includes(a)],
 
   ["Taş & Yapı", "minecraft:stone", a =>
     /_(stairs|slab|wall|fence|fence_gate|door|trapdoor|bricks|brick|tiles|pane|sign|hanging_sign)$/.test(a) ||
     /^(polished_|chiseled_|cut_|smooth_|mossy_|cracked_|waxed_|exposed_|weathered_|oxidized_|deepslate_|infested_)/.test(a) ||
-    /(copper|sandstone|prismarine|blackstone|purpur|basalt|deepslate|tuff|resin)/.test(a) ||
+    /(copper|sandstone|prismarine|blackstone|purpur|basalt|deepslate|tuff|resin|cinnabar|sulfur)/.test(a) ||
     ["dirt", "coarse_dirt", "rooted_dirt", "grass_block", "podzol", "mycelium", "mud",
      "packed_mud", "sand", "red_sand", "gravel", "clay", "stone", "cobblestone",
      "andesite", "diorite", "granite", "tuff", "calcite", "netherrack", "soul_sand",
@@ -395,6 +411,9 @@ const KURAL = [
      "stonecutter", "grindstone", "cartography_table", "fletching_table", "cobweb",
      "turtle_egg", "sniffer_egg", "frogspawn", "suspicious_sand", "suspicious_gravel",
      "chipped_anvil", "damaged_anvil", "slime", "slime_block", "honey_block",
+     "fence_gate", "brick", "bricks", "brick_block", "netherbrick", "snowball",
+     "iron_chain", "chain", "grass_path", "quartz_pillar", "cinnabar", "sulfur",
+     "potent_sulfur", "sulfur_spike",
      "snow_layer", "frosted_ice", "powder_snow", "bone_block", "dried_kelp_block",
      "nether_wart_block", "warped_wart_block", "shroudstone"].includes(a) ||
     /_block$/.test(a) || /_froglight$/.test(a) || /_amethyst_bud$/.test(a)],
@@ -408,7 +427,7 @@ const KURAL = [
      "rabbit_foot", "scute", "turtle_scute", "armadillo_scute", "dragon_breath",
      "dragon_egg", "end_crystal", "heavy_core", "trial_key", "ominous_trial_key",
      "ominous_bottle", "netherite_ingot", "potion", "splash_potion", "lingering_potion",
-     "glass_bottle", "empty_map", "map", "filled_map"].includes(a) ||
+     "glass_bottle", "empty_map", "map", "dried_ghast"].includes(a) ||
     /^music_disc/.test(a) || /^disc_fragment/.test(a)]
 ];
 

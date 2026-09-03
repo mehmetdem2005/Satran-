@@ -10,7 +10,7 @@ const { ActionFormData, ModalFormData } = ui;
 
 // ==================== AYARLAR ====================
 const CFG = {
-  surum: "2.0",
+  surum: "2.1",
   ad: "m",
   objective: "money",
   simge: "$",
@@ -232,6 +232,31 @@ function kitapMi(it) {
   if (it.typeId === KITAP_ID) return true;
   return it.typeId === "minecraft:book" && it.nameTag === KITAP_AD;
 }
+// Kontrol kitabi ve arsa sopasi markete konamaz, satilamaz.
+function ozelEsya(it) { return kitapMi(it) || Arsa.sopaMi(it); }
+
+function sopasiVarMi(p) {
+  const c = kap(p); if (!c) return false;
+  for (let i = 0; i < c.size; i++) if (Arsa.sopaMi(c.getItem(i))) return true;
+  return false;
+}
+// Arsa sopasi: craft masasinda 2x2 cubukla yapilir. Menuden isteyene de
+// envanterindeki 4 cubugun karsiliginda verilir.
+function sopaVer(p) {
+  if (sopasiVarMi(p)) { p.sendMessage("§e[Market] Arsa sopan zaten var."); return; }
+  if (itemSay(p, "minecraft:stick") < 4) {
+    p.sendMessage("§c[Market] Arsa sopası için §f4 çubuk §cgerekiyor.");
+    p.sendMessage("§7Craft masasında da yapabilirsin: §f2x2 çubuk§7.");
+    return;
+  }
+  if (!itemCikar(p, "minecraft:stick", 4)) { p.sendMessage("§c[Market] Çubuklar alınamadı."); return; }
+  let it;
+  try { it = Arsa.sopaYap(mc); } catch (e) { p.sendMessage(`§c[Market] Sopa yapılamadı: ${e}`); return; }
+  envantereVer(p, it);
+  ses(p, "random.orb");
+  p.sendMessage("§a[Market] §fArsa sopası verildi. §74 çubuk harcandı.");
+  p.sendMessage("§7Sol tık: 1. köşe  §8|  §7Sağ tık: 2. köşe + satın alma  §8|  §7Havaya sağ tık: menü");
+}
 function kitapYap() {
   let it;
   try { it = new ItemStack(KITAP_ID, 1); } catch { it = new ItemStack("minecraft:book", 1); }
@@ -311,11 +336,13 @@ function yardim(p) {
       `§e§lFIYAT YAZARKEN\n§7Sadece rakam yeter. §f1.500§7, §f1 500§7, §f1500 coin§7 hepsi calisir.\n§7Bos birakirsan hata verir.\n\n` +
       `§e§lCHAT KOMUTLARI\n` +
       `§f!menu !market !ara <kelime> !sat <adet> <fiyat>\n§f!takas <adet> !alim !teklif !teklifler\n` +
-      `§f!para !ilanlarim !rehber !bakiye !id !kitap\n`+
+      `§f!para !ilanlarim !rehber !bakiye !id !kitap !sopa\n`+
       `§f!yenile§7 (esya listesini tazeler) §f!liste§7 (liste durumu)\n\n` +
       `§e§lSLASH\n§f/${CFG.ad}:menu  /${CFG.ad}:market  /${CFG.ad}:sat  /${CFG.ad}:takas  /${CFG.ad}:para\n\n` +
       `§e§lARSA / BÖLGE\n§7Köşe 1'i koy, karşı köşeye yürü, satın al.\n` +
       `§7Arsanda senden ve üyelerinden başkası blok kıramaz, koyamaz,\n§7sandık açamaz, hayvanlarına vuramaz.\n` +
+      `§7Arsa sopası: §f2x2 çubuk§7 ile yapılır (§f!sopa§7 da verir).\n` +
+      `§7Sopayla §fsol tık§7 = 1. köşe, §fsağ tık§7 = 2. köşe + satın alma,\n§7havaya sağ tık = arsa menüsü.\n` +
       `§7Bir şey çalışmıyorsa: §fArsa menüsü > Koruma Durumu§7.\n\n` +
       `§e§lKITAP KAYBOLURSA\n§f!kitap§7 , §f/give @s mk:kontrol_kitabi§7 ya da\n§7Crafting Table'da §f1 Kitap + 1 Gold Ingot§7.`
     )
@@ -329,7 +356,7 @@ function envanterSec(p, baslik, geriCagir) {
   const dolu = [];
   for (let i = 0; i < c.size; i++) {
     const it = c.getItem(i);
-    if (it && !kitapMi(it)) dolu.push({ slot: i, item: it });
+    if (it && !ozelEsya(it)) dolu.push({ slot: i, item: it });
   }
   if (dolu.length === 0) { p.sendMessage("§c[Market] Envanterinde uygun esya yok."); return kitapMenu(p); }
 
@@ -398,6 +425,7 @@ function adayIdler() {
   RAPOR.oyuncu = kume.size - n;
 
   kume.delete(KITAP_ID);
+  kume.delete(Arsa.SOPA_ID);
   RAPOR.aday = kume.size;
   return [...kume];
 }
@@ -574,7 +602,7 @@ function envanterdenTip(p, geriCagir, geriDon) {
   const tipler = [];
   for (let i = 0; i < c.size; i++) {
     const it = c.getItem(i);
-    if (it && !kitapMi(it) && !tipler.includes(it.typeId)) tipler.push(it.typeId);
+    if (it && !ozelEsya(it) && !tipler.includes(it.typeId)) tipler.push(it.typeId);
   }
   if (tipler.length === 0) { p.sendMessage("\u00a7c[Market] Envanterin bos."); return istenenSec(p, geriCagir, geriDon); }
   const f = new ActionFormData().title("\u00a7lENVANTERIMDEN").body("\u00a77Bir esya turu sec.");
@@ -616,7 +644,7 @@ function slottanAl(p, slot, adet) {
   const c = kap(p);
   const it = c?.getItem(slot);
   if (!it) { p.sendMessage("§c[Market] Esya bulunamadi."); return null; }
-  if (kitapMi(it)) { p.sendMessage("§c[Market] Kontrol kitabi kullanilamaz."); return null; }
+  if (ozelEsya(it)) { p.sendMessage("§c[Market] Kontrol kitabi ve arsa sopasi markete konamaz."); return null; }
   if (!Number.isInteger(adet) || adet < 1 || adet > it.amount) { p.sendMessage("§c[Market] Adet gecersiz."); return null; }
   const cikan = it.clone(); cikan.amount = adet;
   if (it.amount === adet) c.setItem(slot, undefined);
@@ -1292,6 +1320,7 @@ function calistir(p, komut, arg) {
     case "admin": return adminMi(p) ? adminPanel(p) : p.sendMessage("§c[Market] Yetkin yok.");
     case "bakiye": return p.sendMessage(`§a[Market] §fBakiyen: §a${fmt(paraOku(p))}`);
     case "kitap": return kitapVer(p);
+    case "sopa": case "arsasopasi": return sopaVer(p);
     case "yenile": case "refresh": return void listeYenile(p);
     case "liste": return p.sendMessage(
       `§7[Market] §fListe: §e${tumItemler().length}§f esya §8(aday ${RAPOR.aday}, ` +
@@ -1301,7 +1330,7 @@ function calistir(p, komut, arg) {
       return p.sendMessage(it ? `§a[Market] §fElindeki: §e${it.typeId}` : "§c[Market] Elinde bir esya yok.");
     }
     default:
-      p.sendMessage("§7[Market] §f!menu !market !ara !sat !takas !alim !teklif !teklifler !para !arsa !hazir !ilanlarim !rehber !bakiye !id !kitap !yenile !liste");
+      p.sendMessage("§7[Market] §f!menu !market !ara !sat !takas !alim !teklif !teklifler !para !arsa !hazir !ilanlarim !rehber !bakiye !id !kitap !sopa !yenile !liste");
   }
 }
 
@@ -1482,7 +1511,7 @@ function topluSat(p) {
   const bulunan = new Map();
   for (let i = 0; i < c.size; i++) {
     const it = c.getItem(i);
-    if (!it || kitapMi(it)) continue;
+    if (!it || ozelEsya(it)) continue;
     if (!fiyat(it.typeId)) continue;
     bulunan.set(it.typeId, (bulunan.get(it.typeId) ?? 0) + it.amount);
   }
@@ -1528,7 +1557,7 @@ function topluSat(p) {
 
 // Arsa modulunun ihtiyac duydugu kopru
 const API = {
-  yukle, kaydet, paraOku, paraEkle, fmt, adminMi,
+  yukle, kaydet, paraOku, paraEkle, fmt, adminMi, sopaVer,
   simge: CFG.simge,
   anaMenu: (p) => kitapMenu(p)
 };

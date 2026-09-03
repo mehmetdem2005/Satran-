@@ -1,0 +1,15 @@
+{
+  "format_version": "1.21.50",
+  "minecraft:recipe_shaped": {
+    "description": { "identifier": "mk:arsa_sopasi_tarif" },
+    "tags": ["crafting_table"],
+    "pattern": [
+      "SS",
+      "SS"
+    ],
+    "key": {
+      "S": { "item": "minecraft:stick" }
+    },
+    "result": { "item": "mk:arsa_sopasi", "count": 1 }
+  }
+}

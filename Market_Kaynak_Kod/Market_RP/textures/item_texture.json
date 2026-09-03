@@ -13,6 +13,9 @@
     },
     "market_endersandik": {
       "textures": "textures/items/market_endersandik"
+    },
+    "mk_sopa": {
+      "textures": "textures/items/mk_sopa"
     }
   }
 }
