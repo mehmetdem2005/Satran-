@@ -42,6 +42,7 @@ import com.satran.jobapply.data.filter.JobQuery
 import com.satran.jobapply.data.memory.SearchEntry
 import com.satran.jobapply.data.remote.SeasonalJobsApi
 import com.satran.jobapply.data.model.SendRecord
+import com.satran.jobapply.data.model.TranslationEngine
 import com.satran.jobapply.data.model.SendStatus
 import com.satran.jobapply.ui.common.LabeledField
 import com.satran.jobapply.ui.common.SectionTitle
@@ -297,6 +298,42 @@ fun SettingsScreen(
             }
         }
 
+        // ------------------------------------------------------------ çeviri
+        item { SectionTitle("Çeviri") }
+        item {
+            Text(
+                "İlanları Türkçeye çevirmek için API anahtarı gerekmez. Varsayılan motor " +
+                    "cihazın kendisinde çalışır; dil modeli ilk kullanımda bir kez iner " +
+                    "(~30 MB) ve sonrasında internetsiz de çevirir.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline,
+            )
+        }
+        item {
+            EnumPicker(
+                label = "Çeviri motoru",
+                current = settings.translationEngine.label,
+                options = TranslationEngine.entries.map { it.label to it },
+                onSelect = { engine -> onUpdate { it.copy(translationEngine = engine) } },
+            )
+        }
+        item {
+            SwitchRow(
+                title = "Dil modelini yalnızca Wi-Fi'da indir",
+                subtitle = "Kapalıysa mobil veriyle de iner (~30 MB, tek seferlik)",
+                checked = settings.translationWifiOnly,
+                onCheckedChange = { v -> onUpdate { it.copy(translationWifiOnly = v) } },
+            )
+        }
+        item {
+            Text(
+                "Cihaz üstü motor çalışmazsa (Google Play Hizmetleri olmayan cihazlar) " +
+                    "anahtarsız çevrimiçi bir servise düşülür.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.outline,
+            )
+        }
+
         // ------------------------------------------------------------ AI
         item { SectionTitle("Yapay zekâ") }
         item {
@@ -371,7 +408,7 @@ fun SettingsScreen(
         item {
             SwitchRow(
                 title = "Her ilana özel mektup yaz",
-                subtitle = "Kapalıysa şablon aynen kullanılır",
+                subtitle = "Kapalıysa şablon aynen kullanılır. Çeviri bundan bağımsızdır, anahtar istemez.",
                 checked = settings.aiWriteLetters,
                 onCheckedChange = { v -> onUpdate { it.copy(aiWriteLetters = v) } },
             )

@@ -18,6 +18,7 @@ import com.satran.jobapply.data.memory.SearchEntry
 import com.satran.jobapply.data.model.AppSettings
 import com.satran.jobapply.data.model.Job
 import com.satran.jobapply.data.model.SendRecord
+import com.satran.jobapply.data.model.TranslationEngine
 import com.satran.jobapply.data.model.SendStatus
 import com.satran.jobapply.data.pipeline.ApplicationPipeline
 import com.satran.jobapply.data.remote.SeasonalJobsApi
@@ -67,6 +68,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
         /** Tamamı görülmüş sayfalarda en fazla kaç kez ileri atlanacağı. */
         const val MAX_EMPTY_PAGE_SKIPS = 6
+
+        /** Görev tanımının gelmesi için beklenecek süre. */
+        const val DETAIL_WAIT_TRIES = 40
+        const val DETAIL_WAIT_STEP_MS = 150L
     }
 
     init {
@@ -486,33 +491,67 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // ============================================================ yapay zekâ
 
-    /** İlan açıklamasını Türkçeye çevirip özetler. Kartı da açar. */
+    /**
+     * İlanı Türkçeye çevirir.
+     *
+     * **API anahtarı gerektirmez.** Varsayılan motor cihaz üstünde çalışır;
+     * dil modeli ilk kullanımda bir kez inip sonrasında çevrimdışı da çalışır.
+     * Yapay zekâ yalnızca "özetle" seçeneğinde devreye girer.
+     */
     fun summarize(job: Job) {
-        if (!settings.value.aiReady) {
-            _message.value = "Önce Ayarlar'dan yapay zekâ API anahtarını gir."
-            return
-        }
+        val config = settings.value
         _jobs.update { it.copy(expanded = it.expanded + job.caseNumber) }
-        loadDetails(job)
         if (job.caseNumber in _jobs.value.summarizing) return
         if (_jobs.value.summaries.containsKey(job.caseNumber)) return
 
         viewModelScope.launch {
             _jobs.update { it.copy(summarizing = it.summarizing + job.caseNumber) }
-            runCatching { container.aiClient().summarizeInTurkish(fullJob(job)) }
-                .onSuccess { summary ->
+
+            // Görev tanımı listede gelmiyor; çeviriden önce tam metni getir.
+            loadDetails(job)
+            val full = awaitDetails(job)
+
+            val useAi = config.translationEngine == TranslationEngine.AI_SUMMARY && config.aiReady
+            if (config.translationEngine == TranslationEngine.AI_SUMMARY && !config.aiReady) {
+                _message.value = "Yapay zekâ anahtarı yok; cihaz üstü çeviriye geçildi."
+            }
+
+            val outcome = if (useAi) {
+                runCatching { container.aiClient().summarizeInTurkish(full) }
+            } else {
+                runCatching {
+                    if (!container.translator.isModelReady()) {
+                        _message.value = "Çeviri modeli indiriliyor (~30 MB, yalnızca ilk seferde)."
+                    }
+                    container.translator.translate(full, config.translationWifiOnly).text
+                }
+            }
+
+            outcome
+                .onSuccess { text ->
                     _jobs.update {
                         it.copy(
-                            summaries = it.summaries + (job.caseNumber to summary),
+                            summaries = it.summaries + (job.caseNumber to text),
                             summarizing = it.summarizing - job.caseNumber,
                         )
                     }
                 }
                 .onFailure { error ->
                     _jobs.update { it.copy(summarizing = it.summarizing - job.caseNumber) }
-                    _message.value = error.friendly()
+                    _message.value = "Çeviri yapılamadı: ${error.message ?: "bilinmeyen hata"}"
                 }
         }
+    }
+
+    /** Görev tanımı gelene kadar bekler; gelmezse listedeki hafif sürümle devam eder. */
+    private suspend fun awaitDetails(job: Job): Job {
+        repeat(DETAIL_WAIT_TRIES) {
+            val detailed = _jobs.value.details[job.caseNumber]
+            if (detailed != null) return detailed
+            if (job.caseNumber !in _jobs.value.loadingDetails) return@repeat
+            kotlinx.coroutines.delay(DETAIL_WAIT_STEP_MS)
+        }
+        return _jobs.value.details[job.caseNumber] ?: job
     }
 
     /** İşvereni internetten araştırır: sorguyu model yazar, aramayı API yapar. */

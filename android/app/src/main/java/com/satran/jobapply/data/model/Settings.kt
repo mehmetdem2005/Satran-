@@ -88,6 +88,18 @@ enum class SearchProvider(
     ),
 }
 
+/**
+ * Çeviri motoru.
+ *
+ * Varsayılan cihaz üstüdür: API anahtarı gerektirmez, ücretsizdir ve dil
+ * modeli bir kez indikten sonra internetsiz çalışır. Yapay zekâ seçeneği
+ * yalnızca özet + yorum isteyenler içindir ve anahtar ister.
+ */
+enum class TranslationEngine(val label: String, val needsAiKey: Boolean) {
+    ON_DEVICE("Cihazda çevir (anahtarsız, ücretsiz)", false),
+    AI_SUMMARY("Yapay zekâ ile özetle (anahtar ister)", true),
+}
+
 /** Gönderim yolu. */
 enum class SendMode(val label: String) {
     SMTP("Doğrudan gönder (Gmail SMTP)"),
@@ -123,7 +135,6 @@ data class AppSettings(
     val aiModel: String = "",
     val aiBaseUrl: String = "",
     val aiWriteLetters: Boolean = true,
-    val aiTranslateToTurkish: Boolean = true,
     val letterLanguage: String = "İngilizce",
     /** Sağlayıcıdan çekilen canlı model listesi; Ayarlar'daki seçicide gösterilir. */
     val discoveredModels: List<String> = emptyList(),
@@ -148,6 +159,11 @@ data class AppSettings(
     val lastArchiveCheckAt: Long = 0L,
     /** Açılışta arşivi kendiliğinden denetle. */
     val autoRefreshArchive: Boolean = true,
+
+    // Çeviri
+    val translationEngine: TranslationEngine = TranslationEngine.ON_DEVICE,
+    /** Dil modeli yalnızca Wi-Fi'dayken insin (~30 MB, tek seferlik). */
+    val translationWifiOnly: Boolean = false,
 
     // Bellek / RAG
     /** Geçmiş ilanlar ve gönderilen mektuplar mektup yazarken bağlam olarak kullanılsın. */

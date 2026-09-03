@@ -13,6 +13,7 @@ securityCrypto = "1.1.0-alpha06"
 datastore = "1.1.1"
 javamail = "1.6.7"
 documentfile = "1.0.1"
+mlkitTranslate = "17.0.3"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -35,6 +36,7 @@ okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhtt
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
 javamail-android-mail = { group = "com.sun.mail", name = "android-mail", version.ref = "javamail" }
 javamail-android-activation = { group = "com.sun.mail", name = "android-activation", version.ref = "javamail" }
+mlkit-translate = { group = "com.google.mlkit", name = "translate", version.ref = "mlkitTranslate" }
 junit = { group = "junit", name = "junit", version = "4.13.2" }
 
 [plugins]

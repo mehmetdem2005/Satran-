@@ -17,9 +17,34 @@ Saf Android + Kotlin + Jetpack Compose. Ek sunucu yok, her şey telefonda çalı
 | **Başvuru** | Seçilen ilanlar için konu + mesaj hazırlar (şablon veya AI), tek tek düzenletir, PDF CV ekler. İki gönderim yolu: **doğrudan SMTP** (toplu, ön plan bildirimiyle) veya **Gmail'de aç** (alıcı/konu/mesaj dolu, PDF ekli — sana yalnızca Gönder'e basmak kalır). |
 | **Ayarlar** | Gmail hesabı, PDF CV, başvuru profili, mesaj şablonu, yapay zekâ sağlayıcısı, internet arama sağlayıcısı, gönderim geçmişi. |
 
+### Çeviri — API anahtarı gerektirmez
+
+Her kartta çeviri tuşu vardır ve **hiçbir anahtar istemez**:
+
+1. **Cihaz üstü (varsayılan)** — Google ML Kit. Dil modeli ilk kullanımda bir
+   kez iner (~30 MB), sonrasında **internetsiz** de çevirir, sınırsızdır,
+   ücretsizdir.
+2. **Anahtarsız çevrimiçi yedek** — cihaz üstü motor çalışmazsa (Google Play
+   Hizmetleri olmayan cihazlar) otomatik olarak devreye girer.
+
+Yapay zekâ anahtarı girersen Ayarlar'dan *"Yapay zekâ ile özetle"* seçeneğine
+geçebilirsin — bu düz çeviri yerine maddelenmiş özet verir. Zorunlu değildir.
+
+### APK boyutu ve mimari
+
+Cihaz üstü çeviri motoru her işlemci mimarisi için ayrı yerel kütüphane
+getirir. x86/x86_64 (yalnızca emülatör) paketlenmez ve mimari başına ayrı APK
+üretilir:
+
+| APK | Boyut | Kime |
+|---|---|---|
+| `app-arm64-v8a-debug.apk` | ~38 MB | 2017 sonrası hemen her telefon |
+| `app-armeabi-v7a-debug.apk` | ~33 MB | eski 32-bit telefonlar |
+| `app-universal-debug.apk` | ~50 MB | hangisi olduğundan emin değilsen |
+
 ### Yapay zekâ (isteğe bağlı)
 - **İlana özel başvuru mektubu** — profilin + ilanın görev tanımı + web araması + bellek okunarak yazılır.
-- **Türkçeye çevir** — her kartta görünür çeviri tuşu; İngilizce ilan metnini maddeleyip çevirir.
+- **İlana özel başvuru mektubu**, **akıllı arama** ve isteğe bağlı **özet** için kullanılır.
 - **Akıllı arama** — "Florida'da otel temizlik işi" yazarsın, model arama sorgusuna çevirir.
 
 Sağlayıcılar: **DeepSeek** (varsayılan), **Claude**, **OpenAI**, **OpenRouter** veya

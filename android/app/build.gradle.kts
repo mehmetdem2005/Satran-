@@ -15,6 +15,11 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
+
+        // x86/x86_64 yalnızca emülatörlerde kullanılır; paketlemiyoruz.
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
     }
 
     buildTypes {
@@ -58,6 +63,22 @@ android {
         }
     }
 
+    /**
+     * Cihaz üstü çeviri modeli (ML Kit) her işlemci mimarisi için ayrı yerel
+     * kütüphane getiriyor ve tek APK'yı 84 MB'a çıkarıyordu. x86/x86_64
+     * yalnızca emülatörlerde kullanılır; gerçek telefonlar ARM'dir.
+     * Mimari başına ayrı APK üretiliyor, ayrıca ikisini birleştiren
+     * "universal" APK da çıkıyor.
+     */
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a")
+            isUniversalApk = true
+        }
+    }
+
     lint {
         abortOnError = false
     }
@@ -83,6 +104,7 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.javamail.android.mail)
     implementation(libs.javamail.android.activation)
+    implementation(libs.mlkit.translate)
     debugImplementation(libs.androidx.ui.tooling)
     testImplementation(libs.junit)
 }

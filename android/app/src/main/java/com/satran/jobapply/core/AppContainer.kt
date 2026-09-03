@@ -10,6 +10,7 @@ import com.satran.jobapply.data.prefs.SettingsStore
 import com.satran.jobapply.data.remote.AiClient
 import com.satran.jobapply.data.remote.SeasonalJobsApi
 import com.satran.jobapply.data.remote.WebSearchClient
+import com.satran.jobapply.data.translate.JobTranslator
 import com.satran.jobapply.send.SendQueueStore
 
 /** Uygulamanın tek bağımlılık kabı. Çerçeve kullanmadan elle kurulur. */
@@ -19,6 +20,9 @@ class AppContainer(context: Context) {
     val historyStore = HistoryStore(context)
     val sendQueueStore = SendQueueStore(context)
     val jobsApi = SeasonalJobsApi()
+
+    /** Çeviri anahtar istemez; tek örnek olarak tutulur (dil modeli paylaşılsın). */
+    val translator = JobTranslator()
 
     // Bellek katmanı: arşiv (tekrar engelleme + geçmiş), arama geçmişi, RAG.
     val jobArchive = JobArchiveStore(context)
