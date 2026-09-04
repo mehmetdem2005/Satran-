@@ -14,14 +14,6 @@ class JobTranslator(
     private val http: HttpTranslator = HttpTranslator(),
 ) {
 
-    /** Çevirinin hangi yoldan geldiği — arayüzde küçük not olarak gösterilir. */
-    enum class Source(val label: String) {
-        ON_DEVICE("cihazda çevrildi"),
-        HTTP("çevrimiçi çevrildi"),
-    }
-
-    data class Result(val text: String, val source: Source)
-
     suspend fun isModelReady(): Boolean = onDevice.isModelReady()
 
     suspend fun downloadModel(requireWifi: Boolean) = onDevice.ensureModel(requireWifi)
@@ -40,35 +32,47 @@ class JobTranslator(
         return runCatching { http.translate(text) }.getOrNull()?.takeIf { it.isNotBlank() } ?: text
     }
 
-    suspend fun translate(job: Job, requireWifi: Boolean): Result {
-        val source = buildSourceText(job)
-        if (source.isBlank()) return Result("Çevrilecek metin yok.", Source.ON_DEVICE)
+    /**
+     * İlanın alanlarını tek tek çevirir.
+     *
+     * Alanlar ayrı ayrı çevrilir ki biri başarısız olsa da diğerleri gelsin ve
+     * arayüz her alanı doğru yere yerleştirebilsin. İşveren adı, şehir ve
+     * eyalet **çevrilmez** — özel adlardır.
+     *
+     * @param headlineOnly yalnızca başlık ve meslek adı (liste görünümü için).
+     */
+    suspend fun translateJob(
+        job: Job,
+        requireWifi: Boolean,
+        headlineOnly: Boolean,
+    ): JobTranslation {
+        val title = translateShort(job.title, requireWifi).takeIf { it != job.title }
+        val socTitle = job.socTitle
+            ?.takeIf { it != job.title }
+            ?.let { original -> translateShort(original, requireWifi).takeIf { it != original } }
 
-        val deviceAttempt = runCatching {
-            onDevice.ensureModel(requireWifi)
-            onDevice.translate(source)
-        }
-        deviceAttempt.getOrNull()?.takeIf { it.isNotBlank() }?.let {
-            return Result(it, Source.ON_DEVICE)
-        }
+        if (headlineOnly) return JobTranslation(title = title, socTitle = socTitle)
 
-        // Play Hizmetleri yoksa ya da model inmediyse anahtarsız yedeğe düş.
-        return Result(http.translate(source), Source.HTTP)
+        val duties = job.duties?.let { runCatching { translateLong(it, requireWifi) }.getOrNull() }
+        val requirements = job.requirements
+            ?.takeIf { it.length > 8 }
+            ?.let { runCatching { translateLong(it, requireWifi) }.getOrNull() }
+
+        return JobTranslation(
+            title = title,
+            socTitle = socTitle,
+            duties = duties,
+            requirements = requirements,
+        )
     }
 
-    /** Çeviriye giden metin: başlık, görev tanımı ve özel şartlar. */
-    private fun buildSourceText(job: Job): String = buildString {
-        appendLine(job.title)
-        job.socTitle?.takeIf { it != job.title }?.let { appendLine(it) }
-        job.duties?.let {
-            appendLine()
-            appendLine("GÖREV TANIMI")
-            appendLine(it)
-        }
-        job.requirements?.let {
-            appendLine()
-            appendLine("ÖZEL ŞARTLAR")
-            appendLine(it)
-        }
-    }.trim()
+    private suspend fun translateLong(text: String, requireWifi: Boolean): String {
+        val device = runCatching {
+            onDevice.ensureModel(requireWifi)
+            onDevice.translate(text)
+        }.getOrNull()
+        if (!device.isNullOrBlank()) return device
+        return http.translate(text)
+    }
+
 }

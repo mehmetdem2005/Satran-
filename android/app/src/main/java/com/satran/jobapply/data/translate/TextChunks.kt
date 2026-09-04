@@ -3,11 +3,15 @@ package com.satran.jobapply.data.translate
 /**
  * Uzun ilan metnini çeviriye uygun parçalara böler.
  *
- * Hem cihaz üstü motorun kalitesi hem de anahtarsız HTTP servisinin istek
- * başına karakter sınırı için gerekli. Bölme satır ve cümle sınırlarında
- * yapılır, böylece anlam ortadan kesilmez.
+ * Bölme sırası: **satır → cümle → kelime**. Cümle sonu sayılmak için noktadan
+ * sonra boşluk gelmesi şartı aranır; böylece `$18.93`, `Mon.-Fri.`, `U.S.`
+ * gibi yerlerdeki noktalar metni parçalamaz. (Önceki sürüm her noktada
+ * bölüyordu ve çeviri bozuluyordu.)
  */
 object TextChunks {
+
+    /** Noktalama + boşluk = cümle sonu. Ondalık sayılar ve kısaltmalar korunur. */
+    private val SENTENCE_BREAK = Regex("(?<=[.!?])\\s+")
 
     fun split(text: String, maxChars: Int): List<String> {
         val trimmed = text.trim()
@@ -18,42 +22,39 @@ object TextChunks {
         val builder = StringBuilder()
 
         fun flush() {
-            val piece = builder.toString().trim()
-            if (piece.isNotEmpty()) chunks += piece
+            builder.toString().trim().takeIf { it.isNotEmpty() }?.let { chunks += it }
             builder.setLength(0)
         }
 
+        fun appendPart(part: String, separator: String) {
+            if (part.isEmpty()) return
+            if (builder.isNotEmpty() && builder.length + part.length + separator.length > maxChars) flush()
+            if (builder.isNotEmpty()) builder.append(separator)
+            builder.append(part)
+        }
+
+        // Satır yapısı çeviri kalitesi için önemli: madde madde yazılmış
+        // görev tanımları satır sınırında bölünürse anlam korunur.
         trimmed.split('\n').forEach { line ->
-            if (line.isBlank()) {
-                if (builder.isNotEmpty()) builder.append('\n')
+            val clean = line.trim()
+            if (clean.isEmpty()) return@forEach
+
+            if (clean.length <= maxChars) {
+                appendPart(clean, "\n")
                 return@forEach
             }
-            sentences(line).forEach { sentence ->
-                val piece = if (sentence.length > maxChars) hardSplit(sentence, maxChars) else listOf(sentence)
-                piece.forEach { part ->
-                    if (builder.length + part.length + 1 > maxChars) flush()
-                    if (builder.isNotEmpty()) builder.append(' ')
-                    builder.append(part)
+            clean.split(SENTENCE_BREAK).forEach { sentence ->
+                val piece = sentence.trim()
+                if (piece.isEmpty()) return@forEach
+                if (piece.length <= maxChars) {
+                    appendPart(piece, " ")
+                } else {
+                    hardSplit(piece, maxChars).forEach { appendPart(it, " ") }
                 }
             }
-            if (builder.isNotEmpty()) builder.append('\n')
         }
         flush()
         return chunks
-    }
-
-    private fun sentences(line: String): List<String> {
-        val out = mutableListOf<String>()
-        val builder = StringBuilder()
-        line.forEach { char ->
-            builder.append(char)
-            if (char == '.' || char == '!' || char == '?' || char == ';') {
-                out += builder.toString().trim()
-                builder.setLength(0)
-            }
-        }
-        builder.toString().trim().takeIf { it.isNotEmpty() }?.let { out += it }
-        return out.filter { it.isNotEmpty() }
     }
 
     /** Tek bir cümle bile sınırı aşıyorsa kelime sınırından böler. */
@@ -61,7 +62,7 @@ object TextChunks {
         val out = mutableListOf<String>()
         val builder = StringBuilder()
         sentence.split(' ').forEach { word ->
-            if (builder.length + word.length + 1 > maxChars) {
+            if (builder.isNotEmpty() && builder.length + word.length + 1 > maxChars) {
                 out += builder.toString().trim()
                 builder.setLength(0)
             }

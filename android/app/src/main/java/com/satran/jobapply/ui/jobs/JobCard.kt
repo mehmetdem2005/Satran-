@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.satran.jobapply.data.model.Job
+import com.satran.jobapply.data.translate.JobTranslation
 import com.satran.jobapply.ui.common.SmallSpinner
 
 @Composable
@@ -39,8 +40,8 @@ fun JobCard(
     job: Job,
     selected: Boolean,
     expanded: Boolean,
-    summary: String?,
-    summarizing: Boolean,
+    translation: JobTranslation?,
+    translating: Boolean,
     research: String?,
     researching: Boolean,
     onToggleSelect: () -> Unit,
@@ -50,7 +51,6 @@ fun JobCard(
     onOpenDetail: () -> Unit,
     archivedNote: String? = null,
     loadingDetails: Boolean = false,
-    translatedTitle: String? = null,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -75,7 +75,7 @@ fun JobCard(
                         .padding(start = 4.dp),
                 ) {
                     Text(
-                        translatedTitle ?: job.title,
+                        translation?.title ?: job.title,
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 2,
@@ -83,7 +83,7 @@ fun JobCard(
                     )
                     // Başvuru e-postasında İngilizce başlık geçtiği için özgün hâli
                     // de görünür kalır.
-                    if (translatedTitle != null) {
+                    if (translation?.title != null) {
                         Text(
                             job.title,
                             style = MaterialTheme.typography.labelSmall,
@@ -101,14 +101,14 @@ fun JobCard(
                     )
                 }
                 // Çeviri tuşu kart kapalıyken de görünür: ilana dokunmadan Türkçe özet alınır.
-                IconButton(onClick = onSummarize, enabled = !summarizing) {
-                    if (summarizing) {
+                IconButton(onClick = onSummarize, enabled = !translating) {
+                    if (translating) {
                         SmallSpinner()
                     } else {
                         Icon(
                             imageVector = Icons.Outlined.Translate,
-                            contentDescription = "Türkçeye çevir",
-                            tint = if (summary != null) {
+                            contentDescription = if (translation != null) "Özgün metne dön" else "Türkçeye çevir",
+                            tint = if (translation != null) {
                                 MaterialTheme.colorScheme.primary
                             } else {
                                 MaterialTheme.colorScheme.onSurfaceVariant
@@ -149,14 +149,14 @@ fun JobCard(
                 Column {
                     Spacer(Modifier.height(8.dp))
 
-                    summary?.let {
+                    translation?.aiSummary?.let {
                         Surface(
                             color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f),
                             shape = MaterialTheme.shapes.small,
                         ) {
                             Column(Modifier.padding(10.dp)) {
                                 Text(
-                                    "Türkçesi",
+                                    "Yapay zekâ özeti",
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = FontWeight.Bold,
                                 )
@@ -184,7 +184,9 @@ fun JobCard(
                     }
 
                     DetailRow("İlan no", job.caseNumber)
-                    job.socTitle?.let { DetailRow("Meslek", "$it (${job.socCode.orEmpty()})") }
+                    job.socTitle?.let {
+                        DetailRow("Meslek", "${translation?.socTitle ?: it} (${job.socCode.orEmpty()})")
+                    }
                     job.email?.let { DetailRow("Başvuru e-postası", it) }
                     job.phone?.let { DetailRow("Telefon", it) }
                     job.schedule?.let { DetailRow("Çalışma", it) }
@@ -192,29 +194,32 @@ fun JobCard(
                     job.education?.let { DetailRow("Eğitim", it) }
                     job.postedOn?.let { DetailRow("Yayın", it) }
 
-                    if (loadingDetails && job.duties == null) {
+                    if ((loadingDetails || translating) && job.duties == null) {
                         Spacer(Modifier.height(6.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             SmallSpinner()
-                            Text(" Görev tanımı getiriliyor…", style = MaterialTheme.typography.bodySmall)
+                            Text(
+                                if (translating) " Çevriliyor…" else " Görev tanımı getiriliyor…",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
                         }
                     }
                     job.duties?.let {
                         Spacer(Modifier.height(6.dp))
                         Text("Görev tanımı", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                        Text(it, style = MaterialTheme.typography.bodySmall)
+                        Text(translation?.duties ?: it, style = MaterialTheme.typography.bodySmall)
                     }
                     job.requirements?.let {
                         Spacer(Modifier.height(6.dp))
                         Text("Özel şartlar", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                        Text(it, style = MaterialTheme.typography.bodySmall)
+                        Text(translation?.requirements ?: it, style = MaterialTheme.typography.bodySmall)
                     }
 
                     Spacer(Modifier.height(4.dp))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        TextButton(onClick = onSummarize, enabled = !summarizing) {
-                            if (summarizing) SmallSpinner() else Icon(Icons.Outlined.Translate, null)
-                            Text(" Türkçeye çevir")
+                        TextButton(onClick = onSummarize, enabled = !translating) {
+                            if (translating) SmallSpinner() else Icon(Icons.Outlined.Translate, null)
+                            Text(if (translation != null) " Özgün metne dön" else " Türkçeye çevir")
                         }
                         TextButton(onClick = onResearch, enabled = !researching) {
                             if (researching) SmallSpinner() else Icon(Icons.Outlined.TravelExplore, null)

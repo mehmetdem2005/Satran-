@@ -3,6 +3,7 @@ package com.satran.jobapply.ui
 import com.satran.jobapply.data.memory.ArchivedJob
 import com.satran.jobapply.data.model.Job
 import com.satran.jobapply.data.remote.SeasonalJobsApi
+import com.satran.jobapply.data.translate.JobTranslation
 import com.satran.jobapply.send.QueuedMail
 
 /** İlanlar sekmesi hangi listeyi gösteriyor. */
@@ -42,14 +43,15 @@ data class JobsUiState(
     val expanded: Set<String> = emptySet(),
     val selected: Map<String, Job> = emptyMap(),
 
-    val summaries: Map<String, String> = emptyMap(),
-    val summarizing: Set<String> = emptySet(),
-
-    /** "Tümünü çevir" açıkken ilan başlıklarının Türkçesi. */
-    val translatedTitles: Map<String, String> = emptyMap(),
+    /** İlan başına çevrilmiş alanlar. Açıp kapatınca hepsi birlikte döner. */
+    val translations: Map<String, JobTranslation> = emptyMap(),
+    val translating: Set<String> = emptySet(),
+    /** Genel anahtar kapalıyken tek tek açılmış kartlar. */
+    val translatedCards: Set<String> = emptySet(),
     val translateAll: Boolean = false,
     val translatingAll: Boolean = false,
     val translateProgress: Int = 0,
+    val translateTotal: Int = 0,
     val research: Map<String, String> = emptyMap(),
     val researching: Set<String> = emptySet(),
 
@@ -77,6 +79,13 @@ data class JobsUiState(
 
     /** Sonraki sayfanın başlangıç kaydı. */
     val nextOffset: Int get() = offset + fetchedThisSearch
+
+    /** Bu ilanın çevirisi şu an gösterilmeli mi? */
+    fun showsTranslation(caseNumber: String): Boolean =
+        translateAll || caseNumber in translatedCards
+
+    fun translationFor(caseNumber: String): JobTranslation? =
+        if (showsTranslation(caseNumber)) translations[caseNumber] else null
 }
 
 /** Zincirin bir ilan için nerede olduğunu gösteren satır. */

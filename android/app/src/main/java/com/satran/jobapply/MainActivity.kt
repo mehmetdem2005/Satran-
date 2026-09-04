@@ -181,7 +181,7 @@ private fun AppRoot() {
                             ?.let(viewModel::toggleExpandedAndLoad)
                             ?: viewModel.toggleExpanded(case)
                     },
-                    onSummarize = viewModel::summarize,
+                    onSummarize = viewModel::toggleTranslation,
                     onResearch = viewModel::research,
                     onOpenDetail = openUrl,
                     onSelectAll = viewModel::selectAllVisible,

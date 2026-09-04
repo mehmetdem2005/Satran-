@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.AutoAwesome
@@ -39,11 +40,14 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,6 +62,7 @@ import com.satran.jobapply.data.model.Job
 import com.satran.jobapply.data.remote.SeasonalJobsApi
 import com.satran.jobapply.ui.JobsUiState
 import com.satran.jobapply.ui.JobsView
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -97,6 +102,12 @@ fun JobsScreen(
 ) {
     val listState = rememberLazyListState()
     val keyboard = LocalSoftwareKeyboardController.current
+    val scope = rememberCoroutineScope()
+
+    // Uzun listelerde başa dönmek için; birkaç kart kaydırılınca beliriyor.
+    val showScrollTop by remember {
+        derivedStateOf { listState.firstVisibleItemIndex > 3 }
+    }
 
     val visible: List<Pair<Job, String?>> = when (state.view) {
         JobsView.LIVE -> state.results.map { (state.details[it.caseNumber] ?: it) to null }
@@ -187,12 +198,15 @@ fun JobsScreen(
             }
         }
 
+        Box(
+            Modifier
+                .fillMaxSize()
+                .weight(1f),
+        ) {
         PullToRefreshBox(
             isRefreshing = state.refreshing,
             onRefresh = onRefresh,
-            modifier = Modifier
-                .fillMaxSize()
-                .weight(1f),
+            modifier = Modifier.fillMaxSize(),
         ) {
             if (!state.loading && state.error == null && visible.isEmpty()) {
                 EmptyState(state, onNextPage)
@@ -214,8 +228,8 @@ fun JobsScreen(
                         job = job,
                         selected = state.selected.containsKey(job.caseNumber),
                         expanded = state.expanded.contains(job.caseNumber),
-                        summary = state.summaries[job.caseNumber],
-                        summarizing = state.summarizing.contains(job.caseNumber),
+                        translation = state.translationFor(job.caseNumber),
+                        translating = state.translating.contains(job.caseNumber),
                         research = state.research[job.caseNumber],
                         researching = state.researching.contains(job.caseNumber),
                         onToggleSelect = { onToggleSelect(job) },
@@ -225,7 +239,6 @@ fun JobsScreen(
                         onResearch = { onResearch(job) },
                         onOpenDetail = { onOpenDetail(job.detailUrl) },
                         archivedNote = note,
-                        translatedTitle = if (state.translateAll) state.translatedTitles[job.caseNumber] else null,
                     )
                 }
 
@@ -250,6 +263,21 @@ fun JobsScreen(
                             }
                         }
                     }
+                }
+            }
+        }
+
+            // Uzun listede başa dönmek için; birkaç kart kaydırılınca beliriyor.
+            // (AnimatedVisibility burada dıştaki Column'un kapsamına takılıyor,
+            // bu yüzden düz koşul kullanılıyor.)
+            if (showScrollTop) {
+                SmallFloatingActionButton(
+                    onClick = { scope.launch { listState.animateScrollToItem(0) } },
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 16.dp, bottom = 16.dp),
+                ) {
+                    Icon(Icons.Filled.KeyboardArrowUp, "En üste dön")
                 }
             }
         }
@@ -293,7 +321,15 @@ private fun FilterStrip(
                         Icon(Icons.Outlined.Translate, null, Modifier.size(18.dp))
                     }
                 },
-                label = { Text(if (state.translatingAll) "Çevriliyor ${state.translateProgress}" else "Türkçe") },
+                label = {
+                    Text(
+                        if (state.translatingAll) {
+                            "Çevriliyor ${state.translateProgress}/${state.translateTotal}"
+                        } else {
+                            "Türkçe"
+                        },
+                    )
+                },
             )
         }
         item {

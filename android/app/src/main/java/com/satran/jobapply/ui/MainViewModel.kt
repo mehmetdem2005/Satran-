@@ -19,6 +19,7 @@ import com.satran.jobapply.data.model.AppSettings
 import com.satran.jobapply.data.model.Job
 import com.satran.jobapply.data.model.SendRecord
 import com.satran.jobapply.data.model.TranslationEngine
+import com.satran.jobapply.data.translate.JobTranslation
 import com.satran.jobapply.data.model.SendStatus
 import com.satran.jobapply.data.pipeline.ApplicationPipeline
 import com.satran.jobapply.data.remote.SeasonalJobsApi
@@ -251,7 +252,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 }
 
-                if (_jobs.value.translateAll) translateTitles()
+                if (_jobs.value.translateAll) translateHeadlines()
 
                 if (shown.isEmpty()) {
                     _message.value = if (exhausted) {
@@ -429,7 +430,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (job.caseNumber !in _jobs.value.expanded) return
         loadDetails(job)
         // "Tümünü çevir" açıkken görev tanımı da kendiliğinden çevrilsin.
-        if (_jobs.value.translateAll && job.caseNumber !in _jobs.value.summaries) summarize(job)
+        val state = _jobs.value
+        if (state.showsTranslation(job.caseNumber) && state.translations[job.caseNumber]?.hasBody != true) {
+            translateOne(job, headlineOnly = false)
+        }
     }
 
     /** AI ve mektup için tam metinli sürüm; yoksa listedeki hafif sürüm. */
@@ -499,115 +503,110 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     // ============================================================ yapay zekâ
 
     /**
-     * Listedeki bütün ilan başlıklarını Türkçeye çevirir.
+     * Listedeki bütün ilanları Türkçeye çevirir (genel anahtar).
      *
      * Google'ın cihaz üstü çeviri modelini kullanır — yapay zekâ değildir,
-     * API anahtarı istemez. İşveren adı, şehir ve eyalet **çevrilmez**:
-     * bunlar özel adlardır ve başvuru e-postasında olduğu gibi geçmelidir.
-     * Görev tanımı, kart açıldığında ayrıca çevrilir.
+     * API anahtarı istemez. İşveren adı, şehir ve eyalet çevrilmez: özel
+     * adlardır ve başvuru e-postasında olduğu gibi geçmeleri gerekir.
      */
     fun setTranslateAll(enabled: Boolean) {
         updateSettings { it.copy(translateAllJobs = enabled) }
-        _jobs.update { it.copy(translateAll = enabled) }
         translateJob?.cancel()
-        if (!enabled) {
-            _jobs.update { it.copy(translatingAll = false, translateProgress = 0) }
-            return
+        _jobs.update {
+            it.copy(
+                translateAll = enabled,
+                translatingAll = false,
+                translateProgress = 0,
+                translateTotal = 0,
+                // Tek tek açılmış kartlar genel anahtara tabi olur.
+                translatedCards = emptySet(),
+            )
         }
-        translateTitles()
+        if (enabled) translateHeadlines()
     }
 
-    /** Henüz çevrilmemiş başlıkları sırayla çevirir; liste doldukça yenilenir. */
-    private fun translateTitles() {
-        val config = settings.value
+    /**
+     * Tek bir kartın çevirisini açar/kapatır.
+     * Kapatınca başlık, meslek adı ve açıklama birlikte özgün hâline döner.
+     */
+    fun toggleTranslation(job: Job) {
+        val state = _jobs.value
+        if (state.showsTranslation(job.caseNumber)) {
+            if (state.translateAll) {
+                _message.value = "Çeviri genel anahtardan açık. Kapatmak için üstteki \"Türkçe\" çipine bas."
+            } else {
+                _jobs.update { it.copy(translatedCards = it.translatedCards - job.caseNumber) }
+            }
+            return
+        }
+        _jobs.update { it.copy(translatedCards = it.translatedCards + job.caseNumber) }
+        translateOne(job, headlineOnly = false)
+    }
+
+    /** Listedeki çevrilmemiş ilanların başlıklarını sırayla çevirir. */
+    private fun translateHeadlines() {
         translateJob?.cancel()
         translateJob = viewModelScope.launch {
             val state = _jobs.value
-            val pending = (state.results + state.archived.map { it.job })
-                .distinctBy { it.caseNumber }
-                .filter { it.caseNumber !in state.translatedTitles }
+            val pending = visibleJobs(state).filter { job ->
+                state.translations[job.caseNumber]?.hasHeadline != true
+            }
             if (pending.isEmpty()) return@launch
 
-            _jobs.update { it.copy(translatingAll = true, translateProgress = 0) }
+            _jobs.update { it.copy(translatingAll = true, translateProgress = 0, translateTotal = pending.size) }
             if (!container.translator.isModelReady()) {
                 _message.value = "Google çeviri modeli indiriliyor (~30 MB, yalnızca ilk seferde)."
             }
 
-            var done = 0
-            pending.forEach { job ->
-                val source = listOfNotNull(job.title, job.socTitle?.takeIf { it != job.title })
-                    .joinToString(" — ")
-                val turkish = runCatching {
-                    container.translator.translateShort(source, config.translationWifiOnly)
-                }.getOrNull()
-
-                done++
-                _jobs.update { current ->
-                    current.copy(
-                        translatedTitles = if (turkish.isNullOrBlank()) {
-                            current.translatedTitles
-                        } else {
-                            current.translatedTitles + (job.caseNumber to turkish)
-                        },
-                        translateProgress = done,
-                    )
-                }
+            pending.forEachIndexed { index, job ->
+                translateInto(job, headlineOnly = true)
+                _jobs.update { it.copy(translateProgress = index + 1) }
             }
             _jobs.update { it.copy(translatingAll = false) }
         }
     }
 
-    /**
-     * İlanı Türkçeye çevirir.
-     *
-     * **API anahtarı gerektirmez.** Varsayılan motor cihaz üstünde çalışır;
-     * dil modeli ilk kullanımda bir kez inip sonrasında çevrimdışı da çalışır.
-     * Yapay zekâ yalnızca "özetle" seçeneğinde devreye girer.
-     */
-    fun summarize(job: Job) {
-        val config = settings.value
-        _jobs.update { it.copy(expanded = it.expanded + job.caseNumber) }
-        if (job.caseNumber in _jobs.value.summarizing) return
-        if (_jobs.value.summaries.containsKey(job.caseNumber)) return
-
+    /** Tek ilanı çevirir (kart açıldığında ya da tek tek açıldığında). */
+    private fun translateOne(job: Job, headlineOnly: Boolean) {
+        if (job.caseNumber in _jobs.value.translating) return
         viewModelScope.launch {
-            _jobs.update { it.copy(summarizing = it.summarizing + job.caseNumber) }
-
-            // Görev tanımı listede gelmiyor; çeviriden önce tam metni getir.
-            loadDetails(job)
-            val full = awaitDetails(job)
-
-            val useAi = config.translationEngine == TranslationEngine.AI_SUMMARY && config.aiReady
-            if (config.translationEngine == TranslationEngine.AI_SUMMARY && !config.aiReady) {
-                _message.value = "Yapay zekâ anahtarı yok; cihaz üstü çeviriye geçildi."
-            }
-
-            val outcome = if (useAi) {
-                runCatching { container.aiClient().summarizeInTurkish(full) }
-            } else {
-                runCatching {
-                    if (!container.translator.isModelReady()) {
-                        _message.value = "Çeviri modeli indiriliyor (~30 MB, yalnızca ilk seferde)."
-                    }
-                    container.translator.translate(full, config.translationWifiOnly).text
-                }
-            }
-
-            outcome
-                .onSuccess { text ->
-                    _jobs.update {
-                        it.copy(
-                            summaries = it.summaries + (job.caseNumber to text),
-                            summarizing = it.summarizing - job.caseNumber,
-                        )
-                    }
-                }
-                .onFailure { error ->
-                    _jobs.update { it.copy(summarizing = it.summarizing - job.caseNumber) }
-                    _message.value = "Çeviri yapılamadı: ${error.message ?: "bilinmeyen hata"}"
-                }
+            _jobs.update { it.copy(translating = it.translating + job.caseNumber) }
+            if (!headlineOnly) loadDetails(job)
+            val full = if (headlineOnly) job else awaitDetails(job)
+            translateInto(full, headlineOnly)
+            _jobs.update { it.copy(translating = it.translating - job.caseNumber) }
         }
     }
+
+    /** Çeviriyi yapıp mevcut kayıtla birleştirir; kısmi sonuç kaybolmaz. */
+    private suspend fun translateInto(job: Job, headlineOnly: Boolean) {
+        val config = settings.value
+        val result = runCatching {
+            if (config.translationEngine == TranslationEngine.AI_SUMMARY && config.aiReady) {
+                JobTranslation(aiSummary = container.aiClient().summarizeInTurkish(job))
+            } else {
+                container.translator.translateJob(job, config.translationWifiOnly, headlineOnly)
+            }
+        }.getOrElse { error ->
+            _message.value = "Çeviri yapılamadı: ${error.message ?: "bilinmeyen hata"}"
+            return
+        }
+
+        _jobs.update { state ->
+            val previous = state.translations[job.caseNumber]
+            val merged = JobTranslation(
+                title = result.title ?: previous?.title,
+                socTitle = result.socTitle ?: previous?.socTitle,
+                duties = result.duties ?: previous?.duties,
+                requirements = result.requirements ?: previous?.requirements,
+                aiSummary = result.aiSummary ?: previous?.aiSummary,
+            )
+            state.copy(translations = state.translations + (job.caseNumber to merged))
+        }
+    }
+
+    private fun visibleJobs(state: JobsUiState): List<Job> =
+        if (state.view == JobsView.ARCHIVE) state.archived.map { it.job } else state.results
 
     /** Görev tanımı gelene kadar bekler; gelmezse listedeki hafif sürümle devam eder. */
     private suspend fun awaitDetails(job: Job): Job {
