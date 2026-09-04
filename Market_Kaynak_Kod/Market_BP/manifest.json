@@ -1,12 +1,12 @@
 {
   "format_version": 2,
   "header": {
-    "name": "Market & Ekonomi BP v2.4",
-    "description": "v2.4 | Fiyatlar craft tariflerinden hesaplaniyor, buyu/hasar satisa yansiyor. Ikonlar oyun surumuyle eslesen resmi veriden dogrulaniyor.",
+    "name": "Market & Ekonomi BP v2.5",
+    "description": "v2.5 | Ticaret seviyesi kaldirildi: her esya herkese acik. Fiyatlar craft tariflerinden, duello arenasi, arsa sopasi.",
     "uuid": "bb41fa3d-7901-4559-8e61-d650ac191764",
     "version": [
       2,
-      4,
+      5,
       0
     ],
     "min_engine_version": [
@@ -22,7 +22,7 @@
       "uuid": "b9808c32-f7e3-4a89-93e1-f00313e58099",
       "version": [
         2,
-        4,
+        5,
         0
       ],
       "entry": "scripts/main.js"
@@ -41,7 +41,7 @@
       "uuid": "201cbafc-bcfc-4212-a13f-428a03328b5b",
       "version": [
         2,
-        4,
+        5,
         0
       ]
     }

@@ -1,4 +1,4 @@
-# Market & Ekonomi — Kaynak Kod (v2.4)
+# Market & Ekonomi — Kaynak Kod (v2.5)
 
 Bu klasör Minecraft Bedrock için yazılan Market/Ekonomi addon'ının tüm
 kaynak dosyalarını içerir. `.mcaddon` sadece bunların zip'lenmiş hali;
@@ -171,43 +171,6 @@ eritmeyi ve 9'luk blok çevrimini tek tek sınar — "ucuz al → craftla →
 pahalı sat" ile para basılabiliyor mu diye. Şu an 197 kontrol, 0 açık.
 Fiyat değiştirdiğinde bunu çalıştır.
 
-## Ticaret seviyesi (v2.2)
-
-Her eşya ilk dakikadan herkese açık değil. Oyuncu ticaret yaptıkça XP
-kazanır, **10 seviyeye** kadar çıkar; pahalı eşyalar seviye ile açılır.
-
-| Lv | Unvan | Açılan eşyalar (taban fiyat) |
-|---|---|---|
-| 1 | Çırak | ≤ 3 — toprak, taş, tahta, çubuk |
-| 2 | Seyyar Satıcı | ≤ 8 |
-| 3 | Pazarcı | ≤ 18 |
-| 4 | Esnaf | ≤ 40 |
-| 5 | Tüccar | ≤ 80 |
-| 6 | Kıdemli Tüccar | ≤ 160 |
-| 7 | Tacir | ≤ 320 |
-| 8 | Büyük Tacir | ≤ 700 — doğurma yumurtaları buraya düşer |
-| 9 | Lonca Üyesi | ≤ 1400 — elytra, ejderha yumurtası, nether yıldızı |
-| 10 | Pazar Ustası | üstü — netherite takımı, beacon |
-
-Kurallar:
-
-- **Satmak her seviyede serbest.** Yoksa yeni oyuncu hiç yükselemez;
-  kilit sadece satın almada. Kilitli eşya listede görünür ("Lv 8 gerekli"
-  yazar) — ne için çalıştığını görürsün.
-- XP: markete satışta her 10$ = 1 XP, alışta her 25$ = 1 XP, oyuncu
-  ilanı sat/al aynı formül, takas başına 15 XP. Tek işlemde en fazla
-  300 XP (tek seferde zıplamayı önler).
-- Seviye eşikleri: 0 / 300 / 800 / 1700 / 3200 / 5600 / 9500 / 15500 /
-  24000 / 36000 XP.
-- XP scoreboard'da (`mk_xp`) tutulur — para gibi, oyuncu çıkınca kaybolmaz.
-- `!seviye` ekranı seviyeni, XP çubuğunu ve her seviyede kaç eşya
-  açıldığını gösterir. Admin panelinden bir oyuncunun seviyesi elle
-  ayarlanabilir.
-- Ayarlar `scripts/seviye.js` içindeki `SEVIYE_CFG` ve `ESIK` /
-  `FIYAT_ESIK` dizilerinde. Oyuncu ilanlarında da seviye şartı istersen
-  `oyuncuMarketiKilitli = true` yap (varsayılan kapalı — oyuncular kendi
-  fiyatlarını koyuyor).
-
 ## Eşya görselleri (v2.2)
 
 İkon yolları tahmin edilmiyor. `scripts/ikonlar.js`, Mojang'ın resmî
@@ -272,7 +235,6 @@ Market_BP/                 Behavior Pack (mantık, script, tarifler)
     main.js                  Ana mantık: menüler, ilanlar, komutlar, olaylar
     esyalar.js               Gömülü vanilla eşya katalogu + Türkçe arama sözlüğü
     ikonlar.js               Resmî RP verisinden üretilmiş ikon haritası
-    seviye.js                Ticaret seviyesi (XP, eşikler, kilit)
     dovus.js                 Düello/PvP arenası (kit, yedekleme, ödül)
     fiyat.js                 Fiyat motoru: ham madde tabanları + türetme kuralları
     arsa.js                  Arsa/bölge koruma sistemi
@@ -322,7 +284,7 @@ kaynaktan kaç eşya topladığını yazıyor.
 ## Paketleme
 
 ```bash
-bash paketle.sh          # -> Market_v2.4.mcaddon
+bash paketle.sh          # -> Market_v2.5.mcaddon
 ```
 
 Sürüm numarası hem `manifest.json` dosyalarında hem de `main.js` içindeki

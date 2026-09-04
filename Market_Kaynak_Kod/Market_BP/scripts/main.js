@@ -3,7 +3,6 @@ import * as ui from "@minecraft/server-ui";
 import { ikon, VARSAYILAN } from "./icons.js";
 import { fiyat, esyaDegeri, KATEGORILER, kategoriIndex, yasakMi, MAKAS } from "./fiyat.js";
 import { katalog, aramaGruplari } from "./esyalar.js";
-import * as Seviye from "./seviye.js";
 import * as Dovus from "./dovus.js";
 import * as Arsa from "./arsa.js";
 
@@ -12,7 +11,7 @@ const { ActionFormData, ModalFormData } = ui;
 
 // ==================== AYARLAR ====================
 const CFG = {
-  surum: "2.4",
+  surum: "2.5",
   ad: "m",
   objective: "money",
   simge: "$",
@@ -321,7 +320,7 @@ function kitapMenu(p) {
 
   const f = new ActionFormData()
     .title(`\u00a7lMARKET KONTROL \u00a77v${CFG.surum}`)
-    .body(`\u00a77Bakiyen: \u00a7a${fmt(paraOku(p))}\n${seviyeSatiri(p)}\n\u00a77Markette \u00a7f${ilanlar.length}\u00a77 ilan  \u00a78|  \u00a77Senin: \u00a7f${benim}\n`);
+    .body(`\u00a77Bakiyen: \u00a7a${fmt(paraOku(p))}\n\u00a77Markette \u00a7f${ilanlar.length}\u00a77 ilan  \u00a78|  \u00a77Senin: \u00a7f${benim}\n`);
 
   const islem = [];
   const ekle = (yazi, ikonId, fn) => { f.button(yazi, ikonGuvenli(ikonId)); islem.push(fn); };
@@ -337,7 +336,6 @@ function kitapMenu(p) {
   ekle("\u00a7lArsa / B\u00f6lge\n\u00a7r\u00a77Yerini koru, \u00fcye ekle", "minecraft:grass_block", () => Arsa.arsaMenu(p, API));
   ekle("\u00a7lPara / E\u015fya G\u00f6nder", "minecraft:ender_pearl", () => paraMenu(p));
   ekle(`\u00a7lD\u00fcello / PvP${Dovus.gelenIstekler(p).length ? ` \u00a7c(${Dovus.gelenIstekler(p).length})` : ""}\n\u00a7r\u00a77E\u015fit kit, arena, e\u015fya kayb\u0131 yok`, "minecraft:diamond_sword", () => Dovus.dovusMenu(p, API));
-  ekle(`\u00a7lTicaret Seviyesi \u00a7r\u00a77Lv ${Seviye.seviye(p)}\n\u00a7r\u00a77Ne zaman ne a\u00e7\u0131l\u0131yor`, "minecraft:experience_bottle", () => seviyeEkrani(p));
   ekle("\u00a7lFiyat Rehberi\n\u00a7r\u00a77Piyasa ortalamalar\u0131", "minecraft:clock", () => rehberSec(p));
   ekle("\u00a7lBilgi ve Komutlar", "minecraft:writable_book", () => yardim(p));
   if (admin) ekle("\u00a7c\u00a7lAdmin Paneli", "minecraft:command_block", () => adminPanel(p));
@@ -362,11 +360,9 @@ function yardim(p) {
       `§e§lFIYAT YAZARKEN\n§7Sadece rakam yeter. §f1.500§7, §f1 500§7, §f1500 coin§7 hepsi calisir.\n§7Bos birakirsan hata verir.\n\n` +
       `§e§lCHAT KOMUTLARI\n` +
       `§f!menu !market !ara <kelime> !sat <adet> <fiyat>\n§f!takas <adet> !alim !teklif !teklifler\n` +
-      `§f!para !ilanlarim !rehber !bakiye !id !kitap !sopa !seviye !dovus\n`+
+      `§f!para !ilanlarim !rehber !bakiye !id !kitap !sopa !dovus\n`+
       `§f!yenile§7 (esya listesini tazeler) §f!liste§7 (liste durumu)\n\n` +
       `§e§lSLASH\n§f/${CFG.ad}:menu  /${CFG.ad}:market  /${CFG.ad}:sat  /${CFG.ad}:takas  /${CFG.ad}:para\n\n` +
-      `§e§lTİCARET SEVİYESİ\n§7Ticaret yaptıkça XP kazanır, §f10 seviyeye§7 kadar çıkarsın.\n` +
-      `§7Pahalı eşyalar seviye ile açılır; §fsatmak her zaman serbest§7,\n§7kilit sadece satın almada. §f!seviye\n\n` +
       `§e§lARSA / BÖLGE\n§7Köşe 1'i koy, karşı köşeye yürü, satın al.\n` +
       `§7Arsanda senden ve üyelerinden başkası blok kıramaz, koyamaz,\n§7sandık açamaz, hayvanlarına vuramaz.\n` +
       `§7Arsa sopası: §f2x2 çubuk§7 ile yapılır (§f!sopa§7 da verir).\n` +
@@ -467,7 +463,6 @@ function listeyiBitir(gecerli) {
   LISTE_KURULUYOR = false;
   SON_KURULUM = Date.now();
   KAT_LISTE = null;               // kategoriler yeni listeye gore kurulsun
-  SEVIYE_DAGILIM = null;
   console.warn(`[Market] Esya listesi: ${gecerli.length} gecerli / ${RAPOR.aday} aday ` +
     `(esya kaydi ${RAPOR.kayit}, blok kaydi ${RAPOR.blok}, katalog +${RAPOR.katalog}, oyuncu +${RAPOR.oyuncu})`);
   if (!LISTE_SAGLAM) console.warn("[Market] UYARI: liste beklenenden kisa, bir sonraki aramada yeniden kurulacak.");
@@ -1077,16 +1072,14 @@ function onayEkrani(p, id, durum) {
     btn = yeter ? "§aEVET, TAKAS YAP" : "§8(Esya yetersiz)";
   } else {
     const bak = paraOku(p);
-    const sd = Seviye.SEVIYE_CFG.oyuncuMarketiKilitli
-      ? Seviye.alabilirMi(p, fiyat(ilan.i.t)?.alis ?? 0) : { olur: true };
-    yeter = bak >= ilan.f && sd.olur;
+    yeter = bak >= ilan.f;
     baslik = "§lSATIN ALMA ONAYI";
     govde = raw(
       T(`§f${ilan.s} §7adli oyuncudan\n§e${ilan.i.a} adet §f`), adParcaD(ilan.i),
       T(`\n§a${fmt(ilan.f)} §7karsiliginda almak istiyor musun?\n§8(birim ${fmt(ilan.f / ilan.i.a)})\n\n§7Bakiyen: §a${fmt(bak)}\n`),
-      T(!sd.olur ? `§cKilitli: Ticaret Lv ${sd.gerekli} gerekiyor` : yeter ? `§7Kalan: §a${fmt(bak - ilan.f)}` : "§cYeterli paran yok!"), T(rehberMetin)
+      T(yeter ? `§7Kalan: §a${fmt(bak - ilan.f)}` : "§cYeterli paran yok!"), T(rehberMetin)
     );
-    btn = !sd.olur ? `§8(Lv ${sd.gerekli} gerekli)` : yeter ? "§aEVET, SATIN AL" : "§8(Para yetersiz)";
+    btn = yeter ? "§aEVET, SATIN AL" : "§8(Para yetersiz)";
   }
 
   new ActionFormData().title(baslik).body(govde)
@@ -1107,7 +1100,6 @@ function onayEkrani(p, id, durum) {
         paraEkle(p, h.f);                       // bloke para satana gecer
         esyaTeslim(h.s, { t: h.ist.t, a: h.ist.a });
         gecmiseEkle(h.ist.t, h.f, h.ist.a);
-        Seviye.xpVer(p, Seviye.xpSatistan(h.f));
         ses(p, "random.levelup");
         msj(p, T("§a[Market] §fSattin: §e"), adParca(h.ist.t), T(` x${h.ist.a} §7(+${fmt(h.f)})`));
       } else if (h.tur === "takas") {
@@ -1115,7 +1107,6 @@ function onayEkrani(p, id, durum) {
         g.splice(ix, 1); ilanlariYaz(g);
         esyaTeslim(h.s, { t: h.ist.t, a: h.ist.a });
         envantereVer(p, ac(h.i));
-        Seviye.xpVer(p, Seviye.SEVIYE_CFG.xpTakas);
         ses(p, "random.levelup");
         msj(p, T("§a[Market] §fTakas tamam: §e"), adParcaD(h.i), T(` x${h.i.a}`));
       } else {
@@ -1125,7 +1116,6 @@ function onayEkrani(p, id, durum) {
         paraTeslim(h.s, h.f);
         envantereVer(p, ac(h.i));
         gecmiseEkle(h.i.t, h.f, h.i.a);
-        Seviye.xpVer(p, Seviye.xpAlistan(h.f));
         ses(p, "random.levelup");
         msj(p, T("§a[Market] §fSatin alindi: §e"), adParcaD(h.i), T(` x${h.i.a} §7(-${fmt(h.f)})`));
       }
@@ -1246,7 +1236,6 @@ function adminPanel(p) {
     kaydet(K_GECMIS, []); p.sendMessage("§a[Market] Fiyat gecmisi temizlendi."); adminPanel(p);
   });
   ekle("§eEsya Listesini Yenile", "minecraft:compass", () => { listeYenile(p); adminPanel(p); });
-  ekle("§eTicaret Seviyesi Ayarla", "minecraft:experience_bottle", () => adminSeviye(p));
   ekle("§eArsa Yonetimi", "minecraft:grass_block", () => Arsa.arsaAdmin(p, API));
   f.button("§7< Geri"); islem.push(() => kitapMenu(p));
   f.show(p).then(r => { if (!r.canceled) islem[r.selection]?.(); });
@@ -1254,7 +1243,7 @@ function adminPanel(p) {
 // Esya listesini sifirdan kurar. Oyuncu "markette esya eksik" derse ilk care.
 function listeYenile(p) {
   TUM_ITEMLER = null; TUM_SET = null; LISTE_SAGLAM = false;
-  LISTE_KURULUYOR = false; SON_KURULUM = 0; KAT_LISTE = null; SEVIYE_DAGILIM = null;
+  LISTE_KURULUYOR = false; SON_KURULUM = 0; KAT_LISTE = null;
   const n = tumItemler().length;
   p?.sendMessage(`§a[Market] §fEsya listesi yenilendi: §e${n}§f esya ` +
     `§8(${RAPOR.aday} aday denendi)`);
@@ -1280,23 +1269,6 @@ function adminPara(p) {
       adminPanel(p);
     });
 }
-function adminSeviye(p) {
-  const k = world.getAllPlayers();
-  new ModalFormData().title("§c§lSEVIYE AYARLA")
-    .dropdown("Oyuncu", k.map(x => `${x.name} (Lv ${Seviye.seviye(x)})`))
-    .slider("Yeni seviye", 1, Seviye.SEVIYE_CFG.maxSeviye, { defaultValue: 1, valueStep: 1 })
-    .show(p).then(r => {
-      if (r.canceled) return adminPanel(p);
-      const hedef = k[r.formValues?.[0] ?? 0];
-      const lv = Math.floor(r.formValues?.[1] ?? 1);
-      if (!hedef) return adminPanel(p);
-      Seviye.xpAyarla(hedef, Seviye.ESIK[lv - 1] ?? 0);
-      p.sendMessage(`§a[Market] §f${hedef.name} §7-> §eLv ${Seviye.seviye(hedef)}`);
-      hedef.sendMessage(`§e[Market] Ticaret seviyen §fLv ${Seviye.seviye(hedef)}§e olarak ayarlandi.`);
-      adminPanel(p);
-    });
-}
-
 function adminIlanSil(p) {
   const ilanlar = ilanlariOku();
   if (ilanlar.length === 0) { p.sendMessage("§7[Market] Ilan yok."); return adminPanel(p); }
@@ -1337,7 +1309,7 @@ function suresiDolanlariIsle() {
 // ==================== KOMUTLAR ====================
 function calistir(p, komut, arg) {
   // Duello sirasinda market/arsa kapali: kit satilip para basilmasin.
-  if (Dovus.dovustaMi(p.name) && !["dovus", "duello", "pvp", "bakiye", "seviye"].includes(komut)) {
+  if (Dovus.dovustaMi(p.name) && !["dovus", "duello", "pvp", "bakiye"].includes(komut)) {
     p.sendMessage("§c[Market] Düello sırasında market kullanılamaz.");
     return;
   }
@@ -1378,7 +1350,6 @@ function calistir(p, komut, arg) {
     case "bakiye": return p.sendMessage(`§a[Market] §fBakiyen: §a${fmt(paraOku(p))}`);
     case "kitap": return kitapVer(p);
     case "sopa": case "arsasopasi": return sopaVer(p);
-    case "seviye": case "level": case "lvl": return seviyeEkrani(p);
     case "dovus": case "duello": case "pvp": return Dovus.dovusMenu(p, API);
     case "yenile": case "refresh": return void listeYenile(p);
     case "liste": return p.sendMessage(
@@ -1389,60 +1360,8 @@ function calistir(p, komut, arg) {
       return p.sendMessage(it ? `§a[Market] §fElindeki: §e${it.typeId}` : "§c[Market] Elinde bir esya yok.");
     }
     default:
-      p.sendMessage("§7[Market] §f!menu !market !ara !sat !takas !alim !teklif !teklifler !para !arsa !hazir !ilanlarim !rehber !bakiye !id !kitap !sopa !seviye !dovus !yenile !liste");
+      p.sendMessage("§7[Market] §f!menu !market !ara !sat !takas !alim !teklif !teklifler !para !arsa !hazir !ilanlarim !rehber !bakiye !id !kitap !sopa !dovus !yenile !liste");
   }
-}
-
-// ==================== TICARET SEVIYESI ====================
-function seviyeSatiri(p) {
-  const i = Seviye.ilerleme(p);
-  return `\u00a77Ticaret: \u00a7eLv ${i.seviye} \u00a78${i.unvan}  ${Seviye.cubuk(i.yuzde, 10)}` +
-    (i.son ? " \u00a76MAKS" : ` \u00a78${i.kalan} XP`);
-}
-
-// Hangi seviyede kac esya aciliyor (esya listesinden hesaplanir)
-let SEVIYE_DAGILIM = null;
-function seviyeDagilimi() {
-  if (SEVIYE_DAGILIM) return SEVIYE_DAGILIM;
-  const d = new Array(Seviye.SEVIYE_CFG.maxSeviye).fill(0);
-  for (const id of tumItemler()) {
-    const f = fiyat(id);
-    if (!f) continue;
-    d[Seviye.esyaSeviyesi(f.alis) - 1]++;
-  }
-  SEVIYE_DAGILIM = d;
-  return d;
-}
-
-function seviyeEkrani(p) {
-  const i = Seviye.ilerleme(p);
-  const d = seviyeDagilimi();
-  let toplam = 0;
-  const satirlar = d.map((n, ix) => {
-    toplam += n;
-    const lv = ix + 1;
-    const acik = lv <= i.seviye;
-    return `${acik ? "\u00a7a[+]" : "\u00a78[x]"} \u00a7fLv ${String(lv).padStart(2)} \u00a78${Seviye.UNVAN[ix]}` +
-      ` \u00a77${n} e\u015fya \u00a78(toplam ${toplam})` +
-      (acik ? "" : ` \u00a78- ${Seviye.ESIK[ix]} XP`);
-  }).join("\n");
-
-  new ActionFormData()
-    .title("\u00a7lT\u0130CARET SEV\u0130YES\u0130")
-    .body(
-      `\u00a77Seviyen: \u00a7e\u00a7lLv ${i.seviye}\u00a7r \u00a7f${i.unvan}\n` +
-      `${Seviye.cubuk(i.yuzde, 22)} \u00a7f%${i.yuzde}\n` +
-      (i.son ? `\u00a76En \u00fcst seviyedesin. \u00a78Toplam ${i.xp} XP\n\n`
-             : `\u00a77XP: \u00a7f${i.xp} \u00a78/ ${i.ust}  \u00a77Sonraki seviyeye: \u00a7f${i.kalan} XP\n\n`) +
-      `\u00a77XP nas\u0131l kazan\u0131l\u0131r:\n` +
-      `\u00a78- Markete e\u015fya sat: her ${Seviye.SEVIYE_CFG.xpSatisBolen}${CFG.simge} = 1 XP\n` +
-      `\u00a78- Marketten al: her ${Seviye.SEVIYE_CFG.xpAlisBolen}${CFG.simge} = 1 XP\n` +
-      `\u00a78- Oyuncu ilan\u0131 sat/al, takas yap\n\n` +
-      `\u00a77Seviyeler:\n${satirlar}\n\n` +
-      `\u00a78Sat\u0131\u015f her seviyede serbesttir; kilit sadece sat\u0131n almadad\u0131r.`
-    )
-    .button("\u00a77< Geri")
-    .show(p).then(r => { if (!r.canceled) kitapMenu(p); });
 }
 
 // ==================== HAZIR (SISTEM) MARKET ====================
@@ -1473,7 +1392,7 @@ function sistemKategoriler(p) {
 
   const f = new ActionFormData()
     .title("\u00a7lHAZIR MARKET")
-    .body(`\u00a77Her zaman a\u00e7\u0131k, s\u0131n\u0131rs\u0131z stok. \u00a7f${toplam}\u00a77 e\u015fya listede.\n${seviyeSatiri(p)}\n\u00a77Bakiyen: \u00a7a${fmt(paraOku(p))}\n\u00a78Fiyatlar ham madde de\u011ferinden hesaplan\u0131r; i\u015flenmi\u015f \u00fcr\u00fcn her zaman girdisinden pahal\u0131d\u0131r.${listeDurumu()}`);
+    .body(`\u00a77Her zaman a\u00e7\u0131k, s\u0131n\u0131rs\u0131z stok. \u00a7f${toplam}\u00a77 e\u015fya listede.\n\u00a77Bakiyen: \u00a7a${fmt(paraOku(p))}\n\u00a78Fiyatlar ham madde de\u011ferinden hesaplan\u0131r; i\u015flenmi\u015f \u00fcr\u00fcn her zaman girdisinden pahal\u0131d\u0131r.${listeDurumu()}`);
 
   const islem = [];
   gruplar.forEach((g, i) => {
@@ -1514,18 +1433,12 @@ function sistemUrunler(p, idx, d = {}) {
 
   const f = new ActionFormData()
     .title(`\u00a7l${baslik.toUpperCase()} \u00a77(${sayfa + 1}/${toplamSayfa})`)
-    .body(`\u00a77Bakiyen: \u00a7a${fmt(paraOku(p))}  \u00a78|  \u00a77${liste.length} e\u015fya\n${seviyeSatiri(p)}\n\u00a7aSat\u0131\u015f \u00a78/ \u00a7cAl\u0131\u015f \u00a78(adet ba\u015f\u0131)  \u00a78| \u00a78kilitliyi satabilirsin`);
+    .body(`\u00a77Bakiyen: \u00a7a${fmt(paraOku(p))}  \u00a78|  \u00a77${liste.length} e\u015fya\n\u00a7aSat\u0131\u015f \u00a78/ \u00a7cAl\u0131\u015f \u00a78(adet ba\u015f\u0131)`);
 
-  const benimSeviye = Seviye.seviye(p);
   for (const id of dilim) {
     const fi = fiyat(id);
     const elde = itemSay(p, id);
-    const gerekli = Seviye.esyaSeviyesi(fi.alis);
-    const kilitli = gerekli > benimSeviye;
-    f.button(raw(adParca(id), T(kilitli
-      ? `\n\u00a78Lv ${gerekli} gerekli \u00a78| \u00a7a${fmt(fi.alis)} sat\u0131\u015f`
-      : `\n\u00a7a${fmt(fi.alis)} \u00a78/ \u00a7c${fmt(fi.satis)}${elde ? ` \u00a78(sende ${elde})` : ""}`)),
-      ikonGuvenli(kilitli ? "minecraft:iron_bars" : id));
+    f.button(raw(adParca(id), T(`\n\u00a7a${fmt(fi.alis)} \u00a78/ \u00a7c${fmt(fi.satis)}${elde ? ` \u00a78(sende ${elde})` : ""}`)), ikonGuvenli(id));
   }
 
   const ek = [];
@@ -1560,8 +1473,7 @@ function sistemUrun(p, idx, id, durum) {
   if (!fi) return sistemUrunler(p, idx, durum);
   const elde = itemSay(p, id);
   const bakiye = paraOku(p);
-  const seviyeDurum = Seviye.alabilirMi(p, fi.alis);
-  const alabilir = seviyeDurum.olur ? Math.floor(bakiye / fi.satis) : 0;
+  const alabilir = Math.floor(bakiye / fi.satis);
   const reh = fiyatRehberi(id);
 
   new ActionFormData()
@@ -1571,14 +1483,10 @@ function sistemUrun(p, idx, id, durum) {
       T(`\n\n\u00a77Markete satarsan: \u00a7a${fmt(fi.alis)}\u00a77/adet\n\u00a77Marketten al\u0131rsan: \u00a7c${fmt(fi.satis)}\u00a77/adet\n`),
       T(`\u00a78Bir y\u0131\u011f\u0131n (64): \u00a7a${fmt(fi.alis * 64)} \u00a78/ \u00a7c${fmt(fi.satis * 64)}\n\n`),
       T(`\u00a77Sende: \u00a7f${elde} adet\n\u00a77Bakiyen: \u00a7a${fmt(bakiye)} \u00a78(${alabilir} adet alabilirsin)`),
-      T(seviyeDurum.olur
-        ? `\n\u00a78Gerekli seviye: ${seviyeDurum.gerekli} \u00a78(sende ${seviyeDurum.seviye})`
-        : `\n\u00a7cKilitli: \u00a7fTicaret Lv ${seviyeDurum.gerekli}\u00a7c gerekiyor \u00a78(sende ${seviyeDurum.seviye})\n\u00a77Satmak serbest \u2014 satarak seviye kazan\u0131rs\u0131n.`),
       T(reh ? `\n\u00a78Oyuncu piyasas\u0131 ort. ${fmt(reh.ortalama)}/adet` : "")
     ))
     .button(elde > 0 ? "\u00a7aSAT" : "\u00a78(Sende yok)", ikonGuvenli(id))
-    .button(!seviyeDurum.olur ? `\u00a78(Lv ${seviyeDurum.gerekli} gerekli)` : alabilir > 0 ? "\u00a7cSATIN AL" : "\u00a78(Para yetersiz)",
-      ikonGuvenli(seviyeDurum.olur ? "minecraft:gold_ingot" : "minecraft:iron_bars"))
+    .button(alabilir > 0 ? "\u00a7cSATIN AL" : "\u00a78(Para yetersiz)", ikonGuvenli("minecraft:gold_ingot"))
     .button("\u00a77< Geri")
     .show(p).then(r => {
       if (r.canceled || r.selection === 2) return sistemUrunler(p, idx, durum);
@@ -1591,7 +1499,6 @@ function sistemUrun(p, idx, id, durum) {
           const kazanc = sonuc.kazanc;
           paraEkle(p, kazanc);
           gecmiseEkle(id, kazanc, sonuc.satilan);
-          Seviye.xpVer(p, Seviye.xpSatistan(kazanc));
           ses(p, "random.orb");
           const fark = kazanc !== sonuc.satilan * fi.alis ? " \u00a78(b\u00fcy\u00fc/hasar dahil)" : "";
           msj(p, T("\u00a7a[Market] \u00a7f"), adParca(id), T(` \u00a77x${sonuc.satilan} sat\u0131ld\u0131 \u00a7a+${fmt(kazanc)}${fark}`));
@@ -1599,11 +1506,6 @@ function sistemUrun(p, idx, id, durum) {
         });
       }
 
-      if (!seviyeDurum.olur) {
-        p.sendMessage(`\u00a7c[Market] Bu e\u015fya i\u00e7in §fTicaret Lv ${seviyeDurum.gerekli}§c gerekiyor. §7(Sende Lv ${seviyeDurum.seviye})`);
-        p.sendMessage("\u00a77Markete e\u015fya satarak XP kazan\u0131rs\u0131n. §f!seviye");
-        return sistemUrunler(p, idx, durum);
-      }
       if (alabilir <= 0) return sistemUrunler(p, idx, durum);
       sistemMiktar(p, "\u00a7lKA\u00c7 ADET ALACAKSIN?", Math.min(alabilir, 640), adet => {
         const tutar = adet * fi.satis;
@@ -1616,7 +1518,6 @@ function sistemUrun(p, idx, id, durum) {
           p.sendMessage(`\u00a7e[Market] Sadece \u00a7f${verilen}\u00a7e adet s\u0131\u011fd\u0131, \u00a7a${fmt(iade)} \u00a7eiade edildi.`);
         }
         if (verilen === 0) return sistemUrunler(p, idx, durum);
-        Seviye.xpVer(p, Seviye.xpAlistan(verilen * fi.satis));
         ses(p, "random.levelup");
         msj(p, T("\u00a7a[Market] \u00a7f"), adParca(id), T(` \u00a77x${verilen} al\u0131nd\u0131 \u00a7c-${fmt(verilen * fi.satis)}`));
         sistemUrunler(p, idx, durum);
@@ -1681,7 +1582,6 @@ function topluSat(p) {
         gecmiseEkle(id, sonuc.kazanc, sonuc.satilan);
       }
       paraEkle(p, kazanilan);
-      Seviye.xpVer(p, Seviye.xpSatistan(kazanilan));
       ses(p, "random.levelup");
       p.sendMessage(`\u00a7a[Market] \u00a7fToplu sat\u0131\u015f tamam: \u00a7a+${fmt(kazanilan)}`);
       sistemKategoriler(p);
