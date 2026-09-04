@@ -1,4 +1,4 @@
-# Market & Ekonomi — Kaynak Kod (v2.3)
+# Market & Ekonomi — Kaynak Kod (v2.4)
 
 Bu klasör Minecraft Bedrock için yazılan Market/Ekonomi addon'ının tüm
 kaynak dosyalarını içerir. `.mcaddon` sadece bunların zip'lenmiş hali;
@@ -137,6 +137,40 @@ dakika — dolarsa canı fazla olan kazanır.
 
 Ayarlar `scripts/dovus.js` içindeki `DOVUS_CFG` ve `KIT` sabitlerinde.
 
+## Fiyatlandırma (v2.4'te elden geçti)
+
+Fiyatlar artık üç katmanda hesaplanıyor:
+
+1. **Ham madde tabanı** (`TABAN`): kazılarak/toplanarak elde edilen ~200
+   şeyin değeri elle verilir. Tek "gerçek" girdi burasıdır.
+2. **Craft tarifleri** (`TARIF`, ~150 tarif): işlenmiş eşyanın değeri
+   girdilerinden hesaplanır — `değer = toplam(girdi) / çıktı adedi × 1.15`.
+   Sandık artık "5" değil, 8 tahtanın karşılığı. Kule (beacon) nether
+   yıldızından pahalı, örs 3 demir bloğu + 4 külçe kadar.
+   Ahşap aileler (kapı, çit, tabela, merdiven, plaka, kayık...) tek tek
+   yazılmaz; her ağaç türü için aynı tarif kendi tahtasından işletilir.
+3. **Türetme kuralları**: tarifi olmayanlar için aile kuralları
+   (9'luk bloklar, cevherler, alet/zırh malzemesi, bakır aşamaları,
+   renk aileleri, eski Bedrock adları...).
+
+Sonuç: varsayılan fiyata düşen eşya sayısı **140'tan 81'e** indi (%6),
+ve bunların çoğu zaten gerçekten o değerde olması gerekenler.
+
+**Büyü ve hasar artık fiyata giriyor.** Satış yolları düz tür fiyatını
+değil `esyaDegeri(yığın)` değerini kullanıyor:
+
+- Hasarlı alet: tam sağlam ×1.0 → kırılmak üzere ×0.2
+- Büyülü eşya: her büyü seviyesi +%12 (en fazla 3 kat)
+- Adlandırılmış eşya: +%5
+
+Örnek: düz elmas kılıç 209$, 10 seviye büyülü 460$, %90 yıpranmış 59$.
+Toplu satış da yığın yığın hesaplar.
+
+**Sonsuz para açığı denetimi:** `node arac/arbitraj.mjs` her tarifi,
+eritmeyi ve 9'luk blok çevrimini tek tek sınar — "ucuz al → craftla →
+pahalı sat" ile para basılabiliyor mu diye. Şu an 197 kontrol, 0 açık.
+Fiyat değiştirdiğinde bunu çalıştır.
+
 ## Ticaret seviyesi (v2.2)
 
 Her eşya ilk dakikadan herkese açık değil. Oyuncu ticaret yaptıkça XP
@@ -176,13 +210,26 @@ Kurallar:
 
 ## Eşya görselleri (v2.2)
 
-İkon yolları artık tahmin edilmiyor. `scripts/ikonlar.js`, Mojang'ın resmî
+İkon yolları tahmin edilmiyor. `scripts/ikonlar.js`, Mojang'ın resmî
 vanilla resource pack verisinden (`item_texture.json`,
 `terrain_texture.json`, `blocks.json`) üretilmiş id → doku yolu haritasını
-taşıyor; **1607 eşyanın 1574'ü** çözülmüş durumda ve %97'si geçerli bir
-vanilla dokusuna işaret ediyor. Bedrock'ta doku adları id'den bağımsız
-olduğu için (kitap → `book_normal`, çiğ et → `beef_raw`, boya →
-`dye_powder_*`, plak → `record_*`) bu şart.
+taşıyor. Bedrock'ta doku adları id'den bağımsız olduğu için (kitap →
+`book_normal`, çiğ et → `beef_raw`, boya → `dye_powder_*`, plak →
+`record_*`) bu şart.
+
+**v2.4'te mor-siyah kareler düzeldi.** İki nedeni vardı:
+
+- Harita `main` dalından (preview sürüm) üretiliyordu; oradaki yollar
+  1.21.90'da bulunmuyor. Artık ana kaynak **oyunun sürümüyle eşleşen
+  etiket** (`v1.21.90.3`), `main` yalnızca daha yeni sürümlerde eklenen
+  eşyalar için ek kaynak.
+- Üretilen her yol, o sürümün kendi texture tanımlarında **gerçekten
+  geçiyor mu** diye doğrulanıyor; geçmiyorsa haritaya hiç yazılmıyor.
+  `icons.js` de artık yol uyduramıyor: doğrulanmış yol yoksa soru işareti
+  görselini koyuyor (mor-siyah kare yerine).
+
+Ölçüm: 1.21.90'daki 1396 eşyanın **1395'i** doğrulanmış bir dokuya
+işaret ediyor.
 
 Çözülemeyenler için sırasıyla: `icons.js` içindeki `OZEL` tablosu, renk
 ailesi şablonları, kök blok ikonu, son çare `textures/items/<id>` tahmini.
@@ -242,6 +289,7 @@ Market_RP/                 Resource Pack (görseller, dil)
     languages.json
 
 paketle.sh                 Klasörleri .mcaddon'a paketler
+arac/arbitraj.mjs          Fiyat açığı denetimi (node arac/arbitraj.mjs)
 katalog_guncelle.py        Vanilla eşya listesini Mojang metadata'sından tazeler
 ikon_guncelle.py           İkon haritasını resmî resource pack verisinden üretir
 ```
@@ -274,7 +322,7 @@ kaynaktan kaç eşya topladığını yazıyor.
 ## Paketleme
 
 ```bash
-bash paketle.sh          # -> Market_v2.3.mcaddon
+bash paketle.sh          # -> Market_v2.4.mcaddon
 ```
 
 Sürüm numarası hem `manifest.json` dosyalarında hem de `main.js` içindeki

@@ -1,7 +1,7 @@
 import * as mc from "@minecraft/server";
 import * as ui from "@minecraft/server-ui";
 import { ikon, VARSAYILAN } from "./icons.js";
-import { fiyat, KATEGORILER, kategoriIndex, yasakMi, MAKAS } from "./fiyat.js";
+import { fiyat, esyaDegeri, KATEGORILER, kategoriIndex, yasakMi, MAKAS } from "./fiyat.js";
 import { katalog, aramaGruplari } from "./esyalar.js";
 import * as Seviye from "./seviye.js";
 import * as Dovus from "./dovus.js";
@@ -12,7 +12,7 @@ const { ActionFormData, ModalFormData } = ui;
 
 // ==================== AYARLAR ====================
 const CFG = {
-  surum: "2.3",
+  surum: "2.4",
   ad: "m",
   objective: "money",
   simge: "$",
@@ -177,6 +177,24 @@ function itemSay(p, t) {
   for (let i = 0; i < c.size; i++) { const it = c.getItem(i); if (it?.typeId === t) n += it.amount; }
   return n;
 }
+// Bir turden `adet` kadar satar. Her yigin KENDI degerinden hesaplanir
+// (hasarli alet ucuz, buyulu esya pahali), duz tur fiyatindan degil.
+function satTip(p, t, adet) {
+  const c = kap(p);
+  if (!c) return { satilan: 0, kazanc: 0 };
+  let kalan = adet, satilan = 0, kazanc = 0;
+  for (let i = 0; i < c.size && kalan > 0; i++) {
+    const it = c.getItem(i);
+    if (it?.typeId !== t || ozelEsya(it)) continue;
+    const birim = esyaDegeri(it);
+    const bu = Math.min(it.amount, kalan);
+    if (it.amount <= bu) c.setItem(i, undefined);
+    else { const y = it.clone(); y.amount = it.amount - bu; c.setItem(i, y); }
+    kalan -= bu; satilan += bu; kazanc += birim * bu;
+  }
+  return { satilan, kazanc: Math.round(kazanc) };
+}
+
 function itemCikar(p, t, adet) {
   const c = kap(p);
   if (!c || itemSay(p, t) < adet) return false;
@@ -1568,13 +1586,15 @@ function sistemUrun(p, idx, id, durum) {
       if (r.selection === 0) {
         if (elde <= 0) return sistemUrunler(p, idx, durum);
         return sistemMiktar(p, "\u00a7lKA\u00c7 ADET SATACAKSIN?", elde, adet => {
-          if (!itemCikar(p, id, adet)) { p.sendMessage("\u00a7c[Market] E\u015fyalar al\u0131namad\u0131."); return sistemUrunler(p, idx, durum); }
-          const kazanc = adet * fi.alis;
+          const sonuc = satTip(p, id, adet);
+          if (sonuc.satilan <= 0) { p.sendMessage("\u00a7c[Market] E\u015fyalar al\u0131namad\u0131."); return sistemUrunler(p, idx, durum); }
+          const kazanc = sonuc.kazanc;
           paraEkle(p, kazanc);
-          gecmiseEkle(id, kazanc, adet);
+          gecmiseEkle(id, kazanc, sonuc.satilan);
           Seviye.xpVer(p, Seviye.xpSatistan(kazanc));
           ses(p, "random.orb");
-          msj(p, T("\u00a7a[Market] \u00a7f"), adParca(id), T(` \u00a77x${adet} sat\u0131ld\u0131 \u00a7a+${fmt(kazanc)}`));
+          const fark = kazanc !== sonuc.satilan * fi.alis ? " \u00a78(b\u00fcy\u00fc/hasar dahil)" : "";
+          msj(p, T("\u00a7a[Market] \u00a7f"), adParca(id), T(` \u00a77x${sonuc.satilan} sat\u0131ld\u0131 \u00a7a+${fmt(kazanc)}${fark}`));
           sistemUrunler(p, idx, durum);
         });
       }
@@ -1619,12 +1639,15 @@ function sistemMiktar(p, baslik, enFazla, geriCagir) {
 function topluSat(p) {
   const c = kap(p);
   if (!c) return;
-  const bulunan = new Map();
+  const bulunan = new Map();   // typeId -> {adet, deger}
   for (let i = 0; i < c.size; i++) {
     const it = c.getItem(i);
     if (!it || ozelEsya(it)) continue;
     if (!fiyat(it.typeId)) continue;
-    bulunan.set(it.typeId, (bulunan.get(it.typeId) ?? 0) + it.amount);
+    const v = bulunan.get(it.typeId) ?? { adet: 0, deger: 0 };
+    v.adet += it.amount;
+    v.deger += esyaDegeri(it) * it.amount;   // her yigin kendi degerinden
+    bulunan.set(it.typeId, v);
   }
   if (bulunan.size === 0) {
     new ActionFormData().title("\u00a7lTOPLU SATI\u015e").body("\u00a77Envanterinde sat\u0131labilir bir \u015fey yok.")
@@ -1633,12 +1656,11 @@ function topluSat(p) {
   }
   let toplam = 0;
   const satirlar = [];
-  const sirali = [...bulunan.entries()].sort((a, b) => (b[1] * fiyat(b[0]).alis) - (a[1] * fiyat(a[0]).alis));
-  for (const [id, adet] of sirali.slice(0, 25)) {
-    const kazanc = adet * fiyat(id).alis;
-    satirlar.push(T("\u00a77- \u00a7f"), adParca(id), T(` \u00a77x${adet} \u00a78= \u00a7a${fmt(kazanc)}\n`));
-  }
-  for (const [id, adet] of sirali) toplam += adet * fiyat(id).alis;
+  const sirali = [...bulunan.entries()].sort((a, b) => b[1].deger - a[1].deger);
+  for (const [id, v] of sirali.slice(0, 25))
+    satirlar.push(T("\u00a77- \u00a7f"), adParca(id), T(` \u00a77x${v.adet} \u00a78= \u00a7a${fmt(Math.round(v.deger))}\n`));
+  for (const [, v] of sirali) toplam += v.deger;
+  toplam = Math.round(toplam);
 
   new ActionFormData()
     .title("\u00a7lTOPLU SATI\u015e")
@@ -1652,12 +1674,11 @@ function topluSat(p) {
     .show(p).then(r => {
       if (r.canceled || r.selection !== 0) return sistemKategoriler(p);
       let kazanilan = 0;
-      for (const [id, adet] of bulunan) {
-        const sat = Math.min(adet, itemSay(p, id));
-        if (sat <= 0 || !itemCikar(p, id, sat)) continue;
-        const k = sat * fiyat(id).alis;
-        kazanilan += k;
-        gecmiseEkle(id, k, sat);
+      for (const [id, v] of bulunan) {
+        const sonuc = satTip(p, id, v.adet);
+        if (sonuc.satilan <= 0) continue;
+        kazanilan += sonuc.kazanc;
+        gecmiseEkle(id, sonuc.kazanc, sonuc.satilan);
       }
       paraEkle(p, kazanilan);
       Seviye.xpVer(p, Seviye.xpSatistan(kazanilan));

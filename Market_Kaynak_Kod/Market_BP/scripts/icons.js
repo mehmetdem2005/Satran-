@@ -230,9 +230,19 @@ export function ikon(typeId) {
     if (kok !== ad) yol = resmiIkon(kok) ?? resmiIkon(kok + "s") ?? resmiIkon(kok + "_planks") ?? resmiIkon(kok + "_block");
   }
   if (!yol) {
-    let blokMu = false;
-    try { blokMu = !!mc.BlockTypes.get(tam); } catch { blokMu = false; }
-    yol = blokMu ? `textures/blocks/${ad}` : `textures/items/${ad}`;
+    // BURASI ONEMLI: dogrulanmis bir yol bulunamadiysa TAHMIN ETME.
+    // Olmayan bir yol Bedrock'ta mor-siyah "eksik doku" karesi cizer;
+    // soru isareti gorseli hem duzgun gorunur hem de bilerek konmus durur.
+    // Sadece baska addon'larin esyalarinda (minecraft: disi ad alani)
+    // kendi klasor duzenlerini tahmin etmeyi deniyoruz.
+    const baskaAddon = tam.includes(":") && !tam.startsWith("minecraft:");
+    if (baskaAddon) {
+      let blokMu = false;
+      try { blokMu = !!mc.BlockTypes.get(tam); } catch { blokMu = false; }
+      yol = blokMu ? `textures/blocks/${ad}` : `textures/items/${ad}`;
+    } else {
+      yol = VARSAYILAN;
+    }
   }
   bellek.set(typeId, yol);
   return yol;

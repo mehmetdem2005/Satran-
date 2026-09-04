@@ -17,8 +17,7 @@ const TABAN = {
   stone: 1, cobblestone: 1, andesite: 1, diorite: 1, granite: 1, tuff: 1,
   deepslate: 1, cobbled_deepslate: 1, calcite: 3, basalt: 2, blackstone: 2,
   netherrack: 1, soul_sand: 3, soul_soil: 3, end_stone: 3, obsidian: 20,
-  crying_obsidian: 35, magma: 6, glowstone: 12, sea_lantern: 20,
-  snowball: 1, snow_block: 4, ice: 2, packed_ice: 8, blue_ice: 30,
+  crying_obsidian: 35, magma: 6, glowstone: 12, snowball: 1, snow_block: 4, ice: 2, packed_ice: 8, blue_ice: 30,
   moss_block: 3, sponge: 40, glass: 2, gravel_block: 1, bedrock: 0,
 
   // madenler
@@ -33,35 +32,26 @@ const TABAN = {
   // tarim
   wheat: 2, wheat_seeds: 1, carrot: 2, potato: 2, beetroot: 2, beetroot_seeds: 1,
   melon_slice: 1, melon_block: 6, melon_seeds: 1, pumpkin: 5, pumpkin_seeds: 1,
-  sugar_cane: 2, sugar: 3, cocoa_beans: 3, bamboo: 1, cactus: 2,
+  sugar_cane: 2, cocoa_beans: 3, bamboo: 1, cactus: 2,
   kelp: 1, dried_kelp: 2, sweet_berries: 2, glow_berries: 5, apple: 5,
   nether_wart: 5, brown_mushroom: 2, red_mushroom: 2, chorus_fruit: 8,
-  torchflower_seeds: 40, pitcher_pod: 40, egg: 2, bread: 8,
-
-  // et / balik (cig)
+  torchflower_seeds: 40, pitcher_pod: 40, egg: 2, // et / balik (cig)
   beef: 3, porkchop: 3, chicken: 2, mutton: 2, rabbit: 3,
   cod: 2, salmon: 3, tropical_fish: 6, pufferfish: 6,
 
   // mob dusurmeleri
   string: 3, feather: 2, leather: 6, bone: 3, gunpowder: 7, slime_ball: 8,
   rotten_flesh: 1, spider_eye: 4, ender_pearl: 25, blaze_rod: 30,
-  ghast_tear: 55, magma_cream: 20, phantom_membrane: 22, shulker_shell: 120,
+  ghast_tear: 55, phantom_membrane: 22, shulker_shell: 120,
   prismarine_shard: 7, prismarine_crystals: 11, nautilus_shell: 40,
   heart_of_the_sea: 300, ink_sac: 3, glow_ink_sac: 10,
   rabbit_hide: 3, rabbit_foot: 28, scute: 40, turtle_scute: 40,
   totem_of_undying: 400, dragon_breath: 60, wither_rose: 25,
 
   // esyalar
-  stick: 1, bowl: 1, paper: 2, book: 12, writable_book: 16,
-  arrow: 2, bow: 30, crossbow: 45, shield: 20, elytra: 1500,
-  saddle: 60, name_tag: 60, lead: 8, bucket: 36,
-  flint_and_steel: 15, shears: 25, fishing_rod: 12, compass: 60, clock: 80,
-  spyglass: 50, experience_bottle: 25, ender_eye: 55, fire_charge: 12,
-  tnt: 25, torch: 1, ladder: 1, cobweb: 5, honeycomb: 8, honey_bottle: 10,
-  chest: 5, barrel: 8, crafting_table: 6, furnace: 5, bookshelf: 40,
-  ender_chest: 8, anvil: 130, enchanting_table: 250, brewing_stand: 40,
-  hopper: 70, beacon: 1200, conduit: 500, lodestone: 100,
-  bone_meal: 1, gunpowder_block: 0, lily_pad: 2, vine: 1,
+  elytra: 1500,
+  experience_bottle: 25, cobweb: 5, honeycomb: 8, honey_bottle: 10,
+  gunpowder_block: 0, lily_pad: 2, vine: 1,
   dandelion: 2, poppy: 2, blue_orchid: 3, allium: 3, azure_bluet: 2,
   oxeye_daisy: 2, cornflower: 3, lily_of_the_valley: 3, sunflower: 3,
   lilac: 3, rose_bush: 3, peony: 3, short_grass: 1, tall_grass: 1,
@@ -77,6 +67,7 @@ const TABAN = {
   pink_petals: 2, shelf_mushroom: 3, closed_eyeblossom: 5, open_eyeblossom: 5,
   camel_husk_spawn_egg: 400,
   brick: 2, netherbrick: 2, mob_spawner: 800, nether_brick_item: 2,
+  carved_pumpkin: 6, azalea_leaves_flowered: 2, brown_mushroom_block: 3, red_mushroom_block: 3,
   mace: 900, breeze_rod: 60, wind_charge: 8, heavy_core: 400,
   trial_key: 90, ominous_trial_key: 180, ominous_bottle: 60,
   resin_clump: 6, resin_block: 20, creaking_heart: 90,
@@ -84,32 +75,17 @@ const TABAN = {
   sculk_sensor: 40, calibrated_sculk_sensor: 60, reinforced_deepslate: 150,
   dripstone_block: 4, pointed_dripstone: 4, powder_snow: 6,
   spawner: 800, trial_spawner: 800, vault: 800, dragon_egg: 2000,
-  end_crystal: 300, budding_amethyst: 200, amethyst_cluster: 30,
+  budding_amethyst: 200, amethyst_cluster: 30,
   glow_lichen: 4, spore_blossom: 12, big_dripleaf: 4, small_dripleaf: 4,
   hanging_roots: 2, azalea: 6, flowering_azalea: 9, moss_carpet: 2,
-  goat_horn: 90, recovery_compass: 200, wolf_armor: 120, armadillo_scute: 20,
-  brush: 20, disc_fragment_5: 30, echo_shard_block: 0,
-  glow_frame: 12, item_frame: 8, glow_item_frame: 14, painting: 8,
-  armor_stand: 12, lectern: 20, chiseled_bookshelf: 30, decorated_pot: 12,
-  crafter: 90, loom: 12, smithing_table: 20, fletching_table: 12,
-  cartography_table: 12, stonecutter: 12, grindstone: 14, composter: 10,
-  campfire: 8, soul_campfire: 12, lantern: 14, soul_lantern: 18,
-  bell: 90, beehive: 20, bee_nest: 40, honeycomb_block: 32,
-  scaffolding: 2, chain: 12, iron_bars: 4, end_rod: 8,
-  glass_bottle: 3, empty_map: 12, map: 12, glistering_melon_slice: 20,
-  fermented_spider_eye: 12, blaze_powder: 16, cake: 30, cookie: 3,
-  pumpkin_pie: 12, mushroom_stew: 12, rabbit_stew: 25, beetroot_soup: 10,
-  suspicious_stew: 15, golden_apple: 120, enchanted_golden_apple: 900,
-  golden_carrot: 40, poisonous_potato: 1, popped_chorus_fruit: 9,
-  firework_rocket: 8, firework_star: 12, enchanted_book: 120,
-  trident: 500, spectral_arrow: 6, tipped_arrow: 8, minecart: 30,
-  rail: 3, powered_rail: 12, golden_rail: 12, detector_rail: 10, activator_rail: 10,
-  piston: 20, sticky_piston: 28, observer: 25, dropper: 18, dispenser: 25,
-  repeater: 12, comparator: 16, lever: 3, daylight_detector: 20,
-  tripwire_hook: 6, target: 12, lightning_rod: 30, note_block: 12,
-  jukebox: 50, redstone_lamp: 20, redstone_torch: 4, iron_door: 40,
-  iron_trapdoor: 45, crafting_table: 6, blast_furnace: 20, smoker: 12,
-  respawn_anchor: 200, cauldron: 40, flower_pot: 2, tinted_glass: 12,
+  goat_horn: 90, recovery_compass: 200, armadillo_scute: 20,
+  disc_fragment_5: 30, echo_shard_block: 0,
+  glow_frame: 12, decorated_pot: 12,
+  crafter: 90, end_rod: 8,
+  fermented_spider_eye: 12, suspicious_stew: 15, enchanted_golden_apple: 900,
+  poisonous_potato: 1, popped_chorus_fruit: 9,
+  enchanted_book: 120,
+  trident: 500, spectral_arrow: 6, tipped_arrow: 8, golden_rail: 12, tinted_glass: 12,
   turtle_egg: 30, sniffer_egg: 200, frogspawn: 10, wet_sponge: 40,
   suspicious_sand: 6, suspicious_gravel: 6, packed_mud: 3, farmland: 1,
   brown_egg: 2, blue_egg: 2, armadillo: 0, glowstone_dust: 4,
@@ -138,6 +114,175 @@ const CEVHER = {
   diamond_ore: "diamond", emerald_ore: "emerald", lapis_ore: "lapis_lazuli",
   redstone_ore: "redstone", nether_quartz_ore: "quartz", nether_gold_ore: "gold_nugget",
   quartz_ore: "quartz"
+};
+
+// ============ CRAFT TARIFLERI ============
+// Fiyat kalitesini yukselten asil parca: asagidaki esyalarin degeri artik
+// tahmin edilmiyor, GIRDILERINDEN hesaplaniyor.
+//   deger(cikti) = toplam(girdi degeri) / cikti adedi * URETIM
+// URETIM her zaman MAKAS'in altinda oldugu icin "ucuz al -> craftla -> pahali
+// sat" acigi olusmaz (test: node arac/arbitraj.mjs).
+const URETIM = 1.15;
+
+// cikti: { g: [[girdi, adet], ...], n: cikti adedi }
+const TARIF = {
+  // --- ahsap ---
+  stick: { g: [["oak_planks", 2]], n: 4 },
+  crafting_table: { g: [["oak_planks", 4]], n: 1 },
+  chest: { g: [["oak_planks", 8]], n: 1 },
+  trapped_chest: { g: [["chest", 1], ["tripwire_hook", 1]], n: 1 },
+  barrel: { g: [["oak_planks", 6], ["oak_slab", 2]], n: 1 },
+  ladder: { g: [["stick", 7]], n: 3 },
+  torch: { g: [["coal", 1], ["stick", 1]], n: 4 },
+  soul_torch: { g: [["coal", 1], ["stick", 1], ["soul_sand", 1]], n: 4 },
+  bowl: { g: [["oak_planks", 3]], n: 4 },
+  bookshelf: { g: [["oak_planks", 6], ["book", 3]], n: 1 },
+  chiseled_bookshelf: { g: [["oak_planks", 6], ["oak_slab", 3]], n: 1 },
+  lectern: { g: [["oak_slab", 4], ["bookshelf", 1]], n: 1 },
+  note_block: { g: [["oak_planks", 8], ["redstone", 1]], n: 1 },
+  jukebox: { g: [["oak_planks", 8], ["diamond", 1]], n: 1 },
+  composter: { g: [["oak_slab", 7]], n: 1 },
+  cartography_table: { g: [["oak_planks", 4], ["paper", 2]], n: 1 },
+  fletching_table: { g: [["oak_planks", 4], ["flint", 2]], n: 1 },
+  smithing_table: { g: [["oak_planks", 4], ["iron_ingot", 2]], n: 1 },
+  loom: { g: [["oak_planks", 2], ["string", 2]], n: 1 },
+  scaffolding: { g: [["bamboo", 6], ["string", 1]], n: 6 },
+  armor_stand: { g: [["stick", 6], ["smooth_stone_slab", 1]], n: 1 },
+  item_frame: { g: [["stick", 8], ["leather", 1]], n: 1 },
+  glow_item_frame: { g: [["item_frame", 1], ["glow_ink_sac", 1]], n: 1 },
+  painting: { g: [["stick", 8], ["white_wool", 1]], n: 1 },
+  bee_nest: { g: [["oak_planks", 6], ["honeycomb", 3]], n: 1 },
+  beehive: { g: [["oak_planks", 6], ["honeycomb", 3]], n: 1 },
+  campfire: { g: [["stick", 3], ["coal", 1], ["oak_log", 3]], n: 1 },
+  soul_campfire: { g: [["stick", 3], ["soul_sand", 1], ["oak_log", 3]], n: 1 },
+
+  // --- tas / metal ---
+  furnace: { g: [["cobblestone", 8]], n: 1 },
+  blast_furnace: { g: [["furnace", 1], ["iron_ingot", 5], ["smooth_stone", 3]], n: 1 },
+  smoker: { g: [["furnace", 1], ["oak_log", 4]], n: 1 },
+  stonecutter: { g: [["stone", 3], ["iron_ingot", 1]], n: 1 },
+  grindstone: { g: [["stick", 2], ["oak_planks", 2], ["stone_slab", 1]], n: 1 },
+  cauldron: { g: [["iron_ingot", 7]], n: 1 },
+  hopper: { g: [["iron_ingot", 5], ["chest", 1]], n: 1 },
+  anvil: { g: [["iron_block", 3], ["iron_ingot", 4]], n: 1 },
+  iron_bars: { g: [["iron_ingot", 6]], n: 16 },
+  chain: { g: [["iron_ingot", 1], ["iron_nugget", 2]], n: 1 },
+  iron_door: { g: [["iron_ingot", 6]], n: 3 },
+  iron_trapdoor: { g: [["iron_ingot", 4]], n: 1 },
+  lantern: { g: [["torch", 1], ["iron_nugget", 8]], n: 1 },
+  soul_lantern: { g: [["soul_torch", 1], ["iron_nugget", 8]], n: 1 },
+  bucket: { g: [["iron_ingot", 3]], n: 1 },
+  shears: { g: [["iron_ingot", 2]], n: 1 },
+  flint_and_steel: { g: [["iron_ingot", 1], ["flint", 1]], n: 1 },
+  compass: { g: [["iron_ingot", 4], ["redstone", 1]], n: 1 },
+  clock: { g: [["gold_ingot", 4], ["redstone", 1]], n: 1 },
+  minecart: { g: [["iron_ingot", 5]], n: 1 },
+  rail: { g: [["iron_ingot", 6], ["stick", 1]], n: 16 },
+  powered_rail: { g: [["gold_ingot", 6], ["stick", 1], ["redstone", 1]], n: 6 },
+  detector_rail: { g: [["iron_ingot", 6], ["stone_pressure_plate", 1], ["redstone", 1]], n: 6 },
+  activator_rail: { g: [["iron_ingot", 6], ["stick", 2], ["redstone_torch", 1]], n: 6 },
+  bell: { g: [["gold_ingot", 3], ["oak_planks", 3]], n: 1 },
+  lodestone: { g: [["chiseled_stone_bricks", 8], ["netherite_ingot", 1]], n: 1 },
+  glass_pane: { g: [["glass", 6]], n: 16 },
+  glass_bottle: { g: [["glass", 3]], n: 3 },
+  spyglass: { g: [["copper_ingot", 2], ["amethyst_shard", 1]], n: 1 },
+  brush: { g: [["feather", 1], ["copper_ingot", 1], ["stick", 1]], n: 1 },
+  lightning_rod: { g: [["copper_ingot", 3]], n: 1 },
+
+  // --- kirmizi tas ---
+  redstone_torch: { g: [["redstone", 1], ["stick", 1]], n: 1 },
+  redstone_lamp: { g: [["glowstone", 1], ["redstone", 4]], n: 1 },
+  piston: { g: [["oak_planks", 3], ["cobblestone", 4], ["iron_ingot", 1], ["redstone", 1]], n: 1 },
+  sticky_piston: { g: [["piston", 1], ["slime_ball", 1]], n: 1 },
+  observer: { g: [["cobblestone", 6], ["redstone", 2], ["quartz", 1]], n: 1 },
+  dispenser: { g: [["cobblestone", 7], ["bow", 1], ["redstone", 1]], n: 1 },
+  dropper: { g: [["cobblestone", 7], ["redstone", 1]], n: 1 },
+  repeater: { g: [["stone", 3], ["redstone_torch", 2], ["redstone", 1]], n: 1 },
+  comparator: { g: [["stone", 3], ["redstone_torch", 3], ["quartz", 1]], n: 1 },
+  daylight_detector: { g: [["glass", 3], ["quartz", 3], ["oak_slab", 3]], n: 1 },
+  target: { g: [["hay_block", 1], ["redstone", 4]], n: 1 },
+  tnt: { g: [["gunpowder", 5], ["sand", 4]], n: 1 },
+  tripwire_hook: { g: [["iron_ingot", 1], ["stick", 1], ["oak_planks", 1]], n: 2 },
+  lever: { g: [["cobblestone", 1], ["stick", 1]], n: 1 },
+  chest_minecart: { g: [["minecart", 1], ["chest", 1]], n: 1 },
+  hopper_minecart: { g: [["minecart", 1], ["hopper", 1]], n: 1 },
+  furnace_minecart: { g: [["minecart", 1], ["furnace", 1]], n: 1 },
+  tnt_minecart: { g: [["minecart", 1], ["tnt", 1]], n: 1 },
+
+  // --- yiyecek ---
+  bread: { g: [["wheat", 3]], n: 1 },
+  cookie: { g: [["wheat", 2], ["cocoa_beans", 1]], n: 8 },
+  cake: { g: [["milk_bucket", 3], ["sugar", 2], ["wheat", 3], ["egg", 1]], n: 1 },
+  pumpkin_pie: { g: [["pumpkin", 1], ["sugar", 1], ["egg", 1]], n: 1 },
+  golden_apple: { g: [["gold_ingot", 8], ["apple", 1]], n: 1 },
+  golden_carrot: { g: [["gold_nugget", 8], ["carrot", 1]], n: 1 },
+  glistering_melon_slice: { g: [["gold_nugget", 8], ["melon_slice", 1]], n: 1 },
+  mushroom_stew: { g: [["brown_mushroom", 1], ["red_mushroom", 1], ["bowl", 1]], n: 1 },
+  rabbit_stew: { g: [["cooked_rabbit", 1], ["carrot", 1], ["baked_potato", 1], ["brown_mushroom", 1], ["bowl", 1]], n: 1 },
+  beetroot_soup: { g: [["beetroot", 6], ["bowl", 1]], n: 1 },
+  sugar: { g: [["sugar_cane", 1]], n: 1 },
+  hay_block: { g: [["wheat", 9]], n: 1 },
+  bone_meal: { g: [["bone", 1]], n: 3 },
+  bone_block: { g: [["bone_meal", 9]], n: 1 },
+
+  // --- cesitli ---
+  paper: { g: [["sugar_cane", 3]], n: 3 },
+  book: { g: [["paper", 3], ["leather", 1]], n: 1 },
+  writable_book: { g: [["book", 1], ["ink_sac", 1], ["feather", 1]], n: 1 },
+  bookshelf_dummy: { g: [["oak_planks", 6], ["book", 3]], n: 1 },
+  map: { g: [["paper", 8], ["compass", 1]], n: 1 },
+  empty_map: { g: [["paper", 9]], n: 1 },
+  fishing_rod: { g: [["stick", 3], ["string", 2]], n: 1 },
+  bow: { g: [["stick", 3], ["string", 3]], n: 1 },
+  crossbow: { g: [["stick", 3], ["string", 2], ["iron_ingot", 1], ["tripwire_hook", 1]], n: 1 },
+  arrow: { g: [["flint", 1], ["stick", 1], ["feather", 1]], n: 4 },
+  shield: { g: [["oak_planks", 6], ["iron_ingot", 1]], n: 1 },
+  fire_charge: { g: [["gunpowder", 1], ["blaze_powder", 1], ["coal", 1]], n: 3 },
+  blaze_powder: { g: [["blaze_rod", 1]], n: 2 },
+  magma_cream: { g: [["blaze_powder", 1], ["slime_ball", 1]], n: 1 },
+  ender_eye: { g: [["ender_pearl", 1], ["blaze_powder", 1]], n: 1 },
+  firework_rocket: { g: [["paper", 1], ["gunpowder", 1]], n: 3 },
+  firework_star: { g: [["gunpowder", 1], ["red_dye", 1]], n: 1 },
+  white_wool: { g: [["string", 4]], n: 1 },
+  white_carpet: { g: [["white_wool", 2]], n: 3 },
+  white_bed: { g: [["white_wool", 3], ["oak_planks", 3]], n: 1 },
+  candle: { g: [["string", 1], ["honeycomb", 1]], n: 1 },
+  honeycomb_block: { g: [["honeycomb", 4]], n: 1 },
+  honey_block: { g: [["honey_bottle", 4]], n: 1 },
+  slime_block: { g: [["slime_ball", 9]], n: 1 },
+  end_crystal: { g: [["glass", 7], ["ender_eye", 1], ["ghast_tear", 1]], n: 1 },
+  beacon: { g: [["glass", 5], ["obsidian", 3], ["nether_star", 1]], n: 1 },
+  conduit: { g: [["nautilus_shell", 8], ["heart_of_the_sea", 1]], n: 1 },
+  respawn_anchor: { g: [["crying_obsidian", 6], ["glowstone", 3]], n: 1 },
+  enchanting_table: { g: [["obsidian", 4], ["diamond", 2], ["book", 1]], n: 1 },
+  brewing_stand: { g: [["cobblestone", 3], ["blaze_rod", 1]], n: 1 },
+  ender_chest: { g: [["obsidian", 8], ["ender_eye", 1]], n: 1 },
+  flower_pot: { g: [["brick", 3]], n: 1 },
+  bricks: { g: [["brick", 4]], n: 1 },
+  nether_bricks: { g: [["netherbrick", 4]], n: 1 },
+  quartz_block: { g: [["quartz", 4]], n: 1 },
+  snow_block: { g: [["snowball", 4]], n: 1 },
+  clay: { g: [["clay_ball", 4]], n: 1 },
+  glowstone: { g: [["glowstone_dust", 4]], n: 1 },
+  melon_block: { g: [["melon_slice", 9]], n: 1 },
+  dried_kelp_block: { g: [["dried_kelp", 9]], n: 1 },
+  sea_lantern: { g: [["prismarine_shard", 4], ["prismarine_crystals", 5]], n: 1 },
+  prismarine: { g: [["prismarine_shard", 4]], n: 1 },
+  saddle: { g: [["leather", 5], ["iron_ingot", 2]], n: 1 },
+  lead: { g: [["string", 4], ["slime_ball", 1]], n: 2 },
+  name_tag: { g: [["paper", 1], ["iron_ingot", 1]], n: 1 },
+  carrot_on_a_stick: { g: [["fishing_rod", 1], ["carrot", 1]], n: 1 },
+  warped_fungus_on_a_stick: { g: [["fishing_rod", 1], ["warped_fungus", 1]], n: 1 },
+  leather_horse_armor: { g: [["leather", 7]], n: 1 },
+  iron_horse_armor: { g: [["iron_ingot", 7]], n: 1 },
+  golden_horse_armor: { g: [["gold_ingot", 7]], n: 1 },
+  diamond_horse_armor: { g: [["diamond", 7]], n: 1 },
+  wolf_armor: { g: [["armadillo_scute", 6]], n: 1 },
+  bed: { g: [["white_wool", 3], ["oak_planks", 3]], n: 1 },
+  banner: { g: [["white_wool", 6], ["stick", 1]], n: 1 },
+  brick_block: { g: [["brick", 4]], n: 1 },
+  jack_o_lantern: { g: [["carved_pumpkin", 1], ["torch", 1]], n: 1 },
+  lit_pumpkin: { g: [["carved_pumpkin", 1], ["torch", 1]], n: 1 }
 };
 
 // alet/zirh malzeme degerleri
@@ -196,8 +341,31 @@ export function tabanDeger(id) {
 }
 const D = (x) => tabanDeger(x);
 
+// Bedrock'ta bazi mese esyalari agac adi tasimaz (oak_door degil wooden_door
+// gibi). Bunlari mese karsiligina baglayip ayni tariften hesapliyoruz.
+const ESKI_AD = {
+  wooden_door: "oak_door", wooden_button: "oak_button", wooden_pressure_plate: "oak_pressure_plate",
+  trapdoor: "oak_trapdoor", fence_gate: "oak_fence_gate", sign: "oak_sign", boat: "oak_boat",
+  chest_boat: "oak_chest_boat", wooden_slab: "oak_slab", oak_wood_stairs: "oak_stairs",
+  frame: "item_frame", glow_frame: "glow_item_frame", filled_map: "map", empty_map: "empty_map",
+  mob_spawner: "spawner", monster_egg: "stone", web: "cobweb", waterlily: "lily_pad",
+  noteblock: "note_block", hardened_clay: "terracotta", brick_block: "bricks",
+  stonecutter_block: "stonecutter", magma: "magma_block", melon_block: "melon_block"
+};
+
 function hesapla(a) {
   if (TABAN[a] !== undefined) return TABAN[a];
+  if (ESKI_AD[a] && ESKI_AD[a] !== a) return D(ESKI_AD[a]);
+  if (a === "chipped_anvil") return D("anvil") * 0.7;
+  if (a === "damaged_anvil") return D("anvil") * 0.45;
+
+  // Craft tarifi varsa deger girdilerinden hesaplanir (en dogru yontem)
+  if (TARIF[a]) {
+    const t = TARIF[a];
+    let toplam = 0;
+    for (const [girdi, adet] of t.g) toplam += D(girdi) * adet;
+    return toplam / (t.n || 1) * URETIM;
+  }
 
   // --- v2.0: eskiden yasakli oldugu icin hic fiyatlanmayan aileler ---
   if (a.endsWith("_spawn_egg")) return 400;
@@ -262,9 +430,29 @@ function hesapla(a) {
     return D("bucket") + icDeger;
   }
 
-  // ahsap ailesi
+  // ahsap ailesi: her agac turu icin ayni tarifler gecerli, tek tek yazmiyoruz.
+  // Kok deger = o agacin tahtasi; yoksa genel tahta degeri.
+  const AHSAP_TARIF = [
+    ["_door", 6, 3], ["_trapdoor", 6, 2], ["_hanging_sign", 6, 6], ["_sign", 6, 3],
+    ["_fence_gate", 4, 1], ["_fence", 4, 3], ["_pressure_plate", 2, 1], ["_button", 1, 1],
+    ["_stairs", 6, 4], ["_slab", 3, 6], ["_chest_boat", 5, 1], ["_boat", 5, 1],
+    ["_shelf", 6, 1], ["_mosaic", 2, 1], ["_raft", 5, 1]
+  ];
+  const AGAC = /^(oak|spruce|birch|jungle|acacia|dark_oak|mangrove|cherry|pale_oak|poplar|crimson|warped|bamboo)$/;
+  for (const [ek, girdi, cikti] of AHSAP_TARIF) {
+    if (!a.endsWith(ek)) continue;
+    const kok = a.slice(0, -ek.length);
+    if (!AGAC.test(kok)) break;                     // ahsap degil: genel kural baksin
+    let deger = D(kok + "_planks") * girdi / cikti * URETIM;
+    if (ek === "_chest_boat") deger += D("chest");
+    if (ek === "_hanging_sign") deger += D("chain") * 2 / cikti;
+    if (ek === "_fence_gate" || ek === "_fence") deger += D("stick") * 4 / cikti;
+    if (ek === "_sign") deger += D("stick") / cikti;
+    return deger;
+  }
+
   if (/_(log|wood|stem|hyphae)$/.test(a)) return 4;
-  if (a.endsWith("_planks")) return 1.2;
+  if (a.endsWith("_planks")) return D("oak_log") / 4 * URETIM;
   if (a.endsWith("_leaves")) return 1;
   if (a.endsWith("_sapling")) return 3;
   if (a.endsWith("_propagule")) return 3;
@@ -313,6 +501,38 @@ function hesapla(a) {
 
   // bilinmeyen: makul bir varsayilan
   return 5;
+}
+
+// Bir ESYA YIGININ gercek satis degeri (adet basina).
+// Duz tur fiyati yetmiyor: hasarli alet daha ucuz, buyulu esya daha degerli
+// olmali. Satis yollari bu fonksiyonu kullanir.
+export function esyaDegeri(item) {
+  if (!item) return 0;
+  const t = fiyat(item.typeId);
+  if (!t) return 0;
+  let deger = t.alis;
+
+  // hasar: tam saglam 1.0, kirilmak uzere 0.2
+  try {
+    const dur = item.getComponent("minecraft:durability");
+    if (dur && dur.maxDurability > 0 && dur.damage > 0) {
+      const kalan = Math.max(0, 1 - dur.damage / dur.maxDurability);
+      deger *= 0.2 + 0.8 * kalan;
+    }
+  } catch { }
+
+  // buyuler: her seviye +%12, en fazla 3 kat
+  try {
+    const e = item.getComponent("minecraft:enchantable");
+    if (e) {
+      let seviye = 0;
+      for (const b of e.getEnchantments()) seviye += b.level ?? 1;
+      if (seviye > 0) deger *= Math.min(3, 1 + seviye * 0.12);
+    }
+  } catch { }
+
+  try { if (item.nameTag) deger *= 1.05; } catch { }
+  return Math.max(1, Math.round(deger));
 }
 
 // Oyuncunun gordugu fiyatlar

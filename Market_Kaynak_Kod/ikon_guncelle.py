@@ -1,18 +1,29 @@
 #!/usr/bin/env python3
 """Esya ikonlarini Mojang'in resmi vanilla resource pack verisinden uretir.
 
-Market_BP/scripts/ikonlar.js dosyasini yeniden yazar. Minecraft yeni surum
-cikardiginda calistir:  python3 ikon_guncelle.py
-Internet yoksa hicbir sey degistirmez.
+Market_BP/scripts/ikonlar.js dosyasini yeniden yazar:
+  python3 ikon_guncelle.py
+
+NEDEN SURUM ETIKETI: "main" dali preview surumunun verisini tasir. Oradaki
+doku yollari (ornegin yeni alt klasorler) eski surumlerde bulunmaz ve oyunda
+mor-siyah "eksik doku" karesi olarak gorunur. Bu yuzden ANA kaynak, addon'un
+min_engine_version'i ile ayni etiket; "main" yalnizca daha yeni surumlerde
+eklenen esyalar icin EK kaynak olarak kullanilir.
+
+Ayrica uretilen her yol, o surumun kendi texture tanimlarinda gercekten
+geciyor mu diye dogrulanir; gecmiyorsa haritaya HIC yazilmaz (icons.js o
+zaman soru isareti gorseline duser, mor-siyah kare cikmaz).
 """
 import json, re, sys, textwrap, urllib.request, pathlib
 
-KOK = "https://raw.githubusercontent.com/Mojang/bedrock-samples/main/"
-KAYNAKLAR = {
-    "esya":    KOK + "metadata/vanilladata_modules/mojang-items.json",
-    "item_tx": KOK + "resource_pack/textures/item_texture.json",
-    "tas_tx":  KOK + "resource_pack/textures/terrain_texture.json",
-    "bloklar": KOK + "resource_pack/blocks.json",
+SURUM = "v1.21.90.3"      # Market_BP/manifest.json -> min_engine_version
+YENI_DAL = "main"         # daha yeni surumlerde eklenen esyalar icin ek kaynak
+
+DOSYALAR = {
+    "esya":    "metadata/vanilladata_modules/mojang-items.json",
+    "item_tx": "resource_pack/textures/item_texture.json",
+    "tas_tx":  "resource_pack/textures/terrain_texture.json",
+    "bloklar": "resource_pack/blocks.json",
 }
 HEDEF = pathlib.Path(__file__).parent / "Market_BP" / "scripts" / "ikonlar.js"
 
@@ -20,19 +31,25 @@ HEDEF = pathlib.Path(__file__).parent / "Market_BP" / "scripts" / "ikonlar.js"
 ELLE = {
     "bone_meal": "textures/items/dye_powder_white", "ink_sac": "textures/items/dye_powder_black_new",
     "lapis_lazuli": "textures/items/dye_powder_blue_new", "cocoa_beans": "textures/items/dye_powder_brown",
-    "glow_ink_sac": "textures/items/glow_ink_sac", "cooked_cod": "textures/items/fish_cooked",
-    "glass_bottle": "textures/items/potion_bottle_empty", "fire_charge": "textures/items/fireball",
-    "firework_rocket": "textures/items/fireworks", "firework_star": "textures/items/fireworks_charge",
-    "glistering_melon_slice": "textures/items/melon_speckled",
-    "enchanted_golden_apple": "textures/items/apple_golden",
-    "iron_chain": "textures/blocks/chain1", "banner": "textures/items/banner_white",
-    "oak_sign": "textures/items/sign", "sign": "textures/items/sign",
-    "grass_block": "textures/blocks/grass_side_carried",
-    "melon_slice": "textures/items/melon", "lodestone_compass": "textures/items/compass_item",
+    "cooked_cod": "textures/items/fish_cooked", "glass_bottle": "textures/items/potion_bottle_empty",
+    "fire_charge": "textures/items/fireball", "firework_rocket": "textures/items/fireworks",
+    "firework_star": "textures/items/fireworks_charge", "glistering_melon_slice": "textures/items/melon_speckled",
+    "enchanted_golden_apple": "textures/items/apple_golden", "melon_slice": "textures/items/melon",
+    "lodestone_compass": "textures/items/compass_item", "oak_sign": "textures/items/sign",
+    "sign": "textures/items/sign", "dark_oak_planks": "textures/blocks/planks_big_oak",
+    "slime_ball": "textures/items/slimeball", "sugar_cane": "textures/items/reeds",
+    "totem_of_undying": "textures/items/totem", "tropical_fish": "textures/items/fish_clownfish_raw",
+    "turtle_scute": "textures/items/turtle_shell_piece", "scute": "textures/items/turtle_shell_piece",
+    "grass_block": "textures/blocks/grass_carried", "glow_ink_sac": "textures/items/dye_powder_black_new",
+    "tropical_fish_bucket": "textures/items/bucket_tropical",
+    "tropical_fish_spawn_egg": "textures/items/spawn_eggs/spawn_egg_tropicalfish",
+    "zombie_pigman_spawn_egg": "textures/items/spawn_eggs/spawn_egg_zombie_pigman",
+    # kendi cizdigimiz gorseller (dogrulama disi)
     "chest": "textures/items/market_sandik", "trapped_chest": "textures/items/market_sandik",
     "barrel": "textures/items/market_sandik", "ender_chest": "textures/items/market_endersandik",
 }
-# Yapisal ekler: kendi dokusu yoksa kok blogun dokusu kullanilir
+BIZIM = {v for v in ELLE.values() if "/market_" in v or "/mk_" in v}
+
 EKLER = ["_double_slab", "_slab", "_stairs", "_wall", "_fence_gate", "_fence", "_button",
          "_pressure_plate", "_trapdoor", "_door", "_cushion", "_shelf", "_sign", "_hanging_sign"]
 ES = {"light_gray": "silver", "dark_oak": "darkoak", "wooden": "wood", "golden": "gold"}
@@ -61,17 +78,17 @@ def parcala(s):
     return [x for x in re.split(r"[_/.\-]+", s) if x]
 
 
-def main():
+def coz_hepsi(ref):
+    """Bir surumun verisinden {esya: yol} haritasi uretir."""
     try:
-        veri = {k: indir(u) for k, u in KAYNAKLAR.items()}
+        veri = {k: indir(f"https://raw.githubusercontent.com/Mojang/bedrock-samples/{ref}/{u}")
+                for k, u in DOSYALAR.items()}
     except Exception as e:
-        print(f"HATA: indirilemedi ({e}). Dosya degistirilmedi.")
-        return 1
+        print(f"  {ref}: indirilemedi ({e})")
+        return None, [], []
 
     esyalar = sorted({x["name"].replace("minecraft:", "") for x in veri["esya"]["data_items"]})
-    it = veri["item_tx"]["texture_data"]
-    tt = veri["tas_tx"]["texture_data"]
-    bl = veri["bloklar"]
+    it, tt, bl = veri["item_tx"]["texture_data"], veri["tas_tx"]["texture_data"], veri["bloklar"]
 
     def tek(v):
         y = yollar(v)
@@ -89,6 +106,7 @@ def main():
     tum = set()
     for kaynak in (it, tt):
         for v in kaynak.values(): tum.update(p for p in yollar(v) if isinstance(p, str))
+
     indeks = {}
     for p in sorted(tum):
         indeks.setdefault(frozenset(parcala(p.rsplit("/", 1)[-1])), []).append(p)
@@ -107,13 +125,15 @@ def main():
 
     def coz(e, derinlik=0):
         if e in ELLE: return ELLE[e]
-        if e.startswith("music_disc_"):          # plaklarin doku adi "record_*"
+        if e.startswith("music_disc_"):
             aday = f"textures/items/record_{e[11:]}"
             if aday in tum: return aday
         y = tek(it[e]) if e in it else None
         if not y: y = blok_yolu(e)
         if not y: y = bulanik(e)
-        if not y and derinlik < 2:                    # kok bloga dus
+        if not y and e.endswith("_spawn_egg") and "textures/items/spawn_egg" in tum:
+            y = "textures/items/spawn_egg"
+        if not y and derinlik < 2:
             for ek in EKLER:
                 if e.endswith(ek) and len(e) > len(ek):
                     kok = e[: -len(ek)]
@@ -122,34 +142,43 @@ def main():
                         if y: return y
         return y
 
-    harita, kayip = {}, []
+    harita, kayip, atilan = {}, [], []
     for e in esyalar:
         y = coz(e)
-        if y: harita[e] = y
-        else: kayip.append(e)
+        if not y:
+            kayip.append(e)
+        elif y in tum or y in BIZIM:
+            harita[e] = y
+        else:
+            atilan.append(f"{e} -> {y}")     # yol bu surumde yok: kullanma
+    return harita, kayip, atilan
 
-    kisa, blok_gibi = {}, []
+
+def sar(s, genislik=100):
+    return "\n".join('  "%s",' % x for x in
+                     textwrap.wrap(s, width=genislik, break_long_words=False,
+                                   break_on_hyphens=False)).rstrip(",")
+
+
+def yaz(harita, bilgi):
+    kisa, blok_gibi, item_gibi = {}, [], []
     for k, v in harita.items():
         if v == f"textures/blocks/{k}": blok_gibi.append(k); continue
-        if v == f"textures/items/{k}": continue          # varsayilan tahmin zaten dogru
+        if v == f"textures/items/{k}": item_gibi.append(k); continue
         kisa[k] = v.replace("textures/items/", "i:").replace("textures/blocks/", "b:")
-
-    def sar(s, genislik=100):
-        return "\n".join('  "%s",' % x for x in
-                         textwrap.wrap(s, width=genislik, break_long_words=False,
-                                       break_on_hyphens=False)).rstrip(",")
 
     icerik = f'''// ============ ESYA IKON HARITASI ============
 // ikon_guncelle.py tarafindan Mojang'in resmi vanilla resource pack
-// verisinden uretilmistir (bedrock-samples: item_texture.json,
-// terrain_texture.json, blocks.json). ELLE DUZENLEME: uretici yeniden
-// calisinca ustune yazar; kalici degisiklik icin icons.js icindeki
-// OZEL tablosunu kullan.
+// verisinden uretilmistir. ELLE DUZENLEME: uretici yeniden calisinca
+// ustune yazar; kalici degisiklik icin icons.js icindeki OZEL tablosunu
+// ya da ikon_guncelle.py icindeki ELLE tablosunu kullan.
+//
+// {bilgi}
+// Buradaki her yol, kaynak surumun kendi texture tanimlarinda GECIYOR diye
+// dogrulanmistir; dogrulanamayan yol haritaya hic yazilmaz (icons.js soru
+// isareti gorseline duser, oyunda mor-siyah kare cikmaz).
 //
 // Bicim: "<esya_id>=<yol>" ciftleri. "i:" = textures/items/, "b:" = textures/blocks/
-// Burada olmayan ama BLOK olan esyalar BLOK_GIBI listesinde
-// (yolu textures/blocks/<id>); geri kalan icin textures/items/<id> denenir.
-// Uretim tarihi verisi: {len(harita)} esya cozuldu, {len(kayip)} cozulemedi.
 
 const HARITA_HAM = [
 {sar(" ".join(f"{k}={v}" for k, v in sorted(kisa.items())))}
@@ -157,6 +186,11 @@ const HARITA_HAM = [
 
 const BLOK_GIBI_HAM = [
 {sar(" ".join(sorted(blok_gibi)))}
+].join(" ");
+
+// Yolu dogrudan textures/items/<id> olanlar
+const ITEM_GIBI_HAM = [
+{sar(" ".join(sorted(item_gibi)))}
 ].join(" ");
 
 const HARITA = new Map();
@@ -170,15 +204,35 @@ for (const cift of HARITA_HAM.split(" ")) {{
   HARITA.set(cift.slice(0, i), yol);
 }}
 for (const ad of BLOK_GIBI_HAM.split(" ")) if (ad) HARITA.set(ad, `textures/blocks/${{ad}}`);
+for (const ad of ITEM_GIBI_HAM.split(" ")) if (ad) HARITA.set(ad, `textures/items/${{ad}}`);
 
-// Esya id'sinin (minecraft: oneki olmadan) resmi texture yolu, yoksa undefined.
+// Esya id'sinin (minecraft: oneki olmadan) dogrulanmis texture yolu, yoksa undefined.
 export function resmiIkon(ad) {{ return HARITA.get(ad); }}
 export const IKON_SAYISI = HARITA.size;
 '''
     HEDEF.write_text(icerik, encoding="utf-8")
-    print(f"Tamam: {len(harita)}/{len(esyalar)} esya cozuldu "
-          f"({len(kisa)} ozel yol, {len(blok_gibi)} blok), {len(kayip)} cozulemedi -> {HEDEF}")
-    if kayip: print("Cozulemeyenler:", ", ".join(kayip[:25]))
+    print(f"Yazildi: {len(harita)} esya ({len(kisa)} ozel yol, {len(blok_gibi)} blok, {len(item_gibi)} item) -> {HEDEF}")
+
+
+def main():
+    print(f"Ana kaynak (oyun surumu): {SURUM}")
+    harita, kayip, atilan = coz_hepsi(SURUM)
+    if harita is None:
+        print("HATA: ana kaynak indirilemedi. Dosya degistirilmedi.")
+        return 1
+    print(f"  cozuldu {len(harita)} | cozulemedi {len(kayip)} | yolu dogrulanamayip atilan {len(atilan)}")
+    if kayip: print("  cozulemeyen:", ", ".join(kayip[:20]))
+    if atilan: print("  atilan:", ", ".join(atilan[:10]))
+
+    print(f"Ek kaynak (yeni surum esyalari): {YENI_DAL}")
+    yeni, _, _ = coz_hepsi(YENI_DAL)
+    eklenen = 0
+    if yeni:
+        for k, v in yeni.items():
+            if k not in harita: harita[k] = v; eklenen += 1
+    print(f"  {eklenen} yeni esya eklendi")
+
+    yaz(harita, f"Kaynak: {SURUM} ({len(harita) - eklenen} esya) + {YENI_DAL} (+{eklenen} yeni esya).")
     print("Simdi 'bash paketle.sh' ile yeni .mcaddon uret.")
     return 0
 

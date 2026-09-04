@@ -1,14 +1,15 @@
 // ============ ESYA IKON HARITASI ============
 // ikon_guncelle.py tarafindan Mojang'in resmi vanilla resource pack
-// verisinden uretilmistir (bedrock-samples: item_texture.json,
-// terrain_texture.json, blocks.json). ELLE DUZENLEME: uretici yeniden
-// calisinca ustune yazar; kalici degisiklik icin icons.js icindeki
-// OZEL tablosunu kullan.
+// verisinden uretilmistir. ELLE DUZENLEME: uretici yeniden calisinca
+// ustune yazar; kalici degisiklik icin icons.js icindeki OZEL tablosunu
+// ya da ikon_guncelle.py icindeki ELLE tablosunu kullan.
+//
+// Kaynak: v1.21.90.3 (1395 esya) + main (+186 yeni esya).
+// Buradaki her yol, kaynak surumun kendi texture tanimlarinda GECIYOR diye
+// dogrulanmistir; dogrulanamayan yol haritaya hic yazilmaz (icons.js soru
+// isareti gorseline duser, oyunda mor-siyah kare cikmaz).
 //
 // Bicim: "<esya_id>=<yol>" ciftleri. "i:" = textures/items/, "b:" = textures/blocks/
-// Burada olmayan ama BLOK olan esyalar BLOK_GIBI listesinde
-// (yolu textures/blocks/<id>); geri kalan icin textures/items/<id> denenir.
-// Uretim tarihi verisi: 1574 esya cozuldu, 33 cozulemedi.
 
 const HARITA_HAM = [
   "acacia_boat=i:boat_acacia acacia_button=b:planks_acacia acacia_door=i:door_acacia",
@@ -25,7 +26,7 @@ const HARITA_HAM = [
   "baked_potato=i:potato_baked bamboo=b:bamboo_leaf bamboo_button=b:bamboo_planks",
   "bamboo_hanging_sign=b:bamboo_planks bamboo_mosaic_slab=b:bamboo_mosaic",
   "bamboo_mosaic_stairs=b:bamboo_mosaic bamboo_pressure_plate=b:bamboo_planks",
-  "bamboo_slab=b:bamboo_planks bamboo_stairs=b:bamboo_planks banner=i:banner_white",
+  "bamboo_slab=b:bamboo_planks bamboo_stairs=b:bamboo_planks banner=i:banner_pattern",
   "barrel=i:market_sandik basalt=b:basalt_side bat_spawn_egg=i:spawn_eggs/spawn_egg_bat beacon=b:glass",
   "bed=i:bed_white bee_nest=b:bee_nest_top bee_spawn_egg=i:spawn_eggs/spawn_egg_bee beef=i:beef_raw",
   "beehive=b:beehive_top beetroot_seeds=i:seeds_beetroot bell=b:bell_top",
@@ -175,16 +176,16 @@ const HARITA_HAM = [
   "frog_spawn_egg=i:spawn_eggs/spawn_egg_frog frosted_ice=b:frosted_ice_0 furnace=b:furnace_top",
   "ghast_spawn_egg=i:spawn_eggs/spawn_egg_ghast glass_bottle=i:potion_bottle_empty glass_pane=b:glass",
   "glistering_melon_slice=i:melon_speckled glow_frame=b:glow_item_frame",
-  "glow_squid_spawn_egg=i:spawn_eggs/spawn_egg_glow_squid goat_spawn_egg=i:spawn_eggs/spawn_egg_goat",
-  "golden_apple=i:apple_golden golden_axe=i:gold_axe golden_boots=i:gold_boots",
-  "golden_carrot=i:carrot_golden golden_chestplate=i:gold_chestplate golden_helmet=i:gold_helmet",
-  "golden_hoe=i:gold_hoe golden_horse_armor=i:gold_horse_armor golden_leggings=i:gold_leggings",
-  "golden_nautilus_armor=i:nautilus_armor/gold_nautilus_armor golden_pickaxe=i:gold_pickaxe",
-  "golden_rail=b:rail_golden golden_shovel=i:gold_shovel golden_spear=i:spear/gold_spear",
-  "golden_sword=i:gold_sword granite=b:stone_granite granite_slab=b:stone_granite",
-  "granite_stairs=b:stone_granite granite_wall=b:stone_granite grass_block=b:grass_side_carried",
-  "grass_path=b:grass_path_side gray_bundle=i:bundle_gray gray_candle=b:candles/gray_candle",
-  "gray_carpet=b:wool_colored_gray gray_concrete=b:concrete_gray",
+  "glow_ink_sac=i:dye_powder_black_new glow_squid_spawn_egg=i:spawn_eggs/spawn_egg_glow_squid",
+  "goat_spawn_egg=i:spawn_eggs/spawn_egg_goat golden_apple=i:apple_golden golden_axe=i:gold_axe",
+  "golden_boots=i:gold_boots golden_carrot=i:carrot_golden golden_chestplate=i:gold_chestplate",
+  "golden_helmet=i:gold_helmet golden_hoe=i:gold_hoe golden_horse_armor=i:gold_horse_armor",
+  "golden_leggings=i:gold_leggings golden_nautilus_armor=i:nautilus_armor/gold_nautilus_armor",
+  "golden_pickaxe=i:gold_pickaxe golden_rail=b:rail_golden golden_shovel=i:gold_shovel",
+  "golden_spear=i:spear/gold_spear golden_sword=i:gold_sword granite=b:stone_granite",
+  "granite_slab=b:stone_granite granite_stairs=b:stone_granite granite_wall=b:stone_granite",
+  "grass_block=b:grass_carried grass_path=b:grass_path_side gray_bundle=i:bundle_gray",
+  "gray_candle=b:candles/gray_candle gray_carpet=b:wool_colored_gray gray_concrete=b:concrete_gray",
   "gray_concrete_powder=b:concrete_powder_gray gray_cushion=i:candles/gray_candle",
   "gray_dye=i:dye_powder_gray gray_glazed_terracotta=b:glazed_terracotta_gray",
   "gray_harness=i:harness/harness_gray gray_shulker_box=b:shulker_top_gray",
@@ -210,7 +211,7 @@ const HARITA_HAM = [
   "infested_cobblestone=b:cobblestone infested_cracked_stone_bricks=b:stonebrick_cracked",
   "infested_deepslate=b:deepslate/deepslate infested_mossy_stone_bricks=b:stonebrick_mossy",
   "infested_stone=b:stone infested_stone_bricks=b:stonebrick ink_sac=i:dye_powder_black_new",
-  "iron_chain=b:chain1 iron_door=i:door_iron iron_golem_spawn_egg=i:spawn_eggs/spawn_egg_iron_golem",
+  "iron_door=i:door_iron iron_golem_spawn_egg=i:spawn_eggs/spawn_egg_iron_golem",
   "iron_nautilus_armor=i:nautilus_armor/iron_nautilus_armor iron_spear=i:spear/iron_spear",
   "jigsaw=b:jigsaw_lock jukebox=b:jukebox_side jungle_boat=i:boat_jungle jungle_button=b:planks_jungle",
   "jungle_door=i:door_jungle jungle_fence=b:planks_jungle jungle_fence_gate=b:planks_jungle",
@@ -386,15 +387,15 @@ const HARITA_HAM = [
   "shulker_spawn_egg=i:spawn_eggs/spawn_egg_shulker silver_glazed_terracotta=b:glazed_terracotta_silver",
   "silverfish_spawn_egg=i:spawn_eggs/spawn_egg_silverfish",
   "skeleton_horse_spawn_egg=i:spawn_eggs/spawn_egg_skeleton_horse skeleton_skull=b:soul_sand",
-  "skeleton_spawn_egg=i:spawn_eggs/spawn_egg_skeleton slime_spawn_egg=i:spawn_eggs/spawn_egg_slime",
-  "small_dripleaf_block=b:small_dripleaf_top smithing_table=b:smithing_table_top smoker=b:smoker_top",
-  "smooth_quartz=b:quartz_block_bottom smooth_quartz_slab=b:quartz_block_bottom",
-  "smooth_quartz_stairs=b:quartz_block_bottom smooth_red_sandstone=b:red_sandstone_top",
-  "smooth_red_sandstone_slab=b:red_sandstone_top smooth_red_sandstone_stairs=b:red_sandstone_top",
-  "smooth_sandstone=b:sandstone_top smooth_sandstone_slab=b:sandstone_top",
-  "smooth_sandstone_stairs=b:sandstone_top smooth_stone=b:stone_slab_top",
-  "smooth_stone_slab=b:stone_slab_side sniffer_egg=b:sniffer_egg_not_cracked_top",
-  "sniffer_spawn_egg=i:spawn_eggs/spawn_egg_sniffer",
+  "skeleton_spawn_egg=i:spawn_eggs/spawn_egg_skeleton slime_ball=i:slimeball",
+  "slime_spawn_egg=i:spawn_eggs/spawn_egg_slime small_dripleaf_block=b:small_dripleaf_top",
+  "smithing_table=b:smithing_table_top smoker=b:smoker_top smooth_quartz=b:quartz_block_bottom",
+  "smooth_quartz_slab=b:quartz_block_bottom smooth_quartz_stairs=b:quartz_block_bottom",
+  "smooth_red_sandstone=b:red_sandstone_top smooth_red_sandstone_slab=b:red_sandstone_top",
+  "smooth_red_sandstone_stairs=b:red_sandstone_top smooth_sandstone=b:sandstone_top",
+  "smooth_sandstone_slab=b:sandstone_top smooth_sandstone_stairs=b:sandstone_top",
+  "smooth_stone=b:stone_slab_top smooth_stone_slab=b:stone_slab_side",
+  "sniffer_egg=b:sniffer_egg_not_cracked_top sniffer_spawn_egg=i:spawn_eggs/spawn_egg_sniffer",
   "snow_golem_spawn_egg=i:spawn_eggs/spawn_egg_snow_golem snow_layer=b:snow",
   "spider_spawn_egg=i:spawn_eggs/spawn_egg_spider splash_potion=i:potion_bottle_splash",
   "spore_blossom=b:spore_blossom_base spruce_boat=i:boat_spruce spruce_button=b:planks_spruce",
@@ -417,23 +418,26 @@ const HARITA_HAM = [
   "stripped_pale_oak_log=b:stripped_pale_oak_log_side",
   "stripped_pale_oak_wood=b:stripped_pale_oak_log_side stripped_spruce_wood=b:stripped_spruce_log",
   "stripped_warped_hyphae=b:huge_fungus/stripped_warped_stem_side",
-  "stripped_warped_stem=b:huge_fungus/stripped_warped_stem_top sulfur_brick_slab=b:sulfur_bricks",
-  "sulfur_brick_stairs=b:sulfur_bricks sulfur_brick_wall=b:sulfur_bricks",
-  "sulfur_cube_bucket=i:bucket_sulfur_cube sulfur_cube_spawn_egg=i:spawn_eggs/spawn_egg_sulfur_cube",
-  "sulfur_slab=b:sulfur sulfur_spike=b:sulfur_spike_down_base sulfur_stairs=b:sulfur",
-  "sulfur_wall=b:sulfur sunflower=b:double_plant_sunflower_front",
-  "suspicious_gravel=b:suspicious_gravel_0 suspicious_sand=b:suspicious_sand_0",
-  "tadpole_bucket=i:bucket_tadpole tadpole_spawn_egg=i:spawn_eggs/spawn_egg_tadpole",
-  "tall_grass=b:double_plant_sunflower_front target=b:target_side tnt=b:tnt_side",
-  "tnt_minecart=i:minecart_tnt torch=b:torch_on",
-  "trader_llama_spawn_egg=i:spawn_eggs/spawn_egg_trader_llama trapped_chest=i:market_sandik",
-  "trial_spawner=b:trial_spawner_side_inactive tripwire_hook=b:trip_wire_source",
+  "stripped_warped_stem=b:huge_fungus/stripped_warped_stem_top sugar_cane=i:reeds",
+  "sulfur_brick_slab=b:sulfur_bricks sulfur_brick_stairs=b:sulfur_bricks",
+  "sulfur_brick_wall=b:sulfur_bricks sulfur_cube_bucket=i:bucket_sulfur_cube",
+  "sulfur_cube_spawn_egg=i:spawn_eggs/spawn_egg_sulfur_cube sulfur_slab=b:sulfur",
+  "sulfur_spike=b:sulfur_spike_down_base sulfur_stairs=b:sulfur sulfur_wall=b:sulfur",
+  "sunflower=b:double_plant_sunflower_front suspicious_gravel=b:suspicious_gravel_0",
+  "suspicious_sand=b:suspicious_sand_0 tadpole_bucket=i:bucket_tadpole",
+  "tadpole_spawn_egg=i:spawn_eggs/spawn_egg_tadpole tall_grass=b:double_plant_sunflower_front",
+  "target=b:target_side tnt=b:tnt_side tnt_minecart=i:minecart_tnt torch=b:torch_on",
+  "totem_of_undying=i:totem trader_llama_spawn_egg=i:spawn_eggs/spawn_egg_trader_llama",
+  "trapped_chest=i:market_sandik trial_spawner=b:trial_spawner_side_inactive",
+  "tripwire_hook=b:trip_wire_source tropical_fish=i:fish_clownfish_raw",
+  "tropical_fish_bucket=i:bucket_tropical tropical_fish_spawn_egg=i:spawn_eggs/spawn_egg_tropicalfish",
   "tube_coral=b:coral_plant_blue tube_coral_block=b:coral_blue tube_coral_fan=b:coral_fan_blue",
   "tuff_brick_slab=b:tuff_bricks tuff_brick_stairs=b:tuff_bricks tuff_brick_wall=b:tuff_bricks",
   "tuff_slab=b:tuff tuff_stairs=b:tuff tuff_wall=b:tuff turtle_egg=b:turtle_egg_not_cracked",
-  "turtle_spawn_egg=i:spawn_eggs/spawn_egg_turtle twisting_vines=b:twisting_vines_base",
-  "undyed_shulker_box=b:shulker_top_undyed vault=b:vault_top verdant_froglight=b:verdant_froglight_side",
-  "vex_spawn_egg=i:spawn_eggs/spawn_egg_vex villager_spawn_egg=i:spawn_eggs/spawn_egg_villager",
+  "turtle_scute=i:turtle_shell_piece turtle_spawn_egg=i:spawn_eggs/spawn_egg_turtle",
+  "twisting_vines=b:twisting_vines_base undyed_shulker_box=b:shulker_top_undyed vault=b:vault_top",
+  "verdant_froglight=b:verdant_froglight_side vex_spawn_egg=i:spawn_eggs/spawn_egg_vex",
+  "villager_spawn_egg=i:spawn_eggs/spawn_egg_villager",
   "vindicator_spawn_egg=i:spawn_eggs/spawn_egg_vindicator",
   "wandering_trader_spawn_egg=i:spawn_eggs/spawn_egg_wandering_trader",
   "warden_spawn_egg=i:spawn_eggs/spawn_egg_warden warped_button=b:huge_fungus/warped_planks",
@@ -559,6 +563,56 @@ const BLOK_GIBI_HAM = [
   "weathered_copper_trapdoor weathered_cut_copper weathered_lightning_rod web wildflowers"
 ].join(" ");
 
+// Yolu dogrudan textures/items/<id> olanlar
+const ITEM_GIBI_HAM = [
+  "acacia_chest_boat amethyst_shard angler_pottery_sherd apple archer_pottery_sherd armadillo_scute",
+  "armor_stand arms_up_pottery_sherd arrow bamboo_chest_raft bamboo_door bamboo_raft bamboo_sign",
+  "beetroot beetroot_soup birch_chest_boat blade_pottery_sherd blaze_powder blaze_rod blue_egg",
+  "bolt_armor_trim_smithing_template bone bordure_indented_banner_pattern bowl bread breeze_rod",
+  "brewer_pottery_sherd brewing_stand brick brown_egg brush bundle burn_pottery_sherd cake campfire",
+  "carrot carrot_on_a_stick cauldron chain chainmail_boots chainmail_chestplate chainmail_helmet",
+  "chainmail_leggings charcoal cherry_boat cherry_chest_boat cherry_door cherry_sign chorus_fruit",
+  "clay_ball coal coast_armor_trim_smithing_template comparator cookie copper_axe copper_boots",
+  "copper_chestplate copper_door copper_helmet copper_hoe copper_horse_armor copper_ingot",
+  "copper_leggings copper_nugget copper_pickaxe copper_shovel copper_sword creeper_banner_pattern",
+  "crimson_door danger_pottery_sherd dark_oak_chest_boat diamond diamond_axe diamond_boots",
+  "diamond_chestplate diamond_helmet diamond_hoe diamond_horse_armor diamond_leggings diamond_pickaxe",
+  "diamond_shovel diamond_sword disc_fragment_5 dried_kelp dune_armor_trim_smithing_template echo_shard",
+  "egg elytra emerald end_crystal ender_eye ender_pearl experience_bottle explorer_pottery_sherd",
+  "exposed_copper_door eye_armor_trim_smithing_template feather field_masoned_banner_pattern flint",
+  "flint_and_steel flow_armor_trim_smithing_template flow_banner_pattern flow_pottery_sherd",
+  "flower_banner_pattern flower_pot friend_pottery_sherd ghast_tear globe_banner_pattern glow_berries",
+  "glowstone_dust goat_horn gold_ingot gold_nugget gunpowder guster_banner_pattern guster_pottery_sherd",
+  "hanging_roots heart_pottery_sherd heartbreak_pottery_sherd honey_bottle honeycomb hopper",
+  "host_armor_trim_smithing_template howl_pottery_sherd iron_axe iron_boots iron_chestplate iron_helmet",
+  "iron_hoe iron_horse_armor iron_ingot iron_leggings iron_nugget iron_pickaxe iron_shovel iron_sword",
+  "jungle_chest_boat kelp lead leather leather_boots leather_chestplate leather_helmet",
+  "leather_horse_armor leather_leggings lever light_block_0 light_block_1 light_block_10 light_block_11",
+  "light_block_12 light_block_13 light_block_14 light_block_15 light_block_2 light_block_3",
+  "light_block_4 light_block_5 light_block_6 light_block_7 light_block_8 light_block_9 mace magma_cream",
+  "mangrove_boat mangrove_chest_boat mangrove_door mangrove_sign miner_pottery_sherd",
+  "mojang_banner_pattern mourner_pottery_sherd mushroom_stew music_disc_bounce music_disc_creator",
+  "music_disc_creator_music_box music_disc_lava_chicken music_disc_precipice music_disc_relic",
+  "music_disc_tears name_tag nether_sprouts nether_star nether_wart netherbrick netherite_axe",
+  "netherite_boots netherite_chestplate netherite_helmet netherite_hoe netherite_horse_armor",
+  "netherite_ingot netherite_leggings netherite_pickaxe netherite_scrap netherite_shovel",
+  "netherite_sword netherite_upgrade_smithing_template oak_chest_boat ominous_bottle ominous_trial_key",
+  "oxidized_copper_door painting pale_oak_boat pale_oak_chest_boat pale_oak_door pale_oak_sign paper",
+  "phantom_membrane piglin_banner_pattern pitcher_pod plenty_pottery_sherd potato prismarine_crystals",
+  "prismarine_shard prize_pottery_sherd pumpkin_pie quartz rabbit_foot rabbit_hide rabbit_stew",
+  "raiser_armor_trim_smithing_template raw_copper raw_gold raw_iron repeater resin_brick",
+  "rib_armor_trim_smithing_template rotten_flesh saddle scrape_pottery_sherd",
+  "sentry_armor_trim_smithing_template shaper_armor_trim_smithing_template sheaf_pottery_sherd shears",
+  "shelter_pottery_sherd shulker_shell silence_armor_trim_smithing_template skull_banner_pattern",
+  "skull_pottery_sherd snort_pottery_sherd snout_armor_trim_smithing_template snowball soul_campfire",
+  "spider_eye spire_armor_trim_smithing_template spruce_chest_boat spyglass stick stone_axe stone_hoe",
+  "stone_pickaxe stone_shovel stone_sword string sugar suspicious_stew sweet_berries",
+  "tide_armor_trim_smithing_template torchflower_seeds trial_key trident turtle_helmet",
+  "vex_armor_trim_smithing_template ward_armor_trim_smithing_template warped_door",
+  "warped_fungus_on_a_stick wayfinder_armor_trim_smithing_template weathered_copper_door wheat",
+  "wild_armor_trim_smithing_template wind_charge wolf_armor"
+].join(" ");
+
 const HARITA = new Map();
 for (const cift of HARITA_HAM.split(" ")) {
   if (!cift) continue;
@@ -570,7 +624,8 @@ for (const cift of HARITA_HAM.split(" ")) {
   HARITA.set(cift.slice(0, i), yol);
 }
 for (const ad of BLOK_GIBI_HAM.split(" ")) if (ad) HARITA.set(ad, `textures/blocks/${ad}`);
+for (const ad of ITEM_GIBI_HAM.split(" ")) if (ad) HARITA.set(ad, `textures/items/${ad}`);
 
-// Esya id'sinin (minecraft: oneki olmadan) resmi texture yolu, yoksa undefined.
+// Esya id'sinin (minecraft: oneki olmadan) dogrulanmis texture yolu, yoksa undefined.
 export function resmiIkon(ad) { return HARITA.get(ad); }
 export const IKON_SAYISI = HARITA.size;
