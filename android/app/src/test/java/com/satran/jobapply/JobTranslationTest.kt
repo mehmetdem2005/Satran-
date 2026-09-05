@@ -52,3 +52,19 @@ class JobTranslationTest {
         assertTrue(JobTranslation(aiSummary = "• Özet").hasContent)
     }
 }
+
+class TranslationDefaultsTest {
+
+    @Test
+    fun `baslik cevirisi varsayilan olarak acik`() {
+        // Yeni kurulumda liste doğrudan Türkçe gelsin; kullanıcı anahtar aramasın.
+        assertTrue(com.satran.jobapply.data.model.AppSettings().translateAllJobs)
+    }
+
+    @Test
+    fun `yeni varsayilan mevcut kurulumlara gecis gerektirir`() {
+        // Kayıtlı ayar eski varsayılanı taşıdığı için tek seferlik geçiş şart;
+        // bayrak varsayılanda false olmalı ki geçiş bir kez çalışsın.
+        assertFalse(com.satran.jobapply.data.model.AppSettings().translateDefaultApplied)
+    }
+}

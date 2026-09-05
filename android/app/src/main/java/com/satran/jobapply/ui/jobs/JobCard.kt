@@ -33,7 +33,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.satran.jobapply.data.model.Job
+import androidx.compose.ui.graphics.Color
 import com.satran.jobapply.data.translate.JobTranslation
+import com.satran.jobapply.ui.theme.satranColors
 import com.satran.jobapply.ui.common.SmallSpinner
 
 @Composable
@@ -85,6 +87,8 @@ fun JobCard(
                         translation?.title ?: job.title,
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
+                        // Başvurulmuş ilanın başlığı mavi: listede tek bakışta ayrılır.
+                        color = if (applied) satranColors.applied else Color.Unspecified,
                         maxLines = 2,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     )
@@ -141,7 +145,7 @@ fun JobCard(
                 job.visaClass?.let { Meta(it) }
                 job.positions?.let { Meta("$it kişi") }
                 if (!job.canEmail) Meta("e-posta yok", warning = true)
-                if (applied) Meta("başvuruldu ✓", strong = true)
+                if (applied) Meta("başvuruldu ✓", color = satranColors.applied)
                 archivedNote?.let { Meta(it) }
             }
             if (expanded) {
@@ -253,12 +257,17 @@ fun JobCard(
 
 /** Kart başlığının altındaki ince bilgi satırı — çip değil, yer kaplamaz. */
 @Composable
-private fun Meta(text: String, strong: Boolean = false, warning: Boolean = false) {
+private fun Meta(
+    text: String,
+    strong: Boolean = false,
+    warning: Boolean = false,
+    color: Color? = null,
+) {
     Text(
         text = text,
         style = MaterialTheme.typography.labelSmall,
-        fontWeight = if (strong) FontWeight.SemiBold else FontWeight.Normal,
-        color = when {
+        fontWeight = if (strong || color != null) FontWeight.SemiBold else FontWeight.Normal,
+        color = color ?: when {
             warning -> MaterialTheme.colorScheme.error
             strong -> MaterialTheme.colorScheme.primary
             else -> MaterialTheme.colorScheme.onSurfaceVariant

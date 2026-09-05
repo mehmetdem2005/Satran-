@@ -13,14 +13,15 @@ Saf Android + Kotlin + Jetpack Compose. Ek sunucu yok, her şey telefonda çalı
 
 | Sekme | İçerik |
 |---|---|
-| **İlanlar** | Canlı arama, aşağı çekip yenileme, *Yeni / Geçmiş* görünümü, eyalet/sıralama süzgeçleri, "Tarım dışı (H-2B)" · "E-postası olan" · "Başvurulanları gizle" anahtarları, "Tümünü çek", "Arşivi tazele", gönderilen sorguyu gösteren panel. Her kartta çeviri tuşu; kart açılınca tam görev tanımı, özel şartlar, ücret, dönem, başvuru e-postası görünür. Kutucukla seçim; seçim yapılınca alt çubuk "Başvur (N) →" olur. Kartın gövdesine dokunmak açıp kapatır, başvurulan ilanlar işaretli görünür. "Sonraki sayfa" ile yeni ilanlar. |
+| **İlanlar** | Canlı arama, aşağı çekip yenileme, *Yeni / Geçmiş* görünümü, eyalet/sıralama süzgeçleri, "Tarım dışı (H-2B)" · "E-postası olan" · "Başvurulanları gizle" anahtarları, "Tümünü çek", "Arşivi tazele", gönderilen sorguyu gösteren panel. Her kartta çeviri tuşu; kart açılınca tam görev tanımı, özel şartlar, ücret, dönem, başvuru e-postası görünür. Kutucukla seçim; seçim yapılınca alt çubuk "Başvur (N) →" olur. Kartın gövdesine dokunmak açıp kapatır, başvurulan ilanların başlığı mavi görünür. "Sonraki sayfa" ile yeni ilanlar. |
 | **Başvuru** | Toplu gönderim öncesi onay penceresi (kaç ileti, kime, hangi ek). Seçilen ilanlar için konu + mesaj hazırlar (şablon veya AI), tek tek düzenletir, PDF CV ekler. İki gönderim yolu: **doğrudan SMTP** (toplu, ön plan bildirimiyle) veya **Gmail'de aç** (alıcı/konu/mesaj dolu, PDF ekli — sana yalnızca Gönder'e basmak kalır). |
 | **Ayarlar** | Gmail hesabı, PDF CV, başvuru profili, mesaj şablonu, yapay zekâ sağlayıcısı, internet arama sağlayıcısı, gönderim geçmişi. |
 
 ### Çeviri — API anahtarı gerektirmez
 
-Süzgeç şeridindeki **"Türkçe"** anahtarı açılınca listedeki **bütün ilan
-başlıkları** kendiliğinden Türkçeye çevrilir; kart açıldığında görev tanımı da
+Başlık çevirisi **varsayılan olarak açıktır**: liste doğrudan Türkçe gelir.
+Süzgeç şeridindeki **"Türkçe"** anahtarıyla kapatılabilir. Açıkken listedeki
+**bütün ilan başlıkları** kendiliğinden çevrilir; kart açıldığında görev tanımı da
 çevrilir. Motor Google'ın cihaz üstü çeviri modelidir — yapay zekâ değildir,
 anahtar istemez.
 

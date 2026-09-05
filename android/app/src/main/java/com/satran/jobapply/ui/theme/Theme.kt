@@ -7,7 +7,10 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
@@ -40,6 +43,26 @@ private val DarkColors = darkColorScheme(
     error = Color(0xFFFFB4AB),
 )
 
+/**
+ * Şemada karşılığı olmayan, anlam taşıyan renkler.
+ *
+ * "Başvuruldu" işareti yeşil ana renkten ayrışsın diye mavi: yeşil zaten
+ * seçim ve olumlu durum için kullanılıyor, ikisi karışmasın.
+ */
+@Immutable
+data class SatranColors(
+    val applied: Color,
+)
+
+private val LightExtras = SatranColors(applied = Color(0xFF1A56DB))
+private val DarkExtras = SatranColors(applied = Color(0xFF8AB4F8))
+
+val LocalSatranColors = staticCompositionLocalOf { LightExtras }
+
+/** Tema dışı anlam renklerine kısa erişim. */
+val satranColors: SatranColors
+    @Composable get() = LocalSatranColors.current
+
 @Composable
 fun SatranTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
@@ -56,9 +79,11 @@ fun SatranTheme(
         }
     }
 
-    MaterialTheme(
-        colorScheme = colors,
-        typography = Typography(),
-        content = content,
-    )
+    CompositionLocalProvider(LocalSatranColors provides if (darkTheme) DarkExtras else LightExtras) {
+        MaterialTheme(
+            colorScheme = colors,
+            typography = Typography(),
+            content = content,
+        )
+    }
 }

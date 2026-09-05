@@ -163,7 +163,12 @@ data class AppSettings(
     // Çeviri
     val translationEngine: TranslationEngine = TranslationEngine.ON_DEVICE,
     /** Açıkken listedeki bütün ilan başlıkları kendiliğinden Türkçeye çevrilir. */
-    val translateAllJobs: Boolean = false,
+    val translateAllJobs: Boolean = true,
+    /**
+     * Çevirinin varsayılan olarak açılması mevcut kurulumlara da uygulandı mı?
+     * Kayıtlı ayarlar eski varsayılanı taşıdığı için tek seferlik geçiş gerekir.
+     */
+    val translateDefaultApplied: Boolean = false,
     /** Dil modeli yalnızca Wi-Fi'dayken insin (~30 MB, tek seferlik). */
     val translationWifiOnly: Boolean = false,
 

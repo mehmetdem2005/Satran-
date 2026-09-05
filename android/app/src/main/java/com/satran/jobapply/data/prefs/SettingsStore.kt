@@ -29,9 +29,23 @@ class SettingsStore(context: Context) {
     }
 
     private fun load(): AppSettings {
-        val raw = prefs.getString(KEY_SETTINGS, null) ?: return AppSettings()
-        return runCatching { Net.json.decodeFromString(AppSettings.serializer(), raw) }
-            .getOrElse { AppSettings() }
+        val raw = prefs.getString(KEY_SETTINGS, null) ?: return AppSettings(translateDefaultApplied = true)
+        val stored = runCatching { Net.json.decodeFromString(AppSettings.serializer(), raw) }
+            .getOrElse { return AppSettings(translateDefaultApplied = true) }
+        return migrate(stored)
+    }
+
+    /**
+     * Kayıtlı ayarlara sonradan gelen varsayılanları uygular.
+     *
+     * Başlık çevirisi artık varsayılan açık; ama kayıtlı ayar eski varsayılanı
+     * (kapalı) taşıdığı için mevcut kurulumlarda kendiliğinden açılmazdı.
+     */
+    private fun migrate(stored: AppSettings): AppSettings {
+        if (stored.translateDefaultApplied) return stored
+        val migrated = stored.copy(translateAllJobs = true, translateDefaultApplied = true)
+        prefs.edit().putString(KEY_SETTINGS, Net.json.encodeToString(AppSettings.serializer(), migrated)).apply()
+        return migrated
     }
 
     private fun createPrefs(context: Context): SharedPreferences = runCatching {
