@@ -104,7 +104,6 @@ fun JobsScreen(
     val keyboard = LocalSoftwareKeyboardController.current
     val scope = rememberCoroutineScope()
 
-    // Uzun listelerde başa dönmek için; birkaç kart kaydırılınca beliriyor.
     val showScrollTop by remember {
         derivedStateOf { listState.firstVisibleItemIndex > 3 }
     }
@@ -198,11 +197,8 @@ fun JobsScreen(
             }
         }
 
-        Box(
-            Modifier
-                .fillMaxSize()
-                .weight(1f),
-        ) {
+        // weight(1f) yüksekliği zaten belirliyor; fillMaxSize gereksizdi.
+        Box(Modifier.weight(1f)) {
         PullToRefreshBox(
             isRefreshing = state.refreshing,
             onRefresh = onRefresh,
@@ -268,8 +264,8 @@ fun JobsScreen(
         }
 
             // Uzun listede başa dönmek için; birkaç kart kaydırılınca beliriyor.
-            // (AnimatedVisibility burada dıştaki Column'un kapsamına takılıyor,
-            // bu yüzden düz koşul kullanılıyor.)
+            // (AnimatedVisibility dıştaki Column'un kapsamına takıldığı için
+            // düz koşul kullanılıyor.)
             if (showScrollTop) {
                 SmallFloatingActionButton(
                     onClick = { scope.launch { listState.animateScrollToItem(0) } },

@@ -1,5 +1,6 @@
 package com.satran.jobapply.data.translate
 
+import com.satran.jobapply.core.runCatchingCancellable
 import com.satran.jobapply.data.model.Job
 
 /**
@@ -24,20 +25,20 @@ class JobTranslator(
      */
     suspend fun translateShort(text: String, requireWifi: Boolean): String {
         if (text.isBlank()) return text
-        val device = runCatching {
+        val device = runCatchingCancellable {
             onDevice.ensureModel(requireWifi)
             onDevice.translate(text)
         }.getOrNull()
         if (!device.isNullOrBlank()) return device
-        return runCatching { http.translate(text) }.getOrNull()?.takeIf { it.isNotBlank() } ?: text
+        return runCatchingCancellable { http.translate(text) }.getOrNull()?.takeIf { it.isNotBlank() } ?: text
     }
 
     /**
-     * İlanın alanlarını tek tek çevirir.
+     * İlanın alanlarını çevirir ve daha önce çevrilmiş olanları **tekrar
+     * çevirmez** — [existing] içindeki tamamlanmışlık işaretlerine bakar.
      *
-     * Alanlar ayrı ayrı çevrilir ki biri başarısız olsa da diğerleri gelsin ve
-     * arayüz her alanı doğru yere yerleştirebilsin. İşveren adı, şehir ve
-     * eyalet **çevrilmez** — özel adlardır.
+     * İşveren adı, şehir ve eyalet çevrilmez: özel adlardır ve başvuru
+     * e-postasında olduğu gibi geçmeleri gerekir.
      *
      * @param headlineOnly yalnızca başlık ve meslek adı (liste görünümü için).
      */
@@ -45,29 +46,40 @@ class JobTranslator(
         job: Job,
         requireWifi: Boolean,
         headlineOnly: Boolean,
+        existing: JobTranslation? = null,
     ): JobTranslation {
-        val title = translateShort(job.title, requireWifi).takeIf { it != job.title }
-        val socTitle = job.socTitle
-            ?.takeIf { it != job.title }
-            ?.let { original -> translateShort(original, requireWifi).takeIf { it != original } }
+        var result = existing ?: JobTranslation()
 
-        if (headlineOnly) return JobTranslation(title = title, socTitle = socTitle)
+        if (existing?.headlineDone != true) {
+            val title = translateShort(job.title, requireWifi).takeIf { it != job.title }
+            val socTitle = job.socTitle
+                ?.takeIf { it != job.title }
+                ?.let { original -> translateShort(original, requireWifi).takeIf { it != original } }
+            result = result.mergedWith(
+                JobTranslation(title = title, socTitle = socTitle, headlineDone = true),
+            )
+        }
 
-        val duties = job.duties?.let { runCatching { translateLong(it, requireWifi) }.getOrNull() }
+        if (headlineOnly || existing?.bodyDone == true) return result
+
+        val duties = job.duties?.let { runCatchingCancellable { translateLong(it, requireWifi) }.getOrNull() }
         val requirements = job.requirements
-            ?.takeIf { it.length > 8 }
-            ?.let { runCatching { translateLong(it, requireWifi) }.getOrNull() }
+            ?.let { runCatchingCancellable { translateLong(it, requireWifi) }.getOrNull() }
+            ?.takeIf { it != job.requirements }
 
-        return JobTranslation(
-            title = title,
-            socTitle = socTitle,
-            duties = duties,
-            requirements = requirements,
+        // Gövde ancak görev tanımı gerçekten geldiyse "tamamlandı" sayılır;
+        // yoksa metin sonradan yüklendiğinde bir daha çevrilmezdi.
+        return result.mergedWith(
+            JobTranslation(
+                duties = duties,
+                requirements = requirements,
+                bodyDone = job.duties != null,
+            ),
         )
     }
 
     private suspend fun translateLong(text: String, requireWifi: Boolean): String {
-        val device = runCatching {
+        val device = runCatchingCancellable {
             onDevice.ensureModel(requireWifi)
             onDevice.translate(text)
         }.getOrNull()

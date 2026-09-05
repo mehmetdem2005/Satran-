@@ -237,7 +237,11 @@ fun LazyListScope.templateSection(settings: AppSettings, onUpdate: Update) {
 
 // ==================================================================== çeviri
 
-fun LazyListScope.translationSection(settings: AppSettings, onUpdate: Update) {
+fun LazyListScope.translationSection(
+    settings: AppSettings,
+    onUpdate: Update,
+    onToggleTranslateAll: (Boolean) -> Unit,
+) {
     item {
         Hint(
             "Çeviri için API anahtarı gerekmez. Google'ın cihaz üstü çeviri modeli " +
@@ -250,7 +254,9 @@ fun LazyListScope.translationSection(settings: AppSettings, onUpdate: Update) {
             title = "Tüm listeyi Türkçeye çevir",
             subtitle = "İlanlar sekmesindeki \"Türkçe\" anahtarıyla aynı",
             checked = settings.translateAllJobs,
-            onCheckedChange = { v -> onUpdate { it.copy(translateAllJobs = v) } },
+            // Doğrudan ayarı yazmak yetmez: liste durumunu da kuran ve
+            // çeviriyi başlatan tek yer setTranslateAll'dır.
+            onCheckedChange = onToggleTranslateAll,
         )
     }
     item {

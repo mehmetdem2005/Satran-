@@ -3,10 +3,13 @@ package com.satran.jobapply.data.translate
 /**
  * Bir ilanın çevrilmiş alanları.
  *
- * Tek bir kayıtta tutulur ki çeviri açılıp kapandığında **bütün alanlar
- * birlikte** özgün hâline dönsün. Önceden başlık ve açıklama ayrı yerlerde
- * tutuluyordu; kapatınca başlık İngilizceye dönüyor ama açıklama Türkçe
- * kalıyordu.
+ * Tek kayıtta tutulur ki çeviri açılıp kapandığında bütün alanlar birlikte
+ * özgün hâline dönsün.
+ *
+ * [headlineDone] / [bodyDone] alanların **denenmiş** olduğunu söyler; değerin
+ * kendisi null olabilir (çeviri özgün metinle aynı çıktıysa saklamaya gerek
+ * yok). Bu ayrım olmadan, çevirisi değişmeyen başlıklar her turda yeniden
+ * çevrilmeye çalışılırdı.
  */
 data class JobTranslation(
     val title: String? = null,
@@ -15,10 +18,22 @@ data class JobTranslation(
     val requirements: String? = null,
     /** Yapay zekâ motoru seçiliyse düz çeviri yerine üretilen özet. */
     val aiSummary: String? = null,
+    val headlineDone: Boolean = false,
+    val bodyDone: Boolean = false,
 ) {
-    /** Başlık çevrildi mi — liste görünümü buna bakar. */
-    val hasHeadline: Boolean get() = !title.isNullOrBlank()
+    /** Gösterilecek bir şey var mı — kart bu durumda "çevrili" sayılır. */
+    val hasContent: Boolean
+        get() = !title.isNullOrBlank() || !socTitle.isNullOrBlank() ||
+            !duties.isNullOrBlank() || !requirements.isNullOrBlank() ||
+            !aiSummary.isNullOrBlank()
 
-    /** Açıklama çevrildi mi — kart açılınca buna bakılır. */
-    val hasBody: Boolean get() = !duties.isNullOrBlank() || !aiSummary.isNullOrBlank()
+    fun mergedWith(other: JobTranslation) = JobTranslation(
+        title = other.title ?: title,
+        socTitle = other.socTitle ?: socTitle,
+        duties = other.duties ?: duties,
+        requirements = other.requirements ?: requirements,
+        aiSummary = other.aiSummary ?: aiSummary,
+        headlineDone = headlineDone || other.headlineDone,
+        bodyDone = bodyDone || other.bodyDone,
+    )
 }

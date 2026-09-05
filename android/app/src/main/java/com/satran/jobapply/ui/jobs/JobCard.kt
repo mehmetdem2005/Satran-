@@ -100,7 +100,8 @@ fun JobCard(
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     )
                 }
-                // Çeviri tuşu kart kapalıyken de görünür: ilana dokunmadan Türkçe özet alınır.
+                // Çeviri tuşu kart kapalıyken de görünür; basınca kart açılıp
+                // başlık, meslek adı ve açıklama birlikte Türkçeye döner.
                 IconButton(onClick = onSummarize, enabled = !translating) {
                     if (translating) {
                         SmallSpinner()
@@ -194,12 +195,18 @@ fun JobCard(
                     job.education?.let { DetailRow("Eğitim", it) }
                     job.postedOn?.let { DetailRow("Yayın", it) }
 
-                    if ((loadingDetails || translating) && job.duties == null) {
+                    // Çeviri sürerken gösterge kaybolmamalı: en yavaş adım
+                    // metin geldikten sonra çalışan çeviridir.
+                    if (loadingDetails || translating) {
                         Spacer(Modifier.height(6.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             SmallSpinner()
                             Text(
-                                if (translating) " Çevriliyor…" else " Görev tanımı getiriliyor…",
+                                when {
+                                    job.duties == null && loadingDetails -> " Görev tanımı getiriliyor…"
+                                    translating -> " Çevriliyor…"
+                                    else -> " Yükleniyor…"
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }

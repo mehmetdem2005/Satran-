@@ -68,6 +68,7 @@ fun SettingsScreen(
     onClearSearchHistory: () -> Unit,
     onClearMemory: () -> Unit,
     onOpenUrl: (String) -> Unit,
+    onToggleTranslateAll: (Boolean) -> Unit,
     contentPadding: PaddingValues,
 ) {
     var section by remember { mutableStateOf<SettingsSection?>(null) }
@@ -117,7 +118,7 @@ fun SettingsScreen(
                 SettingsSection.GMAIL -> gmailSection(settings, testing, onUpdate, onTestSmtp, onOpenUrl)
                 SettingsSection.PROFILE -> profileSection(settings, onUpdate, onPickCv)
                 SettingsSection.TEMPLATE -> templateSection(settings, onUpdate)
-                SettingsSection.TRANSLATION -> translationSection(settings, onUpdate)
+                SettingsSection.TRANSLATION -> translationSection(settings, onUpdate, onToggleTranslateAll)
                 SettingsSection.SEARCH -> searchSection(settings, onUpdate)
                 SettingsSection.AI -> aiSection(
                     settings, testing, loadingModels, onUpdate,

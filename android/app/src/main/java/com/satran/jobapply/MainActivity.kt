@@ -232,6 +232,7 @@ private fun AppRoot() {
                     onClearSearchHistory = viewModel::clearSearchHistory,
                     onClearMemory = viewModel::clearMemory,
                     onOpenUrl = openUrl,
+                    onToggleTranslateAll = viewModel::setTranslateAll,
                     contentPadding = padding,
                 )
             }

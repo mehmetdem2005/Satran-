@@ -7,6 +7,11 @@ package com.satran.jobapply.data.translate
  * sonra boşluk gelmesi şartı aranır; böylece `$18.93`, `Mon.-Fri.`, `U.S.`
  * gibi yerlerdeki noktalar metni parçalamaz. (Önceki sürüm her noktada
  * bölüyordu ve çeviri bozuluyordu.)
+ *
+ * Paragraf ayracı (boş satır) parça **içinde** korunur. Ayraç tam parça
+ * sınırına denk gelirse tek satır sonuna iner: parçalar ayrı ayrı çevrilip
+ * `\n` ile birleştirildiği için sınırı aşan bağlam taşınamıyor. 800 karakterlik
+ * gerçek parça boyunda bu nadir ve zararsızdır.
  */
 object TextChunks {
 
@@ -37,7 +42,11 @@ object TextChunks {
         // görev tanımları satır sınırında bölünürse anlam korunur.
         trimmed.split('\n').forEach { line ->
             val clean = line.trim()
-            if (clean.isEmpty()) return@forEach
+            // Boş satır paragraf ayracıdır; atılırsa çeviri tek blok hâline gelir.
+            if (clean.isEmpty()) {
+                if (builder.isNotEmpty()) builder.append('\n')
+                return@forEach
+            }
 
             if (clean.length <= maxChars) {
                 appendPart(clean, "\n")
@@ -57,19 +66,32 @@ object TextChunks {
         return chunks
     }
 
-    /** Tek bir cümle bile sınırı aşıyorsa kelime sınırından böler. */
+    /**
+     * Tek bir cümle bile sınırı aşıyorsa kelime sınırından böler.
+     * Tek bir "kelime" (uzun bir bağlantı gibi) bile sığmıyorsa harf harf
+     * kesilir — aksi hâlde sınırı aşan bir parça üretilir ve çeviri servisi
+     * onu reddedip alanın tamamı çevrilmemiş kalır.
+     */
     private fun hardSplit(sentence: String, maxChars: Int): List<String> {
         val out = mutableListOf<String>()
         val builder = StringBuilder()
+
+        fun flushWord() {
+            builder.toString().trim().takeIf { it.isNotEmpty() }?.let { out += it }
+            builder.setLength(0)
+        }
+
         sentence.split(' ').forEach { word ->
-            if (builder.isNotEmpty() && builder.length + word.length + 1 > maxChars) {
-                out += builder.toString().trim()
-                builder.setLength(0)
+            if (word.length > maxChars) {
+                flushWord()
+                word.chunked(maxChars).forEach { out += it }
+                return@forEach
             }
+            if (builder.isNotEmpty() && builder.length + word.length + 1 > maxChars) flushWord()
             if (builder.isNotEmpty()) builder.append(' ')
             builder.append(word)
         }
-        builder.toString().trim().takeIf { it.isNotEmpty() }?.let { out += it }
+        flushWord()
         return out
     }
 }
