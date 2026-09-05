@@ -1,6 +1,7 @@
 package com.satran.jobapply.ui.jobs
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -42,6 +43,7 @@ fun JobCard(
     expanded: Boolean,
     translation: JobTranslation?,
     translating: Boolean,
+    applied: Boolean = false,
     research: String?,
     researching: Boolean,
     onToggleSelect: () -> Unit,
@@ -63,7 +65,12 @@ fun JobCard(
         ),
     ) {
         Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-            Row(verticalAlignment = Alignment.Top) {
+            Row(
+                verticalAlignment = Alignment.Top,
+                // Kartın gövdesine dokunmak da açıp kapatsın; küçük oka nişan
+                // almak zorunda kalmamak için.
+                modifier = Modifier.clickable(onClick = onToggleExpand),
+            ) {
                 Checkbox(
                     checked = selected,
                     onCheckedChange = { onToggleSelect() },
@@ -134,6 +141,7 @@ fun JobCard(
                 job.visaClass?.let { Meta(it) }
                 job.positions?.let { Meta("$it kişi") }
                 if (!job.canEmail) Meta("e-posta yok", warning = true)
+                if (applied) Meta("başvuruldu ✓", strong = true)
                 archivedNote?.let { Meta(it) }
             }
             if (expanded) {

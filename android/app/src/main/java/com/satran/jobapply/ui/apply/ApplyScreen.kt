@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.automirrored.outlined.Send
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -69,6 +70,56 @@ fun ApplyScreen(
 ) {
     val running = workInfos.firstOrNull { it.state == WorkInfo.State.RUNNING }
     val finished = workInfos.firstOrNull { it.state.isFinished }
+
+    // Toplu gönderim geri alınamaz: gerçek işverenlere gerçek e-posta gider.
+    // Onay penceresi kime, kaç ileti gideceğini ve ekin adını gösterir.
+    var confirmSend by remember { mutableStateOf(false) }
+    if (confirmSend) {
+        AlertDialog(
+            onDismissRequest = { confirmSend = false },
+            title = { Text("${state.prepared.size} başvuru gönderilsin mi?") },
+            text = {
+                Column {
+                    Text(
+                        "İletiler ${settings.gmailAddress} adresinden gerçek işverenlere gidecek " +
+                            "ve geri alınamaz.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Ek: ${settings.cvFileName.ifBlank { "CV seçilmedi" }}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (settings.cvFileName.isBlank()) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.outline
+                        },
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text("Alıcılar:", style = MaterialTheme.typography.labelMedium)
+                    state.prepared.take(4).forEach {
+                        Text("• ${it.to}", style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (state.prepared.size > 4) {
+                        Text(
+                            "…ve ${state.prepared.size - 4} tane daha",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outline,
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    confirmSend = false
+                    onSendAll()
+                }) { Text("Gönder") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmSend = false }) { Text("Vazgeç") }
+            },
+        )
+    }
 
     LazyColumn(
         contentPadding = PaddingValues(

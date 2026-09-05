@@ -98,6 +98,9 @@ fun JobsScreen(
     onClearSelection: () -> Unit,
     onLoadMore: () -> Unit,
     onTranslateAll: (Boolean) -> Unit,
+    setupHint: String?,
+    onOpenSettings: () -> Unit,
+    onGoToApply: () -> Unit,
     contentPadding: PaddingValues,
 ) {
     val listState = rememberLazyListState()
@@ -119,6 +122,27 @@ fun JobsScreen(
 
         // ---------------------------------------------------------- başlık
         Column(Modifier.padding(horizontal = 12.dp)) {
+
+            // İlk kurulumda ne eksik olduğu listede görünsün; kullanıcı
+            // Ayarlar'ı açıp aramak zorunda kalmasın.
+            setupHint?.let { hint ->
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 6.dp),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
+                    ) {
+                        Text(hint, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                        TextButton(onClick = onOpenSettings) { Text("Kur") }
+                    }
+                }
+            }
+
             OutlinedTextField(
                 value = state.query,
                 onValueChange = onQueryChange,
@@ -235,6 +259,7 @@ fun JobsScreen(
                         onResearch = { onResearch(job) },
                         onOpenDetail = { onOpenDetail(job.detailUrl) },
                         archivedNote = note,
+                        applied = state.appliedCases.contains(job.caseNumber),
                     )
                 }
 
@@ -279,16 +304,34 @@ fun JobsScreen(
         }
 
         // ---------------------------------------------------------- alt eylem
-        if (state.view == JobsView.LIVE) {
-            Surface(tonalElevation = 3.dp) {
-                Button(
-                    onClick = onNextPage,
-                    enabled = !state.isBusy && !state.endReached,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                ) {
-                    Text(if (state.endReached) "Son sayfadasın" else "Sonraki sayfa →")
+        Surface(tonalElevation = 3.dp) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            ) {
+                if (state.selectedCount > 0) {
+                    // Seçim yapıldıysa asıl eylem başvuruya geçmektir; kullanıcı
+                    // alt sekmeyi aramak zorunda kalmasın.
+                    TextButton(onClick = onClearSelection) { Text("Bırak") }
+                    Button(onClick = onGoToApply, modifier = Modifier.weight(1f)) {
+                        Text("Başvur (${state.selectedCount}) →")
+                    }
+                } else if (state.view == JobsView.LIVE) {
+                    Button(
+                        onClick = onNextPage,
+                        enabled = !state.isBusy && !state.endReached,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(if (state.endReached) "Son sayfadasın" else "Sonraki sayfa →")
+                    }
+                } else {
+                    Text(
+                        "Geçmişteki ilanları da seçip başvurabilirsin.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.padding(vertical = 8.dp),
+                    )
                 }
             }
         }

@@ -188,6 +188,9 @@ private fun AppRoot() {
                     onClearSelection = viewModel::clearSelection,
                     onLoadMore = viewModel::loadMore,
                     onTranslateAll = viewModel::setTranslateAll,
+                    setupHint = setupHint(settings),
+                    onOpenSettings = { tab = 2 },
+                    onGoToApply = { tab = 1 },
                     contentPadding = padding,
                 )
 
@@ -241,3 +244,13 @@ private fun AppRoot() {
 }
 
 private val TAB_TITLES = listOf("Mevsimlik iş ilanları", "Başvuru gönder", "Ayarlar")
+
+/** Başvuru gönderebilmek için eksik olanı tek satırda söyler; hepsi tamamsa null. */
+private fun setupHint(settings: com.satran.jobapply.data.model.AppSettings): String? {
+    val missing = buildList {
+        if (!settings.smtpReady) add("Gmail")
+        if (settings.cvFileName.isBlank()) add("PDF CV")
+        if (settings.fullName.isBlank()) add("ad soyad")
+    }
+    return if (missing.isEmpty()) null else "Başvuru için eksik: ${missing.joinToString(", ")}"
+}

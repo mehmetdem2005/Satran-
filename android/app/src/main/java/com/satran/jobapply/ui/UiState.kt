@@ -42,6 +42,8 @@ data class JobsUiState(
 
     val expanded: Set<String> = emptySet(),
     val selected: Map<String, Job> = emptyMap(),
+    /** Daha önce başvurulan ilanlar — süzgeç kapalıyken kartta işaretlenir. */
+    val appliedCases: Set<String> = emptySet(),
 
     /** İlan başına çevrilmiş alanlar. Açıp kapatınca hepsi birlikte döner. */
     val translations: Map<String, JobTranslation> = emptyMap(),

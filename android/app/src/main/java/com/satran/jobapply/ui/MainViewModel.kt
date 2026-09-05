@@ -83,6 +83,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 _jobs.update { it.copy(archived = archive) }
             }
         }
+        viewModelScope.launch {
+            // Başvurulan ilanlar kartta işaretlensin; süzgeç kapalıyken de belli olsun.
+            container.historyStore.records.collect { records ->
+                _jobs.update { it.copy(appliedCases = container.historyStore.appliedCaseNumbers) }
+            }
+        }
         rememberProfile()
         search(reset = true)
         maybeAutoRefreshArchive()
