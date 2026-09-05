@@ -1,4 +1,4 @@
-# Market & Ekonomi — Kaynak Kod (v2.5)
+# Market & Ekonomi — Kaynak Kod (v2.6)
 
 Bu klasör Minecraft Bedrock için yazılan Market/Ekonomi addon'ının tüm
 kaynak dosyalarını içerir. `.mcaddon` sadece bunların zip'lenmiş hali;
@@ -104,11 +104,12 @@ ettiği konuma geri ışınlanır, envanteri ve zırhı aynen geri gelir.**
 
 **Kit** (ikisine de birebir aynı, `dovus.js` içindeki `KIT`):
 
-- Elmas kask, göğüslük, pantolon, bot
-- Elmas kılıç
-- Mızrak — üç dişli mızrak (trident). Sürümünde varsa `diamond_spear`
-  yedeğe yazılı; istersen sıralamayı `KIT.esyalar` içinden değiştir.
-- 8 pişmiş biftek. Ok ve yay yok.
+- Elmas zırh takımı + kalkan (el dışı slotta)
+- **Demir** kılıç ve balta — dövüş tek vuruşta bitmesin diye demir
+- Mızrak (üç dişli mızrak / trident)
+- Yay, arbalet, 64 ok
+- Elytra + 32 havai fişek — envanterde durur, isteyen göğüslük yerine takar
+- 8 pişmiş biftek
 
 **Eşya kaybı neden olmuyor:**
 
@@ -125,11 +126,28 @@ ettiği konuma geri ışınlanır, envanteri ve zırhı aynen geri gelir.**
 5. Dövüş sırasında market ve arsa menüleri kapalıdır — yoksa kit satılıp
    para basılabilirdi.
 
-**Arena:** İlk düelloda otomatik kurulur (varsayılan 30000, 120, 30000 —
-dünyadan uzak, boş bir nokta). Zemin döşenir, çevresine görünmez duvar
-(`barrier`) örülür, `tickingarea` ile yüklü tutulur. Admin "Arenayı
-Buraya Kur" ile istediği yere taşıyabilir. Arenadan uzaklaşan oyuncu geri
-ışınlanır.
+**Arena (v2.6'da baştan yazıldı).** Eski sürümdeki hata şuydu: arena
+uzak bir koordinatta (30000, 120, 30000) kuruluyordu ama **o bölgenin
+chunk'ları yüklü değildi**, dolayısıyla `/fill` komutları sessizce
+başarısız oluyordu. Zemin hiç oluşmuyor, oyuncular boşluğa ışınlanıyor,
+düşüyor, sınır kontrolü onları tekrar yukarı atıyordu — sonsuz döngü.
+
+Şimdi:
+
+1. Düello kabul edilince önce `tickingarea` eklenip **chunk'lar yüklenene
+   kadar beklenir** (15 saniyeye kadar, oyunculara "arena yükleniyor"
+   yazar). Yüklenmezse düello iptal edilir — kimse ışınlanmaz.
+2. Zemin yoksa arena kurulur ve **zemin bloğu okunarak doğrulanır**.
+   Doğrulanamazsa düello başlamaz.
+3. Işınlama, hedefin **ayağının altında blok var mı** diye bakar; yoksa
+   ışınlamaz. Bu iki kontrol boşluğa düşmeyi tamamen kapatıyor.
+4. Dövüş sırasında biri arena dışına çıkarsa geri konur; ama geri koyma
+   üst üste 4 kez gerekirse (zemin bozulmuş demektir) düello iptal edilip
+   herkes eşyalarıyla eski yerine döner — döngü kırılır.
+
+Arena 41x41, duvarları 18 blok yüksek ve **tavanı da kapalı** (elytra ile
+kaçılmasın). Admin "Arenayı Buraya Kur" ile durduğu yere kurabilir — o
+noktanın chunk'ı zaten yüklü olduğu için en garantili yol budur.
 
 **Ödül:** Bahissizse kazanana 250$ (sistemden). Bahisliyse iki bahis de
 kazanana gider; berabere biterse bahisler iade edilir. Süre sınırı 5
@@ -284,7 +302,7 @@ kaynaktan kaç eşya topladığını yazıyor.
 ## Paketleme
 
 ```bash
-bash paketle.sh          # -> Market_v2.5.mcaddon
+bash paketle.sh          # -> Market_v2.6.mcaddon
 ```
 
 Sürüm numarası hem `manifest.json` dosyalarında hem de `main.js` içindeki

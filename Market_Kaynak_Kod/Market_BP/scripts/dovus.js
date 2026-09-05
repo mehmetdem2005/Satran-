@@ -22,7 +22,11 @@ export const DOVUS_CFG = {
   geriSayim: 5,                     // saniye
   bitisCani: 4,                     // bu canin altina dusen kaybeder (2 kalp)
   istekSuresiSn: 60,
-  arenaYaricap: 30,                 // arenadan bu kadar uzaklasan geri isinlanir
+  yariCap: 20,                      // arena zemininin yaricapi (41x41)
+  yukseklik: 18,                    // duvar yuksekligi (elytra icin bol)
+  arenaYaricap: 34,                 // bu mesafeden uzaklasan geri isinlanir
+  arenaBeklemeTik: 300,             // chunk yuklenmesi icin en fazla bekleme (15 sn)
+  maxKurtarma: 4,                   // ust uste bu kadar geri isinlama olursa iptal
   // Arena ayarlanmamissa ilk dovuste burada otomatik kurulur
   varsayilanArena: { x: 30000, y: 120, z: 30000, d: "minecraft:overworld" }
 };
@@ -34,12 +38,22 @@ export const KIT = {
     Head: ["minecraft:diamond_helmet"],
     Chest: ["minecraft:diamond_chestplate"],
     Legs: ["minecraft:diamond_leggings"],
-    Feet: ["minecraft:diamond_boots"]
+    Feet: ["minecraft:diamond_boots"],
+    Offhand: ["minecraft:shield"]
   },
   esyalar: [
-    { aday: ["minecraft:diamond_sword"], adet: 1 },
-    // "mizrak gibi sirik" silah: once ucdisli, yoksa yeni mizrak/topuz
-    { aday: ["minecraft:trident", "minecraft:diamond_spear", "minecraft:iron_spear", "minecraft:mace"], adet: 1 },
+    // Silahlar DEMIR: dovus daha uzun surer, tek vurusta bitmez
+    { aday: ["minecraft:iron_sword"], adet: 1 },
+    { aday: ["minecraft:iron_axe"], adet: 1 },
+    // "mizrak gibi sirik" silah
+    { aday: ["minecraft:trident", "minecraft:iron_spear", "minecraft:diamond_spear", "minecraft:mace"], adet: 1 },
+    // menzilli
+    { aday: ["minecraft:bow"], adet: 1 },
+    { aday: ["minecraft:crossbow"], adet: 1 },
+    { aday: ["minecraft:arrow"], adet: 64 },
+    // hareket: elytra envanterde durur, isteyen gogusluk yerine takar
+    { aday: ["minecraft:elytra"], adet: 1 },
+    { aday: ["minecraft:firework_rocket"], adet: 32 },
     { aday: ["minecraft:cooked_beef"], adet: 8 }
   ]
 };
@@ -193,43 +207,103 @@ export function arenaOku(api) {
 }
 export function arenaYaz(api, a) { api.kaydet(DOVUS_CFG.arenaAnahtar, a); }
 
-function arenaKur(api, merkez) {
-  const { x, y, z, d } = merkez;
-  const boyut = world.getDimension(d ?? "minecraft:overworld");
-  const R = 12, H = 6;
-  const komut = (c) => { try { boyut.runCommand(c); } catch (e) { console.warn("[Duello] komut: " + c + " -> " + e); } };
-  komut(`tickingarea remove mk_arena`);
-  komut(`tickingarea add ${x - R - 2} ${y - 2} ${z - R - 2} ${x + R + 2} ${y + H + 2} ${z + R + 2} mk_arena`);
-  komut(`fill ${x - R} ${y} ${z - R} ${x + R} ${y + H} ${z + R} air`);
-  komut(`fill ${x - R} ${y - 1} ${z - R} ${x + R} ${y - 1} ${z + R} polished_andesite`);
-  // gorunmez duvarlar: kimse arenadan cikamasin
-  komut(`fill ${x - R - 1} ${y} ${z - R - 1} ${x + R + 1} ${y + H} ${z - R - 1} barrier`);
-  komut(`fill ${x - R - 1} ${y} ${z + R + 1} ${x + R + 1} ${y + H} ${z + R + 1} barrier`);
-  komut(`fill ${x - R - 1} ${y} ${z - R - 1} ${x - R - 1} ${y + H} ${z + R + 1} barrier`);
-  komut(`fill ${x + R + 1} ${y} ${z - R - 1} ${x + R + 1} ${y + H} ${z + R + 1} barrier`);
-  const a = {
-    merkez: { x, y, z, d: d ?? "minecraft:overworld" },
-    a: { x: x - 7, y, z, bakis: -90 },
-    b: { x: x + 7, y, z, bakis: 90 },
+const R = DOVUS_CFG.yariCap, H = DOVUS_CFG.yukseklik;
+
+function boyutGetir(id) {
+  try { return world.getDimension(id ?? "minecraft:overworld"); }
+  catch { return world.getDimension("minecraft:overworld"); }
+}
+
+// Chunk yuklu mu? Yuklu degilse getBlock undefined doner ya da hata firlatir.
+// ESKI HATA: bu kontrol yoktu; uzaktaki arena chunk'lari yuklu olmadigi icin
+// /fill komutlari sessizce basarisiz oluyor, oyuncular BOSLUGA isinlaniyor,
+// dusuyor, sinir kontrolu onlari yukari geri atiyordu -> sonsuz dongu.
+function blokOku(boyut, x, y, z) {
+  try { return boyut.getBlock({ x, y, z }); } catch { return undefined; }
+}
+function chunkYuklu(boyut, x, y, z) { return !!blokOku(boyut, x, y, z); }
+
+function arenaNoktalari(merkez) {
+  const { x, y, z } = merkez;
+  return {
+    merkez: { x, y, z, d: merkez.d ?? "minecraft:overworld" },
+    a: { x: x - 8, y, z, bakis: -90 },
+    b: { x: x + 8, y, z, bakis: 90 },
     kuruldu: true
   };
-  arenaYaz(api, a);
-  return a;
 }
 
-function arenaGetir(api, kuran) {
-  let a = arenaOku(api);
-  if (a?.a && a?.b) return a;
-  const merkez = DOVUS_CFG.varsayilanArena;
-  kuran?.sendMessage("§7[Düello] Arena bulunamadı, otomatik kuruluyor...");
-  a = arenaKur(api, merkez);
-  kuran?.sendMessage(`§a[Düello] §7Arena kuruldu: §f${merkez.x}, ${merkez.y}, ${merkez.z}`);
-  return a;
+// Arena zemini yerinde mi?
+function arenaSaglam(merkez) {
+  const boyut = boyutGetir(merkez.d);
+  for (const nokta of [[merkez.x, merkez.z], [merkez.x - 8, merkez.z], [merkez.x + 8, merkez.z]]) {
+    const alt = blokOku(boyut, nokta[0], merkez.y - 1, nokta[1]);
+    if (!alt || alt.isAir) return false;
+  }
+  return true;
 }
 
+// Bloklari doser. Chunk yuklu degilse false doner (komutlar bosa gitmesin).
+function arenaInsaEt(api, merkez) {
+  const { x, y, z } = merkez;
+  const boyut = boyutGetir(merkez.d);
+  if (!chunkYuklu(boyut, x, y, z)) return false;
+
+  const kmt = (c) => {
+    try { return (boyut.runCommand(c)?.successCount ?? 0) > 0; }
+    catch (e) { console.warn("[Duello] komut basarisiz: " + c + " -> " + e); return false; }
+  };
+  kmt(`fill ${x - R} ${y} ${z - R} ${x + R} ${y + H} ${z + R} air`);
+  const zemin = kmt(`fill ${x - R} ${y - 1} ${z - R} ${x + R} ${y - 1} ${z + R} polished_andesite`);
+  // gorunmez duvarlar + tavan: kimse arenadan cikamasin (elytra ile de)
+  kmt(`fill ${x - R - 1} ${y} ${z - R - 1} ${x + R + 1} ${y + H} ${z - R - 1} barrier`);
+  kmt(`fill ${x - R - 1} ${y} ${z + R + 1} ${x + R + 1} ${y + H} ${z + R + 1} barrier`);
+  kmt(`fill ${x - R - 1} ${y} ${z - R - 1} ${x - R - 1} ${y + H} ${z + R + 1} barrier`);
+  kmt(`fill ${x + R + 1} ${y} ${z - R - 1} ${x + R + 1} ${y + H} ${z + R + 1} barrier`);
+  kmt(`fill ${x - R - 1} ${y + H + 1} ${z - R - 1} ${x + R + 1} ${y + H + 1} ${z + R + 1} barrier`);
+
+  if (!zemin || !arenaSaglam(merkez)) return false;
+  arenaYaz(api, arenaNoktalari(merkez));
+  return true;
+}
+
+// Arenayi kullanima HAZIR hale getirir. Chunk yuklu degilse tickingarea ile
+// yukletir ve yuklenene kadar bekler; hazir olunca geriCagir(arena) calisir,
+// olmazsa geriCagir(null). Isinlanma ANCAK zemin dogrulaninca yapilir.
+function arenaHazirla(api, haberVer, geriCagir) {
+  const kayit = arenaOku(api);
+  const merkez = (kayit?.merkez) ?? DOVUS_CFG.varsayilanArena;
+  const boyut = boyutGetir(merkez.d);
+  const { x, y, z } = merkez;
+
+  // chunk'lari kalici olarak yuklet
+  try {
+    boyut.runCommand(`tickingarea add ${x - R - 2} ${y - 2} ${z - R - 2} ${x + R + 2} ${y + H + 3} ${z + R + 2} mk_arena`);
+  } catch { }
+
+  let deneme = 0;
+  const dene = () => {
+    deneme++;
+    if (chunkYuklu(boyut, x, y, z)) {
+      if (arenaSaglam(merkez)) return geriCagir(arenaNoktalari(merkez));
+      haberVer("§7[Düello] Arena kuruluyor...");
+      if (arenaInsaEt(api, merkez)) return geriCagir(arenaNoktalari(merkez));
+      return geriCagir(null);
+    }
+    if (deneme === 1) haberVer("§7[Düello] Arena bölgesi yükleniyor, bekle...");
+    if (deneme > DOVUS_CFG.arenaBeklemeTik / 10) return geriCagir(null);
+    system.runTimeout(dene, 10);
+  };
+  dene();
+}
+
+// Isinlamadan once AYAGININ ALTINDA blok var mi diye bakar. Bosluga
+// isinlamak eski surumdeki "yukaridan dusup takilma" hatasinin sebebiydi.
 function isinla(p, nokta, boyutId) {
   try {
-    const boyut = world.getDimension(boyutId ?? "minecraft:overworld");
+    const boyut = boyutGetir(boyutId);
+    const alt = blokOku(boyut, Math.floor(nokta.x), nokta.y - 1, Math.floor(nokta.z));
+    if (!alt || alt.isAir) { console.warn("[Duello] isinlama noktasinin altinda zemin yok"); return false; }
     p.teleport({ x: nokta.x + 0.5, y: nokta.y, z: nokta.z + 0.5 },
       { dimension: boyut, rotation: { x: 0, y: nokta.bakis ?? 0 } });
     return true;
@@ -282,7 +356,7 @@ function istekEkrani(p, api) {
     const t = liste[r.selection];
     new ActionFormData().title("§lDÜELLO")
       .body(`§f${t.kimden}§7 ile düello:\n\n` +
-        `§7Kit: §fElmas zırh + elmas kılıç + mızrak\n` +
+        `§7Kit: §fElmas zırh, demir silahlar, yay/arbalet, elytra\n` +
         `§7İkinize de birebir aynı verilir.\n` +
         `§7Eşyaların saklanır, dövüş bitince §fyerinde geri§7 alırsın.\n` +
         `§7Bahis: §a${t.bahis ? api.fmt(t.bahis) : "yok"}\n` +
@@ -310,9 +384,20 @@ export function dovusBaslat(api, a, b, bahis) {
     b.sendMessage("§c[Düello] Bahis karşılanamıyor, iptal.");
     return;
   }
-  const arena = arenaGetir(api, a);
-  if (!arena) { a.sendMessage("§c[Düello] Arena kurulamadı."); return; }
+  a.sendMessage("§7[Düello] Arena hazırlanıyor...");
+  b.sendMessage("§7[Düello] Arena hazırlanıyor...");
+  arenaHazirla(api, (m) => { a.sendMessage(m); b.sendMessage(m); }, (arena) => {
+    if (!arena) {
+      const uyari = "§c[Düello] Arena hazırlanamadı, düello iptal. §7Yönetici: Düello menüsü > Arenayı Buraya Kur.";
+      a.sendMessage(uyari); b.sendMessage(uyari);
+      return;
+    }
+    if (!a?.isValid || !b?.isValid || aktif) return;
+    dovusuKur(api, a, b, bahis, arena);
+  });
+}
 
+function dovusuKur(api, a, b, bahis, arena) {
   const yedekA = envanterKaydet(a), yedekB = envanterKaydet(b);
   yedekYaz(api, a.name, yedekA);
   yedekYaz(api, b.name, yedekB);
@@ -329,12 +414,25 @@ export function dovusBaslat(api, a, b, bahis) {
     bitisZamani: Date.now() + (DOVUS_CFG.geriSayim + DOVUS_CFG.sureSn) * 1000
   };
 
+  let hepsiIsindi = true;
   for (const [p, nokta] of [[a, arena.a], [b, arena.b]]) {
-    isinla(p, nokta, arena.merkez.d);
+    if (!isinla(p, nokta, arena.merkez.d)) hepsiIsindi = false;
+  }
+  if (!hepsiIsindi) {
+    // zemin dogrulanamadi: kimseyi bosluga birakma, her seyi geri al
+    for (const p of [a, b]) { envanterGeriYukle(p, aktif.yedek[p.name]); yedekYaz(api, p.name, undefined); }
+    if (bahis > 0) { api.paraEkle(a, bahis); api.paraEkle(b, bahis); }
+    aktif = null;
+    a.sendMessage("§c[Düello] Arena zemini doğrulanamadı, düello iptal edildi.");
+    b.sendMessage("§c[Düello] Arena zemini doğrulanamadı, düello iptal edildi.");
+    return;
+  }
+  for (const [p] of [[a], [b]]) {
     kitVer(p);
     baslik(p, "§6HAZIRLAN", `§f${p.name === a.name ? b.name : a.name} §7ile düello`, 30);
     ses(p, "random.anvil_use");
   }
+  aktif.kurtarma = { [a.name]: 0, [b.name]: 0 };
   world.sendMessage(`§6[Düello] §f${a.name} §7vs §f${b.name}${bahis ? ` §7- bahis §a${api.fmt(bahis)}` : ""}`);
   donguBaslat();
 }
@@ -376,15 +474,24 @@ function tik() {
     return;
   }
 
-  // arenadan cikanlari geri koy
+  // Arenadan cikani geri koy. DIKKAT: geri koyma basarisiz olursa (zemin yok)
+  // oyuncu dusmeye devam eder ve her tikte tekrar isinlanir -> sonsuz dongu.
+  // Bu yuzden kurtarma sayilir; ust uste birkac kez gerekiyorsa dovus iptal.
   const m = aktif.arena.merkez;
   for (const p of [a, b]) {
     const l = p.location;
-    const uzak = Math.hypot(l.x - m.x, l.z - m.z) > DOVUS_CFG.arenaYaricap || l.y < m.y - 10;
-    if (uzak || p.dimension.id !== m.d) {
-      isinla(p, p.name === aktif.ad.a ? aktif.arena.a : aktif.arena.b, m.d);
-      try { p.onScreenDisplay.setActionBar("§cArenadan çıkamazsın"); } catch { }
+    const disarida = Math.hypot(l.x - m.x, l.z - m.z) > DOVUS_CFG.arenaYaricap
+      || l.y < m.y - 3 || p.dimension.id !== m.d;
+    if (!disarida) { aktif.kurtarma[p.name] = 0; continue; }
+
+    aktif.kurtarma[p.name] = (aktif.kurtarma[p.name] ?? 0) + 1;
+    if (aktif.kurtarma[p.name] > DOVUS_CFG.maxKurtarma) {
+      for (const q of [a, b]) q.sendMessage("§c[Düello] Arena bozuk görünüyor (zemin yok), düello iptal edildi.");
+      for (const q of [a, b]) q.sendMessage("§7Yönetici: Düello menüsü > §fArenayı Buraya Kur§7 ile sağlam bir arena kur.");
+      return dovusIptal("arena bozuk");
     }
+    const kondu = isinla(p, p.name === aktif.ad.a ? aktif.arena.a : aktif.arena.b, m.d);
+    try { p.onScreenDisplay.setActionBar(kondu ? "§cArenadan çıkamazsın" : "§cArena zemini yok!"); } catch { }
   }
 
   // can esigi: olum beklemeden bitir
@@ -405,7 +512,18 @@ function tik() {
   }
 }
 
-export function dovusBitir(kazananAd, sebep) {
+// Kimse kazanmadan iptal: bahisler iade edilir, esyalar geri verilir.
+function dovusIptal(sebep) {
+  if (!aktif) return;
+  const { api, bahis, ad } = aktif;
+  for (const isim of [ad.a, ad.b]) {
+    const p = oyuncu(isim);
+    if (p && bahis > 0) api.paraEkle(p, bahis);
+  }
+  return dovusBitir(null, sebep, true);
+}
+
+export function dovusBitir(kazananAd, sebep, bahisIadeEdildi) {
   if (!aktif) return;
   const { api, bahis, yedek, ad } = aktif;
   const bitti = aktif;
@@ -447,7 +565,7 @@ export function dovusBitir(kazananAd, sebep) {
     // berabere: bahisler iade
     for (const isim of [ad.a, ad.b]) {
       const p = oyuncu(isim);
-      if (p && bahis > 0) api.paraEkle(p, bahis);
+      if (p && bahis > 0 && !bahisIadeEdildi) api.paraEkle(p, bahis);
       p?.sendMessage(`§e[Düello] §7Berabere. ${bahis ? "Bahis iade edildi." : ""} §8(${sebep})`);
       if (p) baslik(p, "§e§lBERABERE", `§7${sebep}`, 40);
     }
@@ -478,7 +596,7 @@ export function dovusMenu(p, api) {
     .title("§lDÜELLO / PVP")
     .body(
       `§7Eşit kit, ayrı arena, eşya kaybı yok.\n` +
-      `§7Kit: §fElmas zırh + elmas kılıç + mızrak\n` +
+      `§7Kit: §fElmas zırh, demir silahlar, yay/arbalet, elytra\n` +
       `§7Süren düello: ${s}\n` +
       `§7Arena: §f${arena?.merkez ? `${Math.round(arena.merkez.x)}, ${Math.round(arena.merkez.z)}` : "kurulmadı (ilk düelloda otomatik)"}\n` +
       `§7Bakiyen: §a${api.fmt(api.paraOku(p))}`
@@ -522,11 +640,12 @@ function kurallar(p, api) {
   new ActionFormData().title("§lKİT VE KURALLAR")
     .body(
       `§e§lKİT §7(ikisine de birebir aynı)\n` +
-      `§f- Elmas kask, göğüslük, pantolon, bot\n` +
-      `§f- Elmas kılıç\n` +
+      `§f- Elmas zırh takımı + kalkan\n` +
+      `§f- Demir kılıç, demir balta\n` +
       `§f- Mızrak (üç dişli mızrak)\n` +
-      `§f- 8 pişmiş biftek\n` +
-      `§8Ok ve yay yok.\n\n` +
+      `§f- Yay, arbalet, 64 ok\n` +
+      `§f- Elytra + 32 havai fişek §8(envanterde, isteyen takar)\n` +
+      `§f- 8 pişmiş biftek\n\n` +
       `§e§lNASIL İŞLER\n` +
       `§f1.§7 İstek gönderirsin, karşı taraf kabul eder.\n` +
       `§f2.§7 Envanterin, zırhın ve konumun kaydedilir.\n` +
@@ -548,13 +667,18 @@ function arenaKurOnay(p, api) {
   const x = Math.floor(l.x), y = Math.floor(l.y), z = Math.floor(l.z);
   new ActionFormData().title("§c§lARENA KUR")
     .body(`§7Arena §f${x}, ${y}, ${z}§7 merkezli kurulacak.\n` +
-      `§c25x25 alan temizlenir§7, zemin döşenir ve\n§7görünmez duvarlar örülür.\n\n` +
-      `§8Buradaki yapıların silinir. Boş bir yer seç.`)
+      `§c${DOVUS_CFG.yariCap * 2 + 1}x${DOVUS_CFG.yariCap * 2 + 1} alan temizlenir§7, zemin döşenir,\n` +
+      `§7görünmez duvar ve tavan örülür (${DOVUS_CFG.yukseklik} blok yüksek).\n\n` +
+      `§8Buradaki yapıların silinir. Boş bir yer seç.\n§8Durduğun yer arenanın ZEMİNİ olur.`)
     .button("§aEVET, KUR").button("§7Vazgeç")
     .show(p).then(r => {
       if (r.canceled || r.selection !== 0) return dovusMenu(p, api);
-      const a = arenaKur(api, { x, y, z, d: p.dimension.id });
-      p.sendMessage(`§a[Düello] §7Arena kuruldu: §f${x}, ${y}, ${z}`);
+      const merkez = { x, y, z, d: p.dimension.id };
+      try {
+        p.dimension.runCommand(`tickingarea add ${x - DOVUS_CFG.yariCap - 2} ${y - 2} ${z - DOVUS_CFG.yariCap - 2} ${x + DOVUS_CFG.yariCap + 2} ${y + DOVUS_CFG.yukseklik + 3} ${z + DOVUS_CFG.yariCap + 2} mk_arena`);
+      } catch { }
+      if (arenaInsaEt(api, merkez)) p.sendMessage(`§a[Düello] §7Arena kuruldu ve doğrulandı: §f${x}, ${y}, ${z}`);
+      else p.sendMessage("§c[Düello] Arena kurulamadı. §7Buranın yüklü ve inşaata uygun olduğundan emin ol.");
       dovusMenu(p, api);
     });
 }
