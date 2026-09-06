@@ -140,6 +140,136 @@ görülürse stadyum otomatik yenileniyor.
 Ayarlar `dovus.js` içindeki `DOVUS_CFG`: saha yarıçapı, tribün kat sayısı,
 tavan yüksekliği, bitiş canı, süre, ödül.
 
+## Modu güncellemek — veri kaybolmaz (v2.8)
+
+**Kısa cevap: markette birikmiş ilanlar, arsalar, para ve fiyat geçmişi
+güncellemede kaybolmaz.** Çünkü bunların hiçbiri paketin içinde
+tutulmuyor:
+
+| Ne | Nerede tutuluyor | Güncellemeden etkilenir mi |
+|---|---|---|
+| İlanlar, fiyat geçmişi, bekleyen teslimat | dünyanın dynamic property'si | Hayır |
+| Arsalar, üyeler, köşe seçimleri | dünyanın dynamic property'si | Hayır |
+| Para | `money` scoreboard hedefi | Hayır |
+| Arena | dünyadaki bloklar + kayıt | Hayır |
+| Kontrol kitabı, arsa sopası | oyuncu envanterinde (`mk:` id'leri değişmedi) | Hayır |
+
+Paketin UUID'leri v2.0'dan beri **hiç değişmedi**, yani Minecraft her yeni
+sürümü "aynı paketin güncellemesi" sayıyor.
+
+### Nasıl güncellemeli
+
+1. **Önce yedek al** (isteğe bağlı ama tavsiye): oyunda Admin Paneli →
+   **Veri ve Yedek** → "Şimdi Yedek Al".
+2. Yeni `.mcaddon` dosyasını içe aktar (çift tıkla / Minecraft'a aktar).
+3. Dünyaya gir. Oyun paketin yeni sürümünü kendisi kullanır.
+
+**Yapma:** paketi dünyadan kaldırıp yeniden ekleme. Güncellerken sadece
+yeni sürümü içe aktarman yeterli. (Dünyanın kendi yedeğini almak her
+zaman en sağlam güvence — Minecraft'ın "Dünyayı Kopyala" seçeneği.)
+
+### "Kopya paket saptandı" uyarısı
+
+Bu **hata değil**, Minecraft'ın "bu paket zaten kurulu" demesi. Paketin
+UUID'si v1.9'dan beri hiç değişmedi; yeni bir sürüm içe aktardığında oyun
+aynı UUID'yi görüp bunu yazıyor.
+
+**Önemli:** UUID'nin sabit kalması senin verini koruyan şeyin ta kendisi.
+Uyarıyı susturmak için UUID değiştirilse dünya bunu yepyeni bir paket
+sayar; marketteki ilanlar, arsalar ve para bağlantısı kopar.
+
+Ne yapmalı:
+
+- Uyarıyı geçebilirsin; oyun en yüksek sürümü kullanır.
+- Liste kalabalıklaştıysa temizle: **Ayarlar → Depolama → Davranış
+  Paketleri / Kaynak Paketleri** → eski `Market & Ekonomi ... v2.x`
+  girdilerini sil. Paket adları sürüm taşıdığı için hangisinin eski
+  olduğu görünür.
+- Eski sürümleri depolamadan silmek **dünya verisini silmez** — ilanlar,
+  arsalar ve para dünyanın içinde, paketin içinde değil.
+- Sonrasında dünyaya girip Admin Paneli → Veri ve Yedek ekranından
+  ilan/arsa sayılarının yerinde olduğunu doğrulayabilirsin.
+
+### Bir şey ters giderse
+
+Admin Paneli → **Veri ve Yedek** ekranı şunları gösterir: veri sürümü,
+kaç ilan/arsa/geçmiş kaydı olduğu, son yedeğin tarihi. İki düğmesi var:
+
+- **Şimdi Yedek Al** — tüm market ve arsa verisini kopyalar.
+- **Yedekten Geri Yükle** — yedeği geri yazar. Geri yüklemeden önce o
+  anki hali de "geri alma" kopyası olarak saklar, yani yanlış basarsan
+  bile veri durur.
+
+### Veri sürümü ve göç
+
+Veri biçimi değişirse dünya açılışında otomatik göç çalışır: önce yedek
+alınır, sonra eski kayıtlar yeni biçime çevrilir, veri sürümü işaretlenir.
+Aynı sürümde tekrar açılışta hiçbir şey yapılmaz. Kod `scripts/veri.js`
+içinde; yeni bir biçim değişikliği yaparsan `VERI_SURUMU` sayısını artırıp
+`GOCLER` nesnesine bir adım eklemen yeterli.
+
+## Hazır Market sadece ham madde (v2.7)
+
+Hazır Market artık oyundaki her eşyayı satmıyor. Yalnızca **doğadan
+toplanan ham maddeler** listeleniyor — ~296 eşya, altı kategoride:
+
+| Kategori | İçerik |
+|---|---|
+| Tarım & Yiyecek | buğday, havuç, patates, pancar, kabak, karpuz, **kamış, şeker**, kakao, bambu, kaktüs, meyveler, çiğ et ve balık |
+| Hayvan Ürünleri | **yün (16 renk), ip, tüy, deri, tavşan derisi**, yumurta, süt, bal, petek, kemik, mürekkep, kabuk |
+| Madenler & Cevher | tüm cevherler, ham demir/altın/bakır, külçeler, elmas, zümrüt, lapis, kızıltaş, kuvars, ametist, netherit, çakmaktaşı, kil topağı |
+| Ahşap | tüm kütükler, odunlar, soyulmuş kütükler, tahtalar, fidanlar, yapraklar |
+| Bitki & Deniz | çiçekler, mantarlar, mercanlar, deniz yosunu, sarmaşık, yosun |
+| Doğal Bloklar | taş, çakıltaşı, derin arduvaz, toprak, kum, çakıl, kil, netherrack, obsidyen, buz, sünger |
+
+Listede **olmayanlar**: aletler, zırhlar, silahlar, mekanizmalar
+(piston, huni, ray...), dekor blokları, doğurma yumurtaları, plaklar,
+iksirler, işlenmiş yiyecek — kısacası craftlanan her şey.
+
+**Oyuncu marketi bundan etkilenmez.** Oyuncular kendi eşyalarını
+birbirine istedikleri gibi satmaya, takas etmeye ve alım ilanı vermeye
+devam eder; kılıcını satmak isteyen oyuncu marketine koyar. Toplu satış
+da sadece ham madde alır (elmas kılıcını sisteme satamazsın).
+
+Ayar `main.js` içindeki `CFG.sadeceHammadde`. `false` yaparsan eski
+davranışa (her eşya listede) döner. Hangi eşyanın ham madde sayıldığı
+`fiyat.js` içindeki `HAM_TAM` / `HAM_DESEN` listelerinde — bir şey
+eklemek/çıkarmak için orası yeterli.
+
+## Fiyatlandırma (v2.4'te elden geçti)
+
+Fiyatlar artık üç katmanda hesaplanıyor:
+
+1. **Ham madde tabanı** (`TABAN`): kazılarak/toplanarak elde edilen ~200
+   şeyin değeri elle verilir. Tek "gerçek" girdi burasıdır.
+2. **Craft tarifleri** (`TARIF`, ~150 tarif): işlenmiş eşyanın değeri
+   girdilerinden hesaplanır — `değer = toplam(girdi) / çıktı adedi × 1.15`.
+   Sandık artık "5" değil, 8 tahtanın karşılığı. Kule (beacon) nether
+   yıldızından pahalı, örs 3 demir bloğu + 4 külçe kadar.
+   Ahşap aileler (kapı, çit, tabela, merdiven, plaka, kayık...) tek tek
+   yazılmaz; her ağaç türü için aynı tarif kendi tahtasından işletilir.
+3. **Türetme kuralları**: tarifi olmayanlar için aile kuralları
+   (9'luk bloklar, cevherler, alet/zırh malzemesi, bakır aşamaları,
+   renk aileleri, eski Bedrock adları...).
+
+Sonuç: varsayılan fiyata düşen eşya sayısı **140'tan 81'e** indi (%6),
+ve bunların çoğu zaten gerçekten o değerde olması gerekenler.
+
+**Büyü ve hasar artık fiyata giriyor.** Satış yolları düz tür fiyatını
+değil `esyaDegeri(yığın)` değerini kullanıyor:
+
+- Hasarlı alet: tam sağlam ×1.0 → kırılmak üzere ×0.2
+- Büyülü eşya: her büyü seviyesi +%12 (en fazla 3 kat)
+- Adlandırılmış eşya: +%5
+
+Örnek: düz elmas kılıç 209$, 10 seviye büyülü 460$, %90 yıpranmış 59$.
+Toplu satış da yığın yığın hesaplar.
+
+**Sonsuz para açığı denetimi:** `node arac/arbitraj.mjs` her tarifi,
+eritmeyi ve 9'luk blok çevrimini tek tek sınar — "ucuz al → craftla →
+pahalı sat" ile para basılabiliyor mu diye. Şu an 197 kontrol, 0 açık.
+Fiyat değiştirdiğinde bunu çalıştır.
+
 ## Eşya görselleri (v2.2)
 
 İkon yolları tahmin edilmiyor. `scripts/ikonlar.js`, Mojang'ın resmî
