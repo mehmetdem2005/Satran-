@@ -1,12 +1,12 @@
 {
   "format_version": 2,
   "header": {
-    "name": "Market & Ekonomi BP v2.8",
-    "description": "v2.8 | Guncelleme guvenli: veri surumu takibi, otomatik goc ve admin panelinden yedek al / geri yukle.",
+    "name": "Market & Ekonomi BP v2.9",
+    "description": "v2.9 | Duello: kit yok, herkes kendi esyasiyla dovusur. Stadyum arena (61x61 saha, tribun), cikis hatasi duzeldi.",
     "uuid": "bb41fa3d-7901-4559-8e61-d650ac191764",
     "version": [
       2,
-      8,
+      9,
       0
     ],
     "min_engine_version": [
@@ -22,7 +22,7 @@
       "uuid": "b9808c32-f7e3-4a89-93e1-f00313e58099",
       "version": [
         2,
-        8,
+        9,
         0
       ],
       "entry": "scripts/main.js"
@@ -41,7 +41,7 @@
       "uuid": "201cbafc-bcfc-4212-a13f-428a03328b5b",
       "version": [
         2,
-        8,
+        9,
         0
       ]
     }

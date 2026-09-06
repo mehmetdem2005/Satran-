@@ -1,4 +1,4 @@
-# Market & Ekonomi — Kaynak Kod (v2.8)
+# Market & Ekonomi — Kaynak Kod (v2.9)
 
 Bu klasör Minecraft Bedrock için yazılan Market/Ekonomi addon'ının tüm
 kaynak dosyalarını içerir. `.mcaddon` sadece bunların zip'lenmiş hali;
@@ -92,176 +92,53 @@ Düzeltmeler:
 Arsa ayarları `arsa.js` en başındaki `ARSA_CFG` içinde: blok başı fiyat,
 en küçük/en büyük kenar, oyuncu başına arsa sayısı, iade oranı.
 
-## Düello / PvP arenası (v2.3)
+## Düello / PvP (v2.9'da baştan yazıldı)
 
-İki oyuncu **eşit kitle**, ayrı bir arenada dövüşür. Kimse envanterini
-kaybetmez.
+**Mod eşya vermez, envanterine dokunmaz.** Herkes kendi zırhı, silahı ve
+yiyeceğiyle dövüşür. Akış: `!dovus` → Meydan Oku → oyuncu ve (isteğe
+bağlı) bahis seç → karşı taraf kabul eder → ikisi de stadyuma ışınlanır →
+5 saniye geri sayım (bu sırada canınız dolar) → dövüş → kazanan ödülü
+alır → **ikisi de eski yerine döner.**
 
-**Akış:** `!dovus` → Meydan Oku → oyuncu ve (isteğe bağlı) bahis seç →
-karşı tarafa istek gider → kabul edilirse ikisi de arenaya ışınlanır →
-5 saniye geri sayım → dövüş → kazanan ödülü alır → **herkes isteği kabul
-ettiği konuma geri ışınlanır, envanteri ve zırhı aynen geri gelir.**
+Canı **3 kalbin altına** düşen kaybeder; ölüm beklenmez, dolayısıyla
+kendi eşyan yere düşmez. Yine de biri ölürse `entityDie` dövüşü bitirir
+ve herkes eski yerine döner (düşen eşya kendi eşyası olduğu için
+silinmez).
 
-**Kit** (ikisine de birebir aynı, `dovus.js` içindeki `KIT`):
+### v2.9'da düzelen iki hata
 
-- Elmas zırh takımı + kalkan (el dışı slotta)
-- **Demir** kılıç ve balta — dövüş tek vuruşta bitmesin diye demir
-- Mızrak (üç dişli mızrak / trident)
-- Yay, arbalet, 64 ok
-- Elytra + 32 havai fişek — envanterde durur, isteyen göğüslük yerine takar
-- 8 pişmiş biftek
+1. **Eşyalar geri gelmiyordu.** Eski sürümde envanter boşaltılıp kit
+   veriliyordu; envanteri temizleyen satır (`setItem`) try/catch dışındaydı.
+   Hata fırlatınca `dovusBitir` yarıda kesiliyordu: ikinci oyuncu ne
+   eşyasını geri alıyor ne de ışınlanıyordu. Artık **envantere hiç
+   dokunulmuyor**, yani bu hata sınıfı tamamen yok.
+2. **Dövüş bitince arenadan çıkılmıyordu.** Aynı kesintinin sonucuydu.
+   Şimdi her oyuncunun eve dönüşü kendi `try/catch`'inde; ışınlama her
+   hâlükârda deneniyor; bir saniye sonra "hâlâ arenada mı" diye
+   doğrulanıp gerekirse tekrar gönderiliyor. Yedeği olmayan oyuncu için
+   sırayla kendi yatak noktası → dünya doğma noktası deneniyor.
+   Takılan biri için **`!cik`** komutu ve menüde "Stadyumdan Çık" düğmesi
+   var; oyuna girişte arenada takılı bulunan oyuncu da otomatik çıkarılıyor.
 
-**Eşya kaybı neden olmuyor:**
+### Stadyum
 
-1. Dövüş başlarken envanter + zırh + el dışı slot + konum + bakış açısı
-   kaydedilir. Kayıt dünyanın dynamic property'sine yazılır, yani oyun
-   çökse bile durur.
-2. Canı `bitisCani` (varsayılan 2 kalp) altına düşen kaybeder — ölüm
-   beklenmez, dolayısıyla eşya düşmez.
-3. Yine de biri ölürse yedek plan: `entityDie` dövüşü bitirir, dövüş
-   alanına düşmüş eşyalar silinir (kit çoğalmasın), envanter kayıttan
-   geri yüklenir.
-4. Oyuncu dövüş sırasında çıkarsa rakip kazanır; çıkan oyuncunun kaydı
-   durur ve **oyuna girdiği anda** eşyaları iade edilir.
-5. Dövüş sırasında market ve arsa menüleri kapalıdır — yoksa kit satılıp
-   para basılabilirdi.
+Eski arena 41x41 düz bir kutuydu. Yenisi gerçek bir stadyum:
 
-**Arena (v2.6'da baştan yazıldı).** Eski sürümdeki hata şuydu: arena
-uzak bir koordinatta (30000, 120, 30000) kuruluyordu ama **o bölgenin
-chunk'ları yüklü değildi**, dolayısıyla `/fill` komutları sessizce
-başarısız oluyordu. Zemin hiç oluşmuyor, oyuncular boşluğa ışınlanıyor,
-düşüyor, sınır kontrolü onları tekrar yukarı atıyordu — sonsuz döngü.
+- **61x61 çim saha**, beyaz çizgili kenar ve orta çizgi
+- Sahanın çevresinde 4 blok genişliğinde **kırmızı koşu pisti**
+- **4 katlı tribün** (taş tuğla basamaklar, üstünde kuvars oturak sırası)
+- **Dış duvar** (14 blok) ve tepesinde deniz feneri aydınlatması
+- Sahanın çevresi ve üstü **görünmez duvarla** kapalı — sahadan
+  çıkamazsın, elytra ile de kaçamazsın
+- Saha üzerinde görünmez ışık blokları: gece mob doğmaz
+- Toplam ayak izi 99x99
 
-Şimdi:
+İnşaat ~72 `/fill` komutu; hepsi tek tikte değil, **tik başına 5 komut**
+halinde çalışıyor, oyun donmuyor. Eski sürümden kalma arena kaydı
+görülürse stadyum otomatik yenileniyor.
 
-1. Düello kabul edilince önce `tickingarea` eklenip **chunk'lar yüklenene
-   kadar beklenir** (15 saniyeye kadar, oyunculara "arena yükleniyor"
-   yazar). Yüklenmezse düello iptal edilir — kimse ışınlanmaz.
-2. Zemin yoksa arena kurulur ve **zemin bloğu okunarak doğrulanır**.
-   Doğrulanamazsa düello başlamaz.
-3. Işınlama, hedefin **ayağının altında blok var mı** diye bakar; yoksa
-   ışınlamaz. Bu iki kontrol boşluğa düşmeyi tamamen kapatıyor.
-4. Dövüş sırasında biri arena dışına çıkarsa geri konur; ama geri koyma
-   üst üste 4 kez gerekirse (zemin bozulmuş demektir) düello iptal edilip
-   herkes eşyalarıyla eski yerine döner — döngü kırılır.
-
-Arena 41x41, duvarları 18 blok yüksek ve **tavanı da kapalı** (elytra ile
-kaçılmasın). Admin "Arenayı Buraya Kur" ile durduğu yere kurabilir — o
-noktanın chunk'ı zaten yüklü olduğu için en garantili yol budur.
-
-**Ödül:** Bahissizse kazanana 250$ (sistemden). Bahisliyse iki bahis de
-kazanana gider; berabere biterse bahisler iade edilir. Süre sınırı 5
-dakika — dolarsa canı fazla olan kazanır.
-
-Ayarlar `scripts/dovus.js` içindeki `DOVUS_CFG` ve `KIT` sabitlerinde.
-
-## Modu güncellemek — veri kaybolmaz (v2.8)
-
-**Kısa cevap: markette birikmiş ilanlar, arsalar, para ve fiyat geçmişi
-güncellemede kaybolmaz.** Çünkü bunların hiçbiri paketin içinde
-tutulmuyor:
-
-| Ne | Nerede tutuluyor | Güncellemeden etkilenir mi |
-|---|---|---|
-| İlanlar, fiyat geçmişi, bekleyen teslimat | dünyanın dynamic property'si | Hayır |
-| Arsalar, üyeler, köşe seçimleri | dünyanın dynamic property'si | Hayır |
-| Para | `money` scoreboard hedefi | Hayır |
-| Arena | dünyadaki bloklar + kayıt | Hayır |
-| Kontrol kitabı, arsa sopası | oyuncu envanterinde (`mk:` id'leri değişmedi) | Hayır |
-
-Paketin UUID'leri v2.0'dan beri **hiç değişmedi**, yani Minecraft her yeni
-sürümü "aynı paketin güncellemesi" sayıyor.
-
-### Nasıl güncellemeli
-
-1. **Önce yedek al** (isteğe bağlı ama tavsiye): oyunda Admin Paneli →
-   **Veri ve Yedek** → "Şimdi Yedek Al".
-2. Yeni `.mcaddon` dosyasını içe aktar (çift tıkla / Minecraft'a aktar).
-3. Dünyaya gir. Oyun paketin yeni sürümünü kendisi kullanır.
-
-**Yapma:** paketi dünyadan kaldırıp yeniden ekleme. Güncellerken sadece
-yeni sürümü içe aktarman yeterli. (Dünyanın kendi yedeğini almak her
-zaman en sağlam güvence — Minecraft'ın "Dünyayı Kopyala" seçeneği.)
-
-### Bir şey ters giderse
-
-Admin Paneli → **Veri ve Yedek** ekranı şunları gösterir: veri sürümü,
-kaç ilan/arsa/geçmiş kaydı olduğu, son yedeğin tarihi. İki düğmesi var:
-
-- **Şimdi Yedek Al** — tüm market ve arsa verisini kopyalar.
-- **Yedekten Geri Yükle** — yedeği geri yazar. Geri yüklemeden önce o
-  anki hali de "geri alma" kopyası olarak saklar, yani yanlış basarsan
-  bile veri durur.
-
-### Veri sürümü ve göç
-
-Veri biçimi değişirse dünya açılışında otomatik göç çalışır: önce yedek
-alınır, sonra eski kayıtlar yeni biçime çevrilir, veri sürümü işaretlenir.
-Aynı sürümde tekrar açılışta hiçbir şey yapılmaz. Kod `scripts/veri.js`
-içinde; yeni bir biçim değişikliği yaparsan `VERI_SURUMU` sayısını artırıp
-`GOCLER` nesnesine bir adım eklemen yeterli.
-
-## Hazır Market sadece ham madde (v2.7)
-
-Hazır Market artık oyundaki her eşyayı satmıyor. Yalnızca **doğadan
-toplanan ham maddeler** listeleniyor — ~296 eşya, altı kategoride:
-
-| Kategori | İçerik |
-|---|---|
-| Tarım & Yiyecek | buğday, havuç, patates, pancar, kabak, karpuz, **kamış, şeker**, kakao, bambu, kaktüs, meyveler, çiğ et ve balık |
-| Hayvan Ürünleri | **yün (16 renk), ip, tüy, deri, tavşan derisi**, yumurta, süt, bal, petek, kemik, mürekkep, kabuk |
-| Madenler & Cevher | tüm cevherler, ham demir/altın/bakır, külçeler, elmas, zümrüt, lapis, kızıltaş, kuvars, ametist, netherit, çakmaktaşı, kil topağı |
-| Ahşap | tüm kütükler, odunlar, soyulmuş kütükler, tahtalar, fidanlar, yapraklar |
-| Bitki & Deniz | çiçekler, mantarlar, mercanlar, deniz yosunu, sarmaşık, yosun |
-| Doğal Bloklar | taş, çakıltaşı, derin arduvaz, toprak, kum, çakıl, kil, netherrack, obsidyen, buz, sünger |
-
-Listede **olmayanlar**: aletler, zırhlar, silahlar, mekanizmalar
-(piston, huni, ray...), dekor blokları, doğurma yumurtaları, plaklar,
-iksirler, işlenmiş yiyecek — kısacası craftlanan her şey.
-
-**Oyuncu marketi bundan etkilenmez.** Oyuncular kendi eşyalarını
-birbirine istedikleri gibi satmaya, takas etmeye ve alım ilanı vermeye
-devam eder; kılıcını satmak isteyen oyuncu marketine koyar. Toplu satış
-da sadece ham madde alır (elmas kılıcını sisteme satamazsın).
-
-Ayar `main.js` içindeki `CFG.sadeceHammadde`. `false` yaparsan eski
-davranışa (her eşya listede) döner. Hangi eşyanın ham madde sayıldığı
-`fiyat.js` içindeki `HAM_TAM` / `HAM_DESEN` listelerinde — bir şey
-eklemek/çıkarmak için orası yeterli.
-
-## Fiyatlandırma (v2.4'te elden geçti)
-
-Fiyatlar artık üç katmanda hesaplanıyor:
-
-1. **Ham madde tabanı** (`TABAN`): kazılarak/toplanarak elde edilen ~200
-   şeyin değeri elle verilir. Tek "gerçek" girdi burasıdır.
-2. **Craft tarifleri** (`TARIF`, ~150 tarif): işlenmiş eşyanın değeri
-   girdilerinden hesaplanır — `değer = toplam(girdi) / çıktı adedi × 1.15`.
-   Sandık artık "5" değil, 8 tahtanın karşılığı. Kule (beacon) nether
-   yıldızından pahalı, örs 3 demir bloğu + 4 külçe kadar.
-   Ahşap aileler (kapı, çit, tabela, merdiven, plaka, kayık...) tek tek
-   yazılmaz; her ağaç türü için aynı tarif kendi tahtasından işletilir.
-3. **Türetme kuralları**: tarifi olmayanlar için aile kuralları
-   (9'luk bloklar, cevherler, alet/zırh malzemesi, bakır aşamaları,
-   renk aileleri, eski Bedrock adları...).
-
-Sonuç: varsayılan fiyata düşen eşya sayısı **140'tan 81'e** indi (%6),
-ve bunların çoğu zaten gerçekten o değerde olması gerekenler.
-
-**Büyü ve hasar artık fiyata giriyor.** Satış yolları düz tür fiyatını
-değil `esyaDegeri(yığın)` değerini kullanıyor:
-
-- Hasarlı alet: tam sağlam ×1.0 → kırılmak üzere ×0.2
-- Büyülü eşya: her büyü seviyesi +%12 (en fazla 3 kat)
-- Adlandırılmış eşya: +%5
-
-Örnek: düz elmas kılıç 209$, 10 seviye büyülü 460$, %90 yıpranmış 59$.
-Toplu satış da yığın yığın hesaplar.
-
-**Sonsuz para açığı denetimi:** `node arac/arbitraj.mjs` her tarifi,
-eritmeyi ve 9'luk blok çevrimini tek tek sınar — "ucuz al → craftla →
-pahalı sat" ile para basılabiliyor mu diye. Şu an 197 kontrol, 0 açık.
-Fiyat değiştirdiğinde bunu çalıştır.
+Ayarlar `dovus.js` içindeki `DOVUS_CFG`: saha yarıçapı, tribün kat sayısı,
+tavan yüksekliği, bitiş canı, süre, ödül.
 
 ## Eşya görselleri (v2.2)
 
@@ -377,7 +254,7 @@ kaynaktan kaç eşya topladığını yazıyor.
 ## Paketleme
 
 ```bash
-bash paketle.sh          # -> Market_v2.8.mcaddon
+bash paketle.sh          # -> Market_v2.9.mcaddon
 ```
 
 Sürüm numarası hem `manifest.json` dosyalarında hem de `main.js` içindeki
