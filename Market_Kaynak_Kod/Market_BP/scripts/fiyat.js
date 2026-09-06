@@ -542,6 +542,119 @@ export function fiyat(id) {
   return { alis: Math.max(1, taban), satis: Math.max(2, Math.ceil(taban * MAKAS)) };
 }
 
+// ============ HAM MADDE SUZGECI ============
+// Hazir Market artik oyundaki HER esyayi satmiyor; sadece dogadan toplanan
+// ham maddeler listeleniyor: tarim urunleri, hayvan urunleri, madenler,
+// odun ve temel dogal bloklar. Islenmis/craftlanmis her sey (alet, zirh,
+// mekanizma, dekor, dogurma yumurtasi, plak...) listede yok.
+//
+// Oyuncu ilanlari bundan ETKILENMEZ: oyuncular kendi esyalarini birbirine
+// istedigi gibi satmaya devam eder.
+//
+// Bir sey eklemek/cikarmak icin asagidaki listeler yeterli.
+
+const HAM_TAM = new Set([
+  // --- tarim ---
+  "wheat", "wheat_seeds", "carrot", "potato", "beetroot", "beetroot_seeds",
+  "melon_slice", "melon_seeds", "pumpkin", "pumpkin_seeds", "carved_pumpkin",
+  "sugar_cane", "sugar", "cocoa_beans", "bamboo", "cactus", "kelp", "dried_kelp",
+  "sweet_berries", "glow_berries", "apple", "nether_wart", "brown_mushroom",
+  "red_mushroom", "torchflower_seeds", "pitcher_pod", "chorus_fruit",
+  "sea_pickle", "lily_pad", "vine", "moss_block", "hay_block",
+
+  // --- hayvan urunleri (kil, tuy, deri...) ---
+  "string", "feather", "leather", "rabbit_hide", "egg", "brown_egg", "blue_egg",
+  "milk_bucket", "honeycomb", "honey_bottle", "bone", "bone_meal", "ink_sac",
+  "glow_ink_sac", "scute", "turtle_scute", "armadillo_scute", "slime_ball",
+  "beef", "porkchop", "chicken", "mutton", "rabbit", "cod", "salmon",
+  "tropical_fish", "pufferfish",
+
+  // --- madenler / mineraller ---
+  "coal", "charcoal", "raw_iron", "raw_gold", "raw_copper",
+  "iron_ingot", "gold_ingot", "copper_ingot", "iron_nugget", "gold_nugget",
+  "diamond", "emerald", "lapis_lazuli", "redstone", "quartz", "netherbrick",
+  "amethyst_shard", "netherite_scrap", "netherite_ingot", "ancient_debris",
+  "echo_shard", "flint", "clay_ball", "glowstone_dust", "gunpowder", "brick",
+
+  // --- temel dogal bloklar ---
+  "stone", "cobblestone", "deepslate", "cobbled_deepslate", "andesite", "diorite",
+  "granite", "tuff", "calcite", "dirt", "coarse_dirt", "rooted_dirt", "grass_block",
+  "podzol", "mycelium", "mud", "sand", "red_sand", "gravel", "clay", "snowball",
+  "snow_block", "ice", "packed_ice", "blue_ice", "netherrack", "soul_sand",
+  "soul_soil", "basalt", "blackstone", "end_stone", "obsidian", "crying_obsidian",
+  "magma", "glowstone", "sponge", "wet_sponge", "amethyst_block", "budding_amethyst",
+  "dripstone_block", "pointed_dripstone", "sculk", "prismarine_shard",
+  "prismarine_crystals", "nautilus_shell"
+]);
+
+// Aile desenleri: cevherler, odun, fidan, yaprak, mantar/cicek
+const HAM_DESEN = [
+  /_ore$/, /^deepslate_.*_ore$/,
+  /_log$/, /^stripped_.*_(log|wood)$/, /_wood$/, /_stem$/, /_hyphae$/,
+  /_planks$/, /_sapling$/, /_leaves$/, /_propagule$/,
+  /_wool$/,                       // kirkilan yun
+  /_flower$/, /_tulip$/, /_mushroom$/, /_fungus$/, /_roots$/,
+  /_coral$/, /_coral_block$/, /_coral_fan$/
+];
+
+// Bu esyalar desene uysa da ham madde SAYILMAZ (islenmis)
+const HAM_HARIC = [/^waxed_/, /_block_ore$/, /^infested_/, /^chiseled_/, /^polished_/];
+
+export function hammaddeMi(id) {
+  const a = ad(id);
+  if (HAM_HARIC.some(r => r.test(a))) return false;
+  if (HAM_TAM.has(a)) return true;
+  return HAM_DESEN.some(r => r.test(a));
+}
+
+// ---- Ham madde marketi icin kategoriler ----
+// Genel kategoriler (asagida) islenmis esyalara gore kurulu; ham madde
+// marketinde daha anlamli bir ayrim kullaniyoruz.
+const HAM_KURAL = [
+  ["Tarım & Yiyecek", "minecraft:wheat", a =>
+    ["wheat", "wheat_seeds", "carrot", "potato", "beetroot", "beetroot_seeds",
+     "melon_slice", "melon_seeds", "pumpkin", "pumpkin_seeds", "carved_pumpkin",
+     "sugar_cane", "sugar", "cocoa_beans", "bamboo", "cactus", "sweet_berries",
+     "glow_berries", "apple", "nether_wart", "torchflower_seeds", "pitcher_pod",
+     "chorus_fruit", "hay_block", "beef", "porkchop", "chicken", "mutton",
+     "rabbit", "cod", "salmon", "tropical_fish", "pufferfish"].includes(a)],
+
+  ["Hayvan Ürünleri", "minecraft:leather", a =>
+    /_wool$/.test(a) ||
+    ["string", "feather", "leather", "rabbit_hide", "egg", "brown_egg", "blue_egg",
+     "milk_bucket", "honeycomb", "honey_bottle", "bone", "bone_meal", "ink_sac",
+     "glow_ink_sac", "scute", "turtle_scute", "armadillo_scute", "slime_ball",
+     "gunpowder"].includes(a)],
+
+  ["Madenler & Cevher", "minecraft:iron_ingot", a =>
+    /_ore$/.test(a) ||
+    ["coal", "charcoal", "raw_iron", "raw_gold", "raw_copper", "iron_ingot",
+     "gold_ingot", "copper_ingot", "iron_nugget", "gold_nugget", "diamond",
+     "emerald", "lapis_lazuli", "redstone", "quartz", "amethyst_shard",
+     "amethyst_block", "budding_amethyst", "netherite_scrap", "netherite_ingot",
+     "ancient_debris", "echo_shard", "flint", "clay_ball", "glowstone_dust",
+     "brick", "netherbrick", "prismarine_shard", "prismarine_crystals",
+     "nautilus_shell"].includes(a)],
+
+  ["Ahşap", "minecraft:oak_log", a =>
+    /_(log|wood|stem|hyphae|planks|sapling|leaves|propagule)$/.test(a) ||
+    /^stripped_/.test(a)],
+
+  ["Bitki & Deniz", "minecraft:kelp", a =>
+    /_(flower|tulip|mushroom|fungus|roots|coral|coral_block|coral_fan)$/.test(a) ||
+    ["kelp", "dried_kelp", "sea_pickle", "lily_pad", "vine", "moss_block",
+     "brown_mushroom", "red_mushroom"].includes(a)]
+];
+
+export const HAM_KATEGORILER = HAM_KURAL.map(([ad, ikon]) => ({ ad, ikon }))
+  .concat([{ ad: "Doğal Bloklar", ikon: "minecraft:stone" }]);
+
+export function hamKategoriIndex(id) {
+  const a = ad(id);
+  for (let i = 0; i < HAM_KURAL.length; i++) { try { if (HAM_KURAL[i][2](a)) return i; } catch { } }
+  return HAM_KURAL.length;    // geri kalan: dogal bloklar
+}
+
 // ============ OTOMATIK KATEGORILER ============
 // Sira onemli: ilk uyan kural kazanir. Hicbirine uymayan "Diger"e duser,
 // yani hicbir esya listeden kaybolmaz.

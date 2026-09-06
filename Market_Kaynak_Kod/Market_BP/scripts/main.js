@@ -1,7 +1,8 @@
 import * as mc from "@minecraft/server";
 import * as ui from "@minecraft/server-ui";
 import { ikon, VARSAYILAN } from "./icons.js";
-import { fiyat, esyaDegeri, KATEGORILER, kategoriIndex, yasakMi, MAKAS } from "./fiyat.js";
+import { fiyat, esyaDegeri, KATEGORILER, kategoriIndex, HAM_KATEGORILER, hamKategoriIndex,
+  hammaddeMi, yasakMi, MAKAS } from "./fiyat.js";
 import { katalog, aramaGruplari } from "./esyalar.js";
 import * as Dovus from "./dovus.js";
 import * as Arsa from "./arsa.js";
@@ -11,7 +12,7 @@ const { ActionFormData, ModalFormData } = ui;
 
 // ==================== AYARLAR ====================
 const CFG = {
-  surum: "2.6",
+  surum: "2.7",
   ad: "m",
   objective: "money",
   simge: "$",
@@ -28,7 +29,11 @@ const CFG = {
   gecmisLimit: 200,           // fiyat rehberi icin saklanan satis sayisi
   sesler: true,
   duyuru: true,
-  kitapGirisinde: true
+  kitapGirisinde: true,
+  // Hazir Market yalnizca ham madde satsin mi? (tarim, hayvan urunu, maden,
+  // odun, dogal blok). false yaparsan oyundaki her esya yine listelenir.
+  // Oyuncu ilanlarini etkilemez: oyuncular her esyayi birbirine satabilir.
+  sadeceHammadde: true
 };
 
 const KITAP_ID = "mk:kontrol_kitabi";
@@ -1365,20 +1370,30 @@ function calistir(p, komut, arg) {
 }
 
 // ==================== HAZIR (SISTEM) MARKET ====================
+// Ham madde modunda hem liste hem kategoriler daralir.
+const katSeti = () => (CFG.sadeceHammadde ? HAM_KATEGORILER : KATEGORILER);
+const katIndex = (id) => (CFG.sadeceHammadde ? hamKategoriIndex(id) : kategoriIndex(id));
+// Hazir Market bu esyayi alip satar mi?
+function marketteVar(id) {
+  if (yasakMi(id)) return false;
+  return CFG.sadeceHammadde ? hammaddeMi(id) : true;
+}
 // Katalog artik elle yazilmiyor: oyundaki TUM esyalar kategorilere
 // otomatik dagitiliyor, fiyatlari fiyat.js motoru hesapliyor.
 let KAT_LISTE = null;
 function kategoriListeleri() {
   if (KAT_LISTE) return KAT_LISTE;
-  const gruplar = KATEGORILER.map(() => []);
+  const kats = katSeti();
+  const gruplar = kats.map(() => []);
   for (const id of tumItemler()) {
-    if (yasakMi(id)) continue;
+    if (!marketteVar(id)) continue;
     let i = 0;
-    try { i = kategoriIndex(id); } catch { i = KATEGORILER.length - 1; }
+    try { i = katIndex(id); } catch { i = kats.length - 1; }
     (gruplar[i] ?? gruplar[gruplar.length - 1]).push(id);
   }
   KAT_LISTE = gruplar;
-  console.warn("[Market] Kategoriler: " + gruplar.map((g, i) => `${KATEGORILER[i].ad}=${g.length}`).join(", "));
+  console.warn(`[Market] Kategoriler (${CFG.sadeceHammadde ? "ham madde" : "tum esyalar"}): `
+    + gruplar.map((g, i) => `${kats[i].ad}=${g.length}`).join(", "));
   return KAT_LISTE;
 }
 
@@ -1392,15 +1407,15 @@ function sistemKategoriler(p) {
 
   const f = new ActionFormData()
     .title("\u00a7lHAZIR MARKET")
-    .body(`\u00a77Her zaman a\u00e7\u0131k, s\u0131n\u0131rs\u0131z stok. \u00a7f${toplam}\u00a77 e\u015fya listede.\n\u00a77Bakiyen: \u00a7a${fmt(paraOku(p))}\n\u00a78Fiyatlar ham madde de\u011ferinden hesaplan\u0131r; i\u015flenmi\u015f \u00fcr\u00fcn her zaman girdisinden pahal\u0131d\u0131r.${listeDurumu()}`);
+    .body(`\u00a77Her zaman a\u00e7\u0131k, s\u0131n\u0131rs\u0131z stok. \u00a7f${toplam}\u00a77 e\u015fya listede.\n${CFG.sadeceHammadde ? "\u00a78Sadece ham madde: tar\u0131m, hayvan \u00fcr\u00fcn\u00fc, maden, odun.\n" : ""}\u00a77Bakiyen: \u00a7a${fmt(paraOku(p))}\n\u00a78Fiyatlar ham madde de\u011ferinden hesaplan\u0131r; i\u015flenmi\u015f \u00fcr\u00fcn her zaman girdisinden pahal\u0131d\u0131r.${listeDurumu()}`);
 
   const islem = [];
   gruplar.forEach((g, i) => {
     if (g.length === 0) return;
-    f.button(`\u00a7f${KATEGORILER[i].ad}\n\u00a78${g.length} e\u015fya`, ikonGuvenli(KATEGORILER[i].ikon));
+    f.button(`\u00a7f${katSeti()[i].ad}\n\u00a78${g.length} e\u015fya`, ikonGuvenli(katSeti()[i].ikon));
     islem.push(() => sistemUrunler(p, i, {}));
   });
-  f.button(`\u00a7fT\u00fcm E\u015fyalar\n\u00a78${toplam} e\u015fya`, ikonGuvenli("minecraft:chest")); islem.push(() => sistemUrunler(p, -1, {}));
+  f.button(`\u00a7f${CFG.sadeceHammadde ? "T\u00fcm Ham Maddeler" : "T\u00fcm E\u015fyalar"}\n\u00a78${toplam} e\u015fya`, ikonGuvenli("minecraft:chest")); islem.push(() => sistemUrunler(p, -1, {}));
   f.button("\u00a7eE\u015fya Ara", ikonGuvenli("minecraft:compass")); islem.push(() => marketArama(p, -1, {}));
   f.button("\u00a7eEnvanterimi Toplu Sat", ikonGuvenli("minecraft:hopper")); islem.push(() => topluSat(p));
   f.button("\u00a77< Geri"); islem.push(() => kitapMenu(p));
@@ -1412,7 +1427,7 @@ function sistemUrunler(p, idx, d = {}) {
   const durum = { sayfa: 0, arama: "", ...d };
   const gruplar = kategoriListeleri();
   let liste = idx >= 0 ? gruplar[idx] : gruplar.flat();
-  const baslik = idx >= 0 ? KATEGORILER[idx].ad : "T\u00fcm E\u015fyalar";
+  const baslik = idx >= 0 ? katSeti()[idx].ad : (CFG.sadeceHammadde ? "T\u00fcm Ham Maddeler" : "T\u00fcm E\u015fyalar");
 
   if (durum.arama) liste = aramaSuz(liste, durum.arama);
   if (liste.length === 0) {
@@ -1544,14 +1559,17 @@ function topluSat(p) {
   for (let i = 0; i < c.size; i++) {
     const it = c.getItem(i);
     if (!it || ozelEsya(it)) continue;
-    if (!fiyat(it.typeId)) continue;
+    if (!marketteVar(it.typeId) || !fiyat(it.typeId)) continue;
     const v = bulunan.get(it.typeId) ?? { adet: 0, deger: 0 };
     v.adet += it.amount;
     v.deger += esyaDegeri(it) * it.amount;   // her yigin kendi degerinden
     bulunan.set(it.typeId, v);
   }
   if (bulunan.size === 0) {
-    new ActionFormData().title("\u00a7lTOPLU SATI\u015e").body("\u00a77Envanterinde sat\u0131labilir bir \u015fey yok.")
+    new ActionFormData().title("\u00a7lTOPLU SATI\u015e")
+      .body(CFG.sadeceHammadde
+        ? "\u00a77Envanterinde markete sat\u0131labilir ham madde yok.\n\u00a78Market sadece tar\u0131m, hayvan \u00fcr\u00fcn\u00fc, maden ve odun al\u0131r.\n\u00a78\u0130\u015flenmi\u015f e\u015fyalar\u0131 oyuncu marketinde satabilirsin."
+        : "\u00a77Envanterinde sat\u0131labilir bir \u015fey yok.")
       .button("\u00a77< Geri").show(p).then(r => { if (!r.canceled) sistemKategoriler(p); });
     return;
   }

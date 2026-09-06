@@ -1,4 +1,4 @@
-# Market & Ekonomi — Kaynak Kod (v2.6)
+# Market & Ekonomi — Kaynak Kod (v2.7)
 
 Bu klasör Minecraft Bedrock için yazılan Market/Ekonomi addon'ının tüm
 kaynak dosyalarını içerir. `.mcaddon` sadece bunların zip'lenmiş hali;
@@ -155,6 +155,34 @@ dakika — dolarsa canı fazla olan kazanır.
 
 Ayarlar `scripts/dovus.js` içindeki `DOVUS_CFG` ve `KIT` sabitlerinde.
 
+## Hazır Market sadece ham madde (v2.7)
+
+Hazır Market artık oyundaki her eşyayı satmıyor. Yalnızca **doğadan
+toplanan ham maddeler** listeleniyor — ~296 eşya, altı kategoride:
+
+| Kategori | İçerik |
+|---|---|
+| Tarım & Yiyecek | buğday, havuç, patates, pancar, kabak, karpuz, **kamış, şeker**, kakao, bambu, kaktüs, meyveler, çiğ et ve balık |
+| Hayvan Ürünleri | **yün (16 renk), ip, tüy, deri, tavşan derisi**, yumurta, süt, bal, petek, kemik, mürekkep, kabuk |
+| Madenler & Cevher | tüm cevherler, ham demir/altın/bakır, külçeler, elmas, zümrüt, lapis, kızıltaş, kuvars, ametist, netherit, çakmaktaşı, kil topağı |
+| Ahşap | tüm kütükler, odunlar, soyulmuş kütükler, tahtalar, fidanlar, yapraklar |
+| Bitki & Deniz | çiçekler, mantarlar, mercanlar, deniz yosunu, sarmaşık, yosun |
+| Doğal Bloklar | taş, çakıltaşı, derin arduvaz, toprak, kum, çakıl, kil, netherrack, obsidyen, buz, sünger |
+
+Listede **olmayanlar**: aletler, zırhlar, silahlar, mekanizmalar
+(piston, huni, ray...), dekor blokları, doğurma yumurtaları, plaklar,
+iksirler, işlenmiş yiyecek — kısacası craftlanan her şey.
+
+**Oyuncu marketi bundan etkilenmez.** Oyuncular kendi eşyalarını
+birbirine istedikleri gibi satmaya, takas etmeye ve alım ilanı vermeye
+devam eder; kılıcını satmak isteyen oyuncu marketine koyar. Toplu satış
+da sadece ham madde alır (elmas kılıcını sisteme satamazsın).
+
+Ayar `main.js` içindeki `CFG.sadeceHammadde`. `false` yaparsan eski
+davranışa (her eşya listede) döner. Hangi eşyanın ham madde sayıldığı
+`fiyat.js` içindeki `HAM_TAM` / `HAM_DESEN` listelerinde — bir şey
+eklemek/çıkarmak için orası yeterli.
+
 ## Fiyatlandırma (v2.4'te elden geçti)
 
 Fiyatlar artık üç katmanda hesaplanıyor:
@@ -302,7 +330,7 @@ kaynaktan kaç eşya topladığını yazıyor.
 ## Paketleme
 
 ```bash
-bash paketle.sh          # -> Market_v2.6.mcaddon
+bash paketle.sh          # -> Market_v2.7.mcaddon
 ```
 
 Sürüm numarası hem `manifest.json` dosyalarında hem de `main.js` içindeki
