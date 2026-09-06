@@ -5,6 +5,7 @@ import { fiyat, esyaDegeri, KATEGORILER, kategoriIndex, HAM_KATEGORILER, hamKate
   hammaddeMi, yasakMi, MAKAS } from "./fiyat.js";
 import { katalog, aramaGruplari } from "./esyalar.js";
 import * as Dovus from "./dovus.js";
+import * as Veri from "./veri.js";
 import * as Arsa from "./arsa.js";
 
 const { world, system, ItemStack } = mc;
@@ -12,7 +13,7 @@ const { ActionFormData, ModalFormData } = ui;
 
 // ==================== AYARLAR ====================
 const CFG = {
-  surum: "2.7",
+  surum: "2.8",
   ad: "m",
   objective: "money",
   simge: "$",
@@ -1241,6 +1242,7 @@ function adminPanel(p) {
     kaydet(K_GECMIS, []); p.sendMessage("§a[Market] Fiyat gecmisi temizlendi."); adminPanel(p);
   });
   ekle("§eEsya Listesini Yenile", "minecraft:compass", () => { listeYenile(p); adminPanel(p); });
+  ekle("§eVeri ve Yedek", "minecraft:chest", () => veriEkrani(p));
   ekle("§eArsa Yonetimi", "minecraft:grass_block", () => Arsa.arsaAdmin(p, API));
   f.button("§7< Geri"); islem.push(() => kitapMenu(p));
   f.show(p).then(r => { if (!r.canceled) islem[r.selection]?.(); });
@@ -1274,6 +1276,54 @@ function adminPara(p) {
       adminPanel(p);
     });
 }
+// Guncelleme sonrasi "verim duruyor mu?" sorusunun cevabi burada.
+function veriEkrani(p) {
+  const o = Veri.ozet(API);
+  const yd = o.yedek;
+  const satir = (ad, anahtar) => `§7${ad}: §f${o.sayilar[anahtar] ?? 0}`;
+  new ActionFormData()
+    .title("§lVERİ VE YEDEK")
+    .body(
+      `§7Veri sürümü: §f${o.surum}§7 / mod: §f${Veri.VERI_SURUMU}\n` +
+      `§7Para hedefi (money): ${o.paraHedefi ? "§avar" : "§ryok"}\n\n` +
+      `${satir("İlanlar", "mk_ilan")}\n${satir("Arsalar", "mk_arsa")}\n` +
+      `${satir("Fiyat geçmişi", "mk_gecmis")}\n${satir("Bekleyen para", "mk_bpara")}\n` +
+      `${satir("Bekleyen eşya", "mk_besya")}\n${satir("Arena kaydı", "mk_arena")}\n\n` +
+      (yd ? `§7Son yedek: §f${new Date(yd.zaman).toISOString().slice(0, 16).replace("T", " ")}§7 (${yd.etiket})\n` +
+            `§8ilan ${yd.sayilar?.mk_ilan ?? 0}, arsa ${yd.sayilar?.mk_arsa ?? 0}\n\n`
+          : "§7Henüz yedek alınmadı.\n\n") +
+      `§8Bu veriler DÜNYADA tutulur, paketin içinde değil.\n` +
+      `§8Aynı UUID'li yeni sürümü içe aktarmak veriyi silmez.\n` +
+      `§8Paketi dünyadan KALDIRMA — güncellerken sadece yeni\n§8sürümü içe aktar, oyun kendisi değiştirir.`
+    )
+    .button("§aŞimdi Yedek Al", ikonGuvenli("minecraft:chest"))
+    .button(yd ? "§cYedekten Geri Yükle" : "§8(Yedek yok)", ikonGuvenli("minecraft:hopper"))
+    .button("§7< Geri")
+    .show(p).then(r => {
+      if (r.canceled || r.selection === 2) return adminPanel(p);
+      if (r.selection === 0) {
+        const b = Veri.yedekAl(API, "elle");
+        p.sendMessage(`§a[Market] §7Yedek alındı: §filan ${b.sayilar.mk_ilan}§7, §farsa ${b.sayilar.mk_arsa}§7.`);
+        return veriEkrani(p);
+      }
+      if (!yd) return veriEkrani(p);
+      new ActionFormData().title("§c§lYEDEKTEN GERİ YÜKLE")
+        .body(`§cŞu anki ilanlar ve arsalar yedektekiyle DEĞİŞTİRİLİR.\n\n` +
+          `§7Yedek tarihi: §f${new Date(yd.zaman).toISOString().slice(0, 16).replace("T", " ")}\n` +
+          `§7İçinde: §filan ${yd.sayilar?.mk_ilan ?? 0}§7, §farsa ${yd.sayilar?.mk_arsa ?? 0}\n\n` +
+          `§8Şu anki hal de "geri alma" olarak saklanır.`)
+        .button("§cEVET, GERİ YÜKLE").button("§7Vazgeç")
+        .show(p).then(r2 => {
+          if (r2.canceled || r2.selection !== 0) return veriEkrani(p);
+          const sonuc = Veri.yedektenYukle(API);
+          Arsa.onbellegiBosalt();
+          p.sendMessage(sonuc ? `§a[Market] §7Yedek geri yüklendi (${sonuc.yuklenen} kayıt).`
+                              : "§c[Market] Yedek bulunamadı.");
+          veriEkrani(p);
+        });
+    });
+}
+
 function adminIlanSil(p) {
   const ilanlar = ilanlariOku();
   if (ilanlar.length === 0) { p.sendMessage("§7[Market] Ilan yok."); return adminPanel(p); }
@@ -1748,6 +1798,15 @@ guvenli("dongu kontrolu", () => {
 
 // Esya listesini dunya acilir acilmaz arka planda kur: oyuncu menuyu actiginda
 // hazir olsun, ilk acilista donma olmasin.
+guvenli("veri surumu kontrolu", () => {
+  system.run(() => {
+    try {
+      const g = Veri.acilistaKontrol(API);
+      if (g) console.warn(`[Market] Veri gocu: v${g.eski} -> v${g.yeni}`);
+    } catch (e) { console.warn("[Market] veri gocu hatasi: " + e); }
+  });
+});
+
 guvenli("esya listesi", () => {
   system.run(() => { try { listeyiKur(true); } catch (e) { console.warn("[Market] liste kurulamadi: " + e); } });
 });

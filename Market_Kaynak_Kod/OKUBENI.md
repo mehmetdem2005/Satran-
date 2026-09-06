@@ -1,4 +1,4 @@
-# Market & Ekonomi — Kaynak Kod (v2.7)
+# Market & Ekonomi — Kaynak Kod (v2.8)
 
 Bu klasör Minecraft Bedrock için yazılan Market/Ekonomi addon'ının tüm
 kaynak dosyalarını içerir. `.mcaddon` sadece bunların zip'lenmiş hali;
@@ -155,6 +155,52 @@ dakika — dolarsa canı fazla olan kazanır.
 
 Ayarlar `scripts/dovus.js` içindeki `DOVUS_CFG` ve `KIT` sabitlerinde.
 
+## Modu güncellemek — veri kaybolmaz (v2.8)
+
+**Kısa cevap: markette birikmiş ilanlar, arsalar, para ve fiyat geçmişi
+güncellemede kaybolmaz.** Çünkü bunların hiçbiri paketin içinde
+tutulmuyor:
+
+| Ne | Nerede tutuluyor | Güncellemeden etkilenir mi |
+|---|---|---|
+| İlanlar, fiyat geçmişi, bekleyen teslimat | dünyanın dynamic property'si | Hayır |
+| Arsalar, üyeler, köşe seçimleri | dünyanın dynamic property'si | Hayır |
+| Para | `money` scoreboard hedefi | Hayır |
+| Arena | dünyadaki bloklar + kayıt | Hayır |
+| Kontrol kitabı, arsa sopası | oyuncu envanterinde (`mk:` id'leri değişmedi) | Hayır |
+
+Paketin UUID'leri v2.0'dan beri **hiç değişmedi**, yani Minecraft her yeni
+sürümü "aynı paketin güncellemesi" sayıyor.
+
+### Nasıl güncellemeli
+
+1. **Önce yedek al** (isteğe bağlı ama tavsiye): oyunda Admin Paneli →
+   **Veri ve Yedek** → "Şimdi Yedek Al".
+2. Yeni `.mcaddon` dosyasını içe aktar (çift tıkla / Minecraft'a aktar).
+3. Dünyaya gir. Oyun paketin yeni sürümünü kendisi kullanır.
+
+**Yapma:** paketi dünyadan kaldırıp yeniden ekleme. Güncellerken sadece
+yeni sürümü içe aktarman yeterli. (Dünyanın kendi yedeğini almak her
+zaman en sağlam güvence — Minecraft'ın "Dünyayı Kopyala" seçeneği.)
+
+### Bir şey ters giderse
+
+Admin Paneli → **Veri ve Yedek** ekranı şunları gösterir: veri sürümü,
+kaç ilan/arsa/geçmiş kaydı olduğu, son yedeğin tarihi. İki düğmesi var:
+
+- **Şimdi Yedek Al** — tüm market ve arsa verisini kopyalar.
+- **Yedekten Geri Yükle** — yedeği geri yazar. Geri yüklemeden önce o
+  anki hali de "geri alma" kopyası olarak saklar, yani yanlış basarsan
+  bile veri durur.
+
+### Veri sürümü ve göç
+
+Veri biçimi değişirse dünya açılışında otomatik göç çalışır: önce yedek
+alınır, sonra eski kayıtlar yeni biçime çevrilir, veri sürümü işaretlenir.
+Aynı sürümde tekrar açılışta hiçbir şey yapılmaz. Kod `scripts/veri.js`
+içinde; yeni bir biçim değişikliği yaparsan `VERI_SURUMU` sayısını artırıp
+`GOCLER` nesnesine bir adım eklemen yeterli.
+
 ## Hazır Market sadece ham madde (v2.7)
 
 Hazır Market artık oyundaki her eşyayı satmıyor. Yalnızca **doğadan
@@ -282,6 +328,7 @@ Market_BP/                 Behavior Pack (mantık, script, tarifler)
     esyalar.js               Gömülü vanilla eşya katalogu + Türkçe arama sözlüğü
     ikonlar.js               Resmî RP verisinden üretilmiş ikon haritası
     dovus.js                 Düello/PvP arenası (kit, yedekleme, ödül)
+    veri.js                  Veri sürümü, göç ve yedek/geri yükleme
     fiyat.js                 Fiyat motoru: ham madde tabanları + türetme kuralları
     arsa.js                  Arsa/bölge koruma sistemi
     icons.js                 Item id -> texture yolu çözücü
@@ -330,7 +377,7 @@ kaynaktan kaç eşya topladığını yazıyor.
 ## Paketleme
 
 ```bash
-bash paketle.sh          # -> Market_v2.7.mcaddon
+bash paketle.sh          # -> Market_v2.8.mcaddon
 ```
 
 Sürüm numarası hem `manifest.json` dosyalarında hem de `main.js` içindeki
