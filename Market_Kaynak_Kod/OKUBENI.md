@@ -1,4 +1,4 @@
-# Market & Ekonomi — Kaynak Kod (v2.9)
+# Market & Ekonomi — Kaynak Kod (v3.0)
 
 Bu klasör Minecraft Bedrock için yazılan Market/Ekonomi addon'ının tüm
 kaynak dosyalarını içerir. `.mcaddon` sadece bunların zip'lenmiş hali;
@@ -119,6 +119,32 @@ silinmez).
    sırayla kendi yatak noktası → dünya doğma noktası deneniyor.
    Takılan biri için **`!cik`** komutu ve menüde "Stadyumdan Çık" düğmesi
    var; oyuna girişte arenada takılı bulunan oyuncu da otomatik çıkarılıyor.
+
+### Eski arenadan kalan görünmez duvarlar (v3.0)
+
+v2.3–v2.6 arasındaki sürümlerde arena kurulumu yarım kalabiliyordu:
+zemin `/fill` komutu chunk yüklü olmadığı için başarısız oluyor ama
+`barrier` (görünmez engel) duvarları yerleşiyordu. Sonuç: haritada
+"geçilemeyen görünmez duvar".
+
+**Temizlemek için:** o noktaya git ve
+
+- Düello menüsü → **Görünmez Engelleri Temizle** (yarıçap seçtiriyor:
+  32/48/64/96 blok), ya da
+- yönetici komutu **`!temizle`** (48 blok yarıçap).
+
+Sadece `barrier` blokları silinir; taş, cam gibi görünen bloklara
+dokunulmaz (onları elle kırabilirsin). Komut `/fill ... air replace
+barrier` kullanır ve fill'in 32768 blok sınırını aşmayacak katmanlara
+bölünür.
+
+Yeni stadyum kurulurken de çevrede **25 blok daha geniş** bir alanda eski
+görünmez engeller otomatik siliniyor.
+
+**Bayat `tickingarea` düzeltmesi:** arena bölgesi `mk_arena` adlı bir
+tickingarea ile yüklü tutuluyor. Aynı isimde eski bir alan varsa `add`
+komutu başarısız oluyor ve yeni arena bölgesi hiç yüklenmiyordu; artık
+önce `remove`, sonra `add` çalışıyor.
 
 ### Stadyum
 
@@ -384,7 +410,7 @@ kaynaktan kaç eşya topladığını yazıyor.
 ## Paketleme
 
 ```bash
-bash paketle.sh          # -> Market_v2.9.mcaddon
+bash paketle.sh          # -> Market_v3.0.mcaddon
 ```
 
 Sürüm numarası hem `manifest.json` dosyalarında hem de `main.js` içindeki

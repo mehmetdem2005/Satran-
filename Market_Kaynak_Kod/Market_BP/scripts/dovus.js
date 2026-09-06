@@ -197,6 +197,37 @@ function arenaSaglam(merkez) {
   return true;
 }
 
+// /fill komutu en fazla 32768 blok doldurabilir. Bu yardimci, verilen
+// kutuyu sinira sigacak katmanlara boler.
+function dilimler(x, z, R, yAlt, yUst, blok, yerine) {
+  const enKesit = (2 * R + 1) * (2 * R + 1);
+  const katman = Math.max(1, Math.floor(32000 / Math.max(1, enKesit)));
+  const k = [];
+  for (let yy = yAlt; yy <= yUst; yy += katman) {
+    const ust = Math.min(yy + katman - 1, yUst);
+    k.push(`fill ${x - R} ${yy} ${z - R} ${x + R} ${ust} ${z + R} ${blok}` +
+      (yerine ? ` replace ${yerine}` : ""));
+  }
+  return k;
+}
+
+// Bir alandaki GORUNMEZ engelleri (barrier) siler, baska hicbir bloga
+// dokunmaz. Eski surumlerin yarim kalan arena kurulumlarindan geride kalan
+// "gecilemeyen bosluk" sorununu bunun icin cozuyoruz.
+export function engelleriTemizle(p, yaricap, bitince) {
+  const boyut = p.dimension;
+  const l = p.location;
+  const x = Math.floor(l.x), y = Math.floor(l.y), z = Math.floor(l.z);
+  const R = Math.max(4, Math.min(96, Math.floor(yaricap) || 48));
+  const komutlar = dilimler(x, z, R, y - 25, y + 50, "air", "barrier");
+  console.warn(`[Duello] Engel temizligi: ${komutlar.length} komut, yaricap ${R}, merkez ${x} ${y} ${z}`);
+  let silinen = 0;
+  komutlariIsle(boyut, komutlar, (hata, basari) => {
+    silinen = basari;
+    bitince({ silinen, komut: komutlar.length, hata, yaricap: R });
+  });
+}
+
 // --- stadyum insaat komutlari ---
 function stadyumKomutlari(merkez) {
   const { x, y, z } = merkez;
@@ -214,9 +245,11 @@ function stadyumKomutlari(merkez) {
   const kare = (r, y1, y2, blok) => fill(x - r, y1, z - r, x + r, y2, z + r, blok);
 
   const R = disYaricap();
-  // 1) alani temizle - 3'er katman halinde (fill blok siniri asilmasin)
-  for (let yy = y - 1; yy <= y + C.tavan + 2; yy += 3)
-    kare(R, yy, Math.min(yy + 2, y + C.tavan + 2), "air");
+  // 0) genis bir alanda ESKI gorunmez engelleri sil (eski surumlerden kalan
+  //    yarim arenalar "gecilemeyen duvar" birakiyordu)
+  k.push(...dilimler(x, z, R + 25, y - 20, y + C.tavan + 25, "air", "barrier"));
+  // 1) insaat alanini temizle (fill blok siniri asilmadan)
+  k.push(...dilimler(x, z, R, y - 1, y + C.tavan + 2, "air"));
 
   // 2) cim saha + saha cizgisi + orta nokta
   kare(C.saha, y - 1, y - 1, "grass_block");
@@ -255,14 +288,14 @@ function stadyumKomutlari(merkez) {
 
 // Komutlari tik tik calistirir (tek tikta calistirmak oyunu dondurur).
 function komutlariIsle(boyut, komutlar, bitince) {
-  let i = 0, hata = 0;
+  let i = 0, hata = 0, basari = 0;
   const adim = () => {
     for (let n = 0; n < DOVUS_CFG.komutTikBasina && i < komutlar.length; n++, i++) {
-      try { boyut.runCommand(komutlar[i]); }
+      try { basari += boyut.runCommand(komutlar[i])?.successCount ?? 0; }
       catch (e) { hata++; if (hata < 4) console.warn("[Duello] komut: " + komutlar[i] + " -> " + e); }
     }
     if (i < komutlar.length) system.runTimeout(adim, 1);
-    else bitince(hata);
+    else bitince(hata, basari);
   };
   adim();
 }
@@ -289,6 +322,9 @@ function arenaHazirla(api, haberVer, geriCagir) {
   const { x, y, z } = merkez;
   const R = disYaricap();
 
+  // ONCE KALDIR: ayni isimde eski bir tickingarea varsa "add" basarisiz olur
+  // ve yeni arena bolgesi hic yuklenmez (eski surumdeki takilmanin sebebi).
+  try { boyut.runCommand("tickingarea remove mk_arena"); } catch { }
   try {
     boyut.runCommand(`tickingarea add ${x - R - 2} ${y - 2} ${z - R - 2} ${x + R + 2} ${y + DOVUS_CFG.tavan + 3} ${z + R + 2} mk_arena`);
   } catch { }
@@ -623,6 +659,7 @@ export function dovusMenu(p, api) {
     ekle("§e§lStadyumdan Çık\n§r§7Takıldıysan buradan çık", "textures/blocks/barrier", () => { arenadanCik(p, api); dovusMenu(p, api); });
   if (api.adminMi(p)) {
     ekle("§c§lStadyumu Buraya Kur\n§r§7Durduğun yere inşa eder", "textures/blocks/stonebrick", () => arenaKurOnay(p, api));
+    ekle("§e§lGörünmez Engelleri Temizle\n§r§7Eski arenadan kalan duvarlar", "textures/blocks/barrier", () => engelTemizleEkrani(p, api));
     if (aktif) ekle("§c§lDüelloyu İptal Et", "textures/items/barrier", () => {
       dovusIptal("yönetici iptal etti"); dovusMenu(p, api);
     });
@@ -676,6 +713,31 @@ function kurallar(p, api) {
     .button("§7< Geri").show(p).then(r => { if (!r.canceled) dovusMenu(p, api); });
 }
 
+// Eski surumlerin biraktigi gorunmez duvarlari silmek icin.
+function engelTemizleEkrani(p, api) {
+  const l = p.location;
+  const x = Math.floor(l.x), y = Math.floor(l.y), z = Math.floor(l.z);
+  new ModalFormData()
+    .title("§lGÖRÜNMEZ ENGELLERİ TEMİZLE")
+    .dropdown(`Yarıçap (merkez: ${x}, ${y}, ${z})`,
+      ["32 blok", "48 blok", "64 blok", "96 blok"], { defaultValueIndex: 1 })
+    .toggle("Anladım: sadece görünmez engeller silinir", { defaultValue: false })
+    .show(p).then(r => {
+      if (r.canceled) return dovusMenu(p, api);
+      const onay = r.formValues?.[1];
+      if (!onay) { p.sendMessage("§7[Düello] İşlem onaylanmadı."); return dovusMenu(p, api); }
+      const R = [32, 48, 64, 96][r.formValues?.[0] ?? 1];
+      p.sendMessage(`§7[Düello] ${R} blok yarıçapında görünmez engeller siliniyor...`);
+      engelleriTemizle(p, R, (sonuc) => {
+        p.sendMessage(sonuc.silinen > 0
+          ? `§a[Düello] §f${sonuc.silinen}§7 görünmez engel silindi.`
+          : "§7[Düello] Bu alanda görünmez engel bulunamadı.");
+        p.sendMessage("§8Görünen bloklar (taş, cam vb.) silinmedi; onları elle kırabilirsin.");
+        dovusMenu(p, api);
+      });
+    });
+}
+
 function arenaKurOnay(p, api) {
   const l = p.location;
   const x = Math.floor(l.x), y = Math.floor(l.y), z = Math.floor(l.z);
@@ -689,6 +751,7 @@ function arenaKurOnay(p, api) {
     .show(p).then(r => {
       if (r.canceled || r.selection !== 0) return dovusMenu(p, api);
       const merkez = { x, y, z, d: p.dimension.id };
+      try { p.dimension.runCommand("tickingarea remove mk_arena"); } catch { }
       try {
         p.dimension.runCommand(`tickingarea add ${x - R - 2} ${y - 2} ${z - R - 2} ${x + R + 2} ${y + DOVUS_CFG.tavan + 3} ${z + R + 2} mk_arena`);
       } catch { }

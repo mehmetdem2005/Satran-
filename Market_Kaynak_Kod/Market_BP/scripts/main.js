@@ -13,7 +13,7 @@ const { ActionFormData, ModalFormData } = ui;
 
 // ==================== AYARLAR ====================
 const CFG = {
-  surum: "2.9",
+  surum: "3.0",
   ad: "m",
   objective: "money",
   simge: "$",
@@ -1407,6 +1407,13 @@ function calistir(p, komut, arg) {
     case "sopa": case "arsasopasi": return sopaVer(p);
     case "dovus": case "duello": case "pvp": return Dovus.dovusMenu(p, API);
     case "cik": case "arenadancik": return void Dovus.arenadanCik(p, API);
+    case "temizle": case "engeltemizle": {
+      if (!adminMi(p)) return p.sendMessage("§c[Market] Bu komut yöneticilere özel.");
+      p.sendMessage("§7[Düello] 48 blok yarıçapında görünmez engeller siliniyor...");
+      return void Dovus.engelleriTemizle(p, 48, (s) => p.sendMessage(
+        s.silinen > 0 ? `§a[Düello] §f${s.silinen}§7 görünmez engel silindi.`
+                      : "§7[Düello] Bu alanda görünmez engel bulunamadı."));
+    }
     case "yenile": case "refresh": return void listeYenile(p);
     case "liste": return p.sendMessage(
       `§7[Market] §fListe: §e${tumItemler().length}§f esya §8(aday ${RAPOR.aday}, ` +
