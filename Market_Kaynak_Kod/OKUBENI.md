@@ -1,4 +1,4 @@
-# Market & Ekonomi — Kaynak Kod (v3.3)
+# Market & Ekonomi — Kaynak Kod (v3.4)
 
 Bu klasör Minecraft Bedrock için yazılan Market/Ekonomi addon'ının tüm
 kaynak dosyalarını içerir. `.mcaddon` sadece bunların zip'lenmiş hali;
@@ -146,34 +146,65 @@ tickingarea ile yüklü tutuluyor. Aynı isimde eski bir alan varsa `add`
 komutu başarısız oluyor ve yeni arena bölgesi hiç yüklenmiyordu; artık
 önce `remove`, sonra `add` çalışıyor.
 
-### Stadyumu kaldırma (v3.3)
+### Stadyumu kaldırma — tek tık (v3.4)
 
 Stadyum yanlış yere kurulduysa (birinin evinin dibine, tarlanın üstüne)
-yönetici **Düello menüsü → Stadyumu Kaldır** ya da **`!arenasil`**
-(`/mk:arenasil`) ile temizler.
+yönetici **Düello menüsü → Stadyumu Kaldır (tek tık)** ya da **`!arenasil`**
+(`/mk:arenasil`) der. Form yok, onay ekranı yok, komut yazmak yok: basar
+basmaz en yakın stadyumu bulup siler.
 
-İki seçenek var:
+**Arenayı nasıl buluyor**
 
-| Seçenek | Ne yapar |
-|---|---|
-| **Sadece stadyum blokları** (önerilen) | Yalnızca stadyumun yapıldığı blokları siler: taş tuğla duvar/tribün, kuvars oturma sırası, deniz feneri, beyaz+kırmızı beton pist, görünmez ışık ve görünmez duvarlar. Ahşap ev, tarla, yol, çim — hepsi **yerinde kalır**. |
-| **Alandaki her şey** | 103x103'lük alanı komple havaya çevirir. İçindeki her yapı gider; sadece gerçekten boş bir yerde kullan. |
+1. Kayıtlı arena yakındaysa (≤ 119 blok) onun **tam merkezi** kullanılır.
+2. Kayıt yoksa ya da uzaktaysa merkez **bloklardan bulunur**: oyuncudan
+   dört yöne taranıp her yöndeki **en uzak** stadyum bloğu (dış duvar)
+   aranır. Duvar merkeze göre simetrik olduğundan iki uzaklıktan merkez
+   çıkar. Tek yön görülüyorsa (oyuncu arenanın dışında) merkez yine
+   hesaplanır, çünkü yarıçap sabittir.
+3. O da bulamazsa etraf kaba bir ızgarayla taranıp bir stadyum bloğu
+   bulunur, merkez araması oradan tekrarlanır.
 
-Her iki durumda da:
+Böylece oyuncu sahanın ortasında, kenarında, tribünün üstünde, dış duvarın
+üstünde ya da arenanın hemen dışında dursun — hepsinde doğru merkez bulunur
+(test: `tektik2.mjs`, beş konumun beşinde de arena tamamen temizlendi).
+
+**Ne siliniyor**
+
+Yalnızca stadyumun yapıldığı bloklar: taş tuğla duvar/tribün, kuvars oturma
+sırası, deniz feneri, beyaz+kırmızı beton pist, görünmez ışık ve görünmez
+duvarlar. Ahşap ev, tarla, yol, çim **yerinde kalır**.
+
+Uyarı: blok türüne bakılır. Arenanın içinde **taş tuğladan** yapın varsa o
+da silinir.
+
+Ayrıca:
 
 - Görünmez duvarlar (barrier) daha geniş bir kutuda (yarıçap 74, y-20 ile
-  y+50 arası) silinir — asıl "geçemiyorum" sorununu yapan onlar.
+  y+50 arası) silinir — "geçemiyorum" sorununu yapan onlar.
 - `tickingarea mk_arena` kaldırılır.
-- Stadyum kaydı silinir; **bir sonraki düelloda stadyum varsayılan uzak
-  noktaya (30000, 120, 30000) kurulur**, kimsenin üssüne değmez.
+- Kaldırılan arena **kayıtlı olansa** kayıt silinir; bir sonraki düelloda
+  stadyum varsayılan uzak noktaya (30000, 120, 30000) kurulur. Kayıtsız bir
+  arena kaldırıldıysa kayda dokunulmaz.
+- Merkez kayıttan geldiyse dar bir dikey aralık (zemin-2 … zemin+17),
+  bloklardan bulunduysa geniş aralık (y-20 … y+40) taranır.
 
-Uyarı: "sadece stadyum blokları" seçeneği blok türüne bakar. Alanın içinde
-**taş tuğladan** yapılmış kendi yapın varsa o da silinir; öyle bir durumda
-önce oradan taşı.
+**Alanı Tamamen Boşalt** ayrı bir düğmedir ve onay ister: seçilen alandaki
+her şeyi havaya çevirir (arenanın içindeki yapılar dahil). Sadece gerçekten
+boş bir yerde kullan.
 
-Not: Minecraft'ta gerçek bir "geri al" yoktur. Stadyum kurulurken silinen
-bloklar geri gelmez; bu araç arenayı kaldırır, altındaki eski araziyi geri
-getiremez.
+Not: Minecraft'ta "geri al" yoktur. Stadyum kurulurken silinen bloklar geri
+gelmez; bu araç arenayı kaldırır, altındaki eski araziyi geri getiremez.
+
+Modu güncelleyemeyenler için aynı işi yapan hazır `/fill` komut listesi:
+`arac/arena_sil_komutlari.txt`.
+
+### /fill 32768 sınırı (v3.4'te düzeldi)
+
+Arena komutları kutuyu sadece **Y ekseninde** dilimliyordu. Tek bir Y
+katmanı bile 32768 bloğu aşıyorsa (yarıçap ~90'dan sonra) her komut sessizce
+başarısız oluyordu — "Görünmez Engelleri Temizle → **96 blok**" seçeneği bu
+yüzden hiçbir şey yapmıyordu. `dilimler()` artık kesit büyükse Z ekseninde de
+bölüyor; dört yarıçapın dördü de çalışıyor (test: `engel_sinir.mjs`).
 
 ### Stadyum
 
@@ -539,7 +570,8 @@ Sohbete yazılır: `!menu !market !ara !sat !takas !alim !teklif !teklifler
 ile gelen `!yenile` (eşya listesini yeniden kurar), `!liste` (listenin
 durumunu ve hangi kaynaktan kaç eşya geldiğini yazar). v3.2 ile `!pazar`
 satılık/kiralık arsaları açar, `!ev` kendi arsana ışınlar. v3.3 ile
-`!arenasil` (yönetici) yanlış yere kurulmuş stadyumu kaldırır.
+`!arenasil` (yönetici) yanlış yere kurulmuş stadyumu tek tıkla kaldırır,
+`!temizle` görünmez engelleri siler.
 
 Aynı işleri eğik çizgili komutlarla da yapabilirsin:
 `/mk:arsa`, `/mk:pazar`, `/mk:ev`, `/mk:dovus`, `/mk:arenasil`,
@@ -551,7 +583,7 @@ kaynaktan kaç eşya topladığını yazıyor.
 ## Paketleme
 
 ```bash
-bash paketle.sh          # -> Market_v3.3.mcaddon
+bash paketle.sh          # -> Market_v3.4.mcaddon
 ```
 
 Sürüm numarası hem `manifest.json` dosyalarında hem de `main.js` içindeki

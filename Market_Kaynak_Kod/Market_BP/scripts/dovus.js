@@ -198,15 +198,25 @@ function arenaSaglam(merkez) {
 }
 
 // /fill komutu en fazla 32768 blok doldurabilir. Bu yardimci, verilen
-// kutuyu sinira sigacak katmanlara boler.
+// kutuyu sinira sigacak parcalara boler.
+//
+// Eskiden sadece Y ekseninde boluyordu: tek bir Y KATMANI bile sinirdan
+// buyukse (yaricap 90'dan sonra oluyor) her komut sessizce basarisiz
+// oluyordu. "Gorunmez engelleri temizle > 96 blok" secenegi bu yuzden
+// hicbir sey yapmiyordu. Artik kesit buyukse Z ekseninde de bolunuyor.
+const FILL_SINIR = 32000;   // 32768'in biraz altinda, guvenli pay
 function dilimler(x, z, R, yAlt, yUst, blok, yerine) {
-  const enKesit = (2 * R + 1) * (2 * R + 1);
-  const katman = Math.max(1, Math.floor(32000 / Math.max(1, enKesit)));
+  const en = 2 * R + 1;                                             // X genisligi
+  const derin = Math.max(1, Math.min(en, Math.floor(FILL_SINIR / en)));   // tek katmanda sigan Z
+  const katman = Math.max(1, Math.floor(FILL_SINIR / (en * derin)));      // kac Y katmani
   const k = [];
-  for (let yy = yAlt; yy <= yUst; yy += katman) {
-    const ust = Math.min(yy + katman - 1, yUst);
-    k.push(`fill ${x - R} ${yy} ${z - R} ${x + R} ${ust} ${z + R} ${blok}` +
-      (yerine ? ` replace ${yerine}` : ""));
+  for (let z0 = z - R; z0 <= z + R; z0 += derin) {
+    const z1 = Math.min(z0 + derin - 1, z + R);
+    for (let yy = yAlt; yy <= yUst; yy += katman) {
+      const ust = Math.min(yy + katman - 1, yUst);
+      k.push(`fill ${x - R} ${yy} ${z0} ${x + R} ${ust} ${z1} ${blok}` +
+        (yerine ? ` replace ${yerine}` : ""));
+    }
   }
   return k;
 }
@@ -241,11 +251,19 @@ const STADYUM_BLOKLARI = [
 //   tumu=true  -> alandaki HER SEY havaya cevrilir (cim saha dahil)
 // Her iki durumda da gorunmez engeller genis bir kutuda temizlenir, cunku
 // oyuncunun asil takildigi sey onlar.
-export function stadyumuKaldir(api, merkez, tumu, bitince) {
+//   kesin=true  -> merkezin Y'si sahanin gercek zemini (kayitli arena);
+//                  dar bir dikey aralik yeter.
+//   kesin=false -> merkez oyuncunun durdugu yer; tribunde ya da duvarin
+//                  ustunde duruyor olabilir, genis aralik taranir.
+//   kayitSil    -> kaldirilan arena KAYITLI olan mi; oyleyse kayit silinir
+//                  ve sonraki duelloda uzak varsayilan noktaya kurulur.
+export function stadyumuKaldir(api, merkez, { tumu = false, kesin = true, kayitSil = true } = {}, bitince) {
   const boyut = boyutGetir(merkez.d);
   const { x, y, z } = merkez;
   const R = disYaricap();
   const C = DOVUS_CFG;
+  const yAlt = kesin ? y - 2 : y - 20;
+  const yUst = kesin ? y + C.duvarYuksek + 3 : y + C.tavan + 15;
 
   // 1) gorunmez engeller: yapinin disina da tastigi icin genis kutu
   const komutlar = dilimler(x, z, R + 25, y - 20, y + C.tavan + 25, "air", "barrier");
@@ -256,19 +274,121 @@ export function stadyumuKaldir(api, merkez, tumu, bitince) {
   } else {
     for (const blok of STADYUM_BLOKLARI) {
       if (blok === "barrier") continue;            // yukarida halledildi
-      komutlar.push(...dilimler(x, z, R + 2, y - 1, y + C.duvarYuksek + 2, "air", blok));
+      komutlar.push(...dilimler(x, z, R + 2, yAlt, yUst, "air", blok));
     }
   }
 
-  console.warn(`[Duello] Stadyum kaldiriliyor: ${komutlar.length} komut, merkez ${x} ${y} ${z}, ${tumu ? "tum alan" : "sadece yapi"}.`);
+  console.warn(`[Duello] Stadyum kaldiriliyor: ${komutlar.length} komut, merkez ${x} ${y} ${z}, ${tumu ? "tum alan" : "sadece yapi"}, ${kesin ? "dar" : "genis"} dikey aralik.`);
   try { boyut.runCommand("tickingarea remove mk_arena"); } catch { }
 
   komutlariIsle(boyut, komutlar, (hata, basari) => {
     // Kayit silinir: bir sonraki duelloda stadyum, kimsenin evinin dibinde
     // olmayan varsayilan uzak noktaya kurulur.
-    try { arenaYaz(api, null); } catch { }
+    if (kayitSil) { try { arenaYaz(api, null); } catch { } }
     bitince({ silinen: basari, komut: komutlar.length, hata, yaricap: R });
   });
+}
+
+// Kayit yoksa stadyumun merkezini BLOKLARDAN bulur.
+// Yontem: oyuncudan dogu/bati/kuzey/guney yonlerinde tarayip her yonde
+// EN UZAKTAKI stadyum blogunu (dis duvari) arar. Duvar merkeze gore
+// simetrik oldugu icin iki uzakligin farkinin yarisi, oyuncunun merkeze
+// olan kaymasini verir. Boylece oyuncu sahada da dursa, tribunde de
+// dursa dogru merkez bulunur.
+const DUVAR_BLOKLARI = new Set([
+  "minecraft:stone_bricks", "minecraft:quartz_slab", "minecraft:sea_lantern",
+  "minecraft:white_concrete", "minecraft:red_concrete"
+]);
+// 4 yon taramasi bos donduyse (oyuncu arenanin kose disinda duruyor olabilir)
+// etrafi kaba bir izgarayla tarayip stadyumdan bir blok bulur; merkez
+// aramasi sonra o bloktan tekrar baslar.
+function kabaTara(boyut, bende) {
+  const ADIM = 6;
+  const MENZIL = disYaricap() + 70;
+  const yKatlari = [bende.y, bende.y + 4, bende.y - 4, bende.y + 10];
+  for (let r = ADIM; r <= MENZIL; r += ADIM) {
+    for (let d = -r; d <= r; d += ADIM) {
+      for (const [x, z] of [[bende.x + d, bende.z - r], [bende.x + d, bende.z + r],
+                            [bende.x - r, bende.z + d], [bende.x + r, bende.z + d]]) {
+        for (const y of yKatlari) {
+          const b = blokOku(boyut, x, y, z);
+          if (b && DUVAR_BLOKLARI.has(b.typeId)) return { x, y, z, d: bende.d };
+        }
+      }
+    }
+  }
+  return undefined;
+}
+
+function merkeziBul(boyut, bende) {
+  const R = disYaricap();
+  const MENZIL = R + 60;
+  const yKatlari = [bende.y, bende.y + 1, bende.y - 1, bende.y + 4, bende.y - 4, bende.y + 8];
+
+  // Bu yonde bulunan EN UZAK stadyum blogunun uzakligi (yoksa undefined)
+  const enUzak = (dx, dz) => {
+    let bulunan;
+    for (let i = 1; i <= MENZIL; i++) {
+      for (const y of yKatlari) {
+        const b = blokOku(boyut, bende.x + dx * i, y, bende.z + dz * i);
+        if (b && DUVAR_BLOKLARI.has(b.typeId)) { bulunan = i; break; }
+      }
+    }
+    return bulunan;
+  };
+
+  // Bir eksende oyuncunun merkeze olan kaymasi.
+  //  - iki yon de duvari gorduyse: iki uzaklik toplami 2R olmali, kayma
+  //    farkin yarisidir.
+  //  - tek yon gorduyse (oyuncu arenanin disinda/kenarinda): o yondeki en
+  //    uzak duvar karsi duvardir, kayma dogrudan hesaplanir.
+  const eksen = (ileri, geri) => {
+    if (ileri !== undefined && geri !== undefined) {
+      if (Math.abs(ileri + geri - 2 * R) > 14) return undefined;   // ic yapiya denk geldi
+      return (ileri - geri) / 2;
+    }
+    if (ileri !== undefined) return ileri - R;
+    if (geri !== undefined) return R - geri;
+    return undefined;
+  };
+
+  const kx = eksen(enUzak(1, 0), enUzak(-1, 0));
+  const kz = eksen(enUzak(0, 1), enUzak(0, -1));
+  if (kx === undefined && kz === undefined) return undefined;      // stadyum yok
+  return {
+    x: bende.x + Math.round(kx ?? 0),
+    y: bende.y,
+    z: bende.z + Math.round(kz ?? 0),
+    d: bende.d
+  };
+}
+
+// Oyuncuya en yakin stadyumun merkezi.
+// Kayitli arena yakindaysa onun TAM merkezi kullanilir (en dogrusu);
+// degilse oyuncunun durdugu yer merkez sayilir - boylece kayitta olmayan,
+// eski surumlerden kalmis arenalar da kaldirilabilir.
+function enYakinStadyum(api, p) {
+  const l = p.location;
+  const bende = { x: Math.floor(l.x), y: Math.floor(l.y), z: Math.floor(l.z), d: p.dimension.id };
+  const m = arenaOku(api)?.merkez;
+  if (m && (m.d ?? "minecraft:overworld") === p.dimension.id) {
+    const uzaklik = Math.hypot(bende.x - m.x, bende.z - m.z);
+    if (uzaklik <= disYaricap() + 70)
+      return {
+        merkez: { x: Math.round(m.x), y: Math.round(m.y), z: Math.round(m.z), d: m.d ?? p.dimension.id },
+        kayitli: true, uzaklik: Math.round(uzaklik)
+      };
+  }
+  const boyut = boyutGetir(bende.d);
+  let bulunan = merkeziBul(boyut, bende);
+  if (!bulunan) {
+    // Arenanin disinda duruyor olabilir: once bir stadyum blogu bul,
+    // merkez aramasini oradan tekrarla.
+    const ipucu = kabaTara(boyut, bende);
+    if (ipucu) bulunan = merkeziBul(boyut, ipucu) ?? undefined;
+  }
+  if (bulunan) return { merkez: bulunan, kayitli: false, bulundu: true, uzaklik: 0 };
+  return { merkez: bende, kayitli: false, bulundu: false, uzaklik: 0 };
 }
 
 // --- stadyum insaat komutlari ---
@@ -702,7 +822,9 @@ export function dovusMenu(p, api) {
     ekle("§e§lStadyumdan Çık\n§r§7Takıldıysan buradan çık", "textures/blocks/barrier", () => { arenadanCik(p, api); dovusMenu(p, api); });
   if (api.adminMi(p)) {
     ekle("§c§lStadyumu Buraya Kur\n§r§7Durduğun yere inşa eder", "textures/blocks/stonebrick", () => arenaKurOnay(p, api));
-    ekle("§c§lStadyumu Kaldır\n§r§7Yanlış yere kurulduysa sil", "textures/blocks/tnt_side", () => arenaKaldirEkrani(p, api));
+    ekle("§c§lStadyumu Kaldır §7(tek tık)\n§r§7En yakın arenayı siler, evine dokunmaz", "textures/blocks/tnt_side",
+      () => arenaKaldir(p, api));
+    ekle("§4§lAlanı Tamamen Boşalt\n§r§8Arena + içindeki her şey", "textures/blocks/barrier", () => arenaKaldirEkrani(p, api));
     ekle("§e§lGörünmez Engelleri Temizle\n§r§7Eski arenadan kalan duvarlar", "textures/blocks/barrier", () => engelTemizleEkrani(p, api));
     if (aktif) ekle("§c§lDüelloyu İptal Et", "textures/items/barrier", () => {
       dovusIptal("yönetici iptal etti"); dovusMenu(p, api);
@@ -782,9 +904,35 @@ function engelTemizleEkrani(p, api) {
     });
 }
 
-// Stadyum yanlis yere kurulduysa (ornegin oyuncunun evinin dibine) buradan
-// kaldirilir.
-export function arenaKaldir(p, api) { return arenaKaldirEkrani(p, api); }
+// TEK TIK: en yakin stadyumu bulur ve kaldirir. Form yok, komut yazmak yok.
+// Sadece stadyumun yapildigi bloklar silinir; ev, tarla, yol yerinde kalir.
+let kaldirmaSuruyor = false;
+export function arenaKaldir(p, api, tumu = false) {
+  if (kaldirmaSuruyor) { p.sendMessage("§7[Düello] Zaten bir kaldırma sürüyor, bitmesini bekle."); return; }
+  const { merkez, kayitli, bulundu, uzaklik } = enYakinStadyum(api, p);
+  kaldirmaSuruyor = true;
+  p.sendMessage(kayitli
+    ? `§7[Düello] Kayıtlı stadyum bulundu: §f${merkez.x}, ${merkez.z} §8(${uzaklik} blok uzakta)`
+    : bulundu
+      ? `§7[Düello] Kayıtsız stadyum bulundu, merkezi: §f${merkez.x}, ${merkez.z}`
+      : `§7[Düello] Stadyum bulunamadı, §fdurduğun yer§7 merkez alınıyor: §f${merkez.x}, ${merkez.z}`);
+  p.sendMessage("§7Kaldırılıyor, birkaç saniye...");
+
+  stadyumuKaldir(api, merkez, { tumu, kesin: kayitli, kayitSil: kayitli }, (sonuc) => {
+    kaldirmaSuruyor = false;
+    if (sonuc.silinen > 0) {
+      p.sendMessage(`§a[Düello] Stadyum kaldırıldı. §f${sonuc.silinen}§7 blok temizlendi.`);
+      if (!tumu) {
+        p.sendMessage("§8Sadece arena blokları silindi; evin, tarlan ve yolun yerinde.");
+        p.sendMessage("§8Not: arenanın içinde TAŞ TUĞLA yapın varsa o da silinmiştir.");
+      }
+    } else {
+      p.sendMessage("§e[Düello] Burada silinecek stadyum bloğu bulunamadı.");
+      p.sendMessage("§8Arenanın içinde durup tekrar dene; bölge yüklü değilse de bir şey silinmez.");
+    }
+    if (kayitli) p.sendMessage("§7Stadyum kaydı silindi: sonraki düelloda §fçok uzak bir noktaya§7 kurulacak.");
+  });
+}
 
 function arenaKaldirEkrani(p, api) {
   const kayit = arenaOku(api);
@@ -804,16 +952,16 @@ function arenaKaldirEkrani(p, api) {
     .title("§lSTADYUMU KALDIR")
     .dropdown("Hangi stadyum?", secenekler.map(s => s.ad), { defaultValueIndex: 0 })
     .dropdown("Ne silinsin?",
-      ["Sadece stadyum blokları (önerilen)", "Alandaki HER ŞEY (tehlikeli)"], { defaultValueIndex: 0 })
+      ["Alandaki HER ŞEY (tehlikeli)", "Sadece stadyum blokları"], { defaultValueIndex: 0 })
     .toggle("Anladım, kaldır", { defaultValue: false })
     .show(p).then(r => {
       if (r.canceled) return dovusMenu(p, api);
       if (!r.formValues?.[2]) { p.sendMessage("§7[Düello] İşlem onaylanmadı."); return dovusMenu(p, api); }
       const sec = secenekler[r.formValues?.[0] ?? 0];
-      const tumu = (r.formValues?.[1] ?? 0) === 1;
+      const tumu = (r.formValues?.[1] ?? 0) === 0;
       p.sendMessage(`§7[Düello] Stadyum kaldırılıyor (${sec.merkez.x}, ${sec.merkez.z}, yarıçap ${R})...`);
       p.sendMessage("§8Bölge yüklü değilse eksik kalabilir; oraya gidip tekrar çalıştır.");
-      stadyumuKaldir(api, sec.merkez, tumu, (sonuc) => {
+      stadyumuKaldir(api, sec.merkez, { tumu, kesin: true, kayitSil: true }, (sonuc) => {
         p.sendMessage(sonuc.silinen > 0
           ? `§a[Düello] §f${sonuc.silinen}§7 blok temizlendi.`
           : "§7[Düello] Bu alanda silinecek stadyum bloğu bulunamadı.");
