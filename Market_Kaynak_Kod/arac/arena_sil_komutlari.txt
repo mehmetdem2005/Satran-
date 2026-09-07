@@ -1,0 +1,65 @@
+# Yanlis yere kurulmus stadyumu elle kaldirma komutlari
+#
+# NE ZAMAN GEREKIR: modu guncelleyemiyorsan. Guncelleyebiliyorsan
+# Duello menusu > "Stadyumu Kaldir" (ya da !arenasil) ayni isi tek
+# tikla yapar.
+#
+# NASIL: Stadyumun TAM ORTASINDA, sahanin zemininde dur (Duello
+# menusunde yazan x, z). Komutlar "~" ile senin konumuna gore calisir,
+# yani yanlis yerde durursan yanlis yeri temizler.
+#
+# NE SILINIR: sadece stadyumun yapildigi bloklar. Ahsap ev, tarla, yol
+# ve cim yerinde kalir. (Kendi yapinda tas tugla varsa o da silinir.)
+#
+# Minecraft'ta geri alma yoktur: stadyum kurulurken silinen bloklar
+# geri gelmez, bu komutlar sadece arenayi kaldirir.
+#
+# Son iki grup GORUNMEZ duvarlari (barrier) siler - "gecemiyorum"
+# sorununu yapan onlardir, atlamayin.
+
+/fill ~-51 ~-1 ~-51 ~51 ~1 ~51 air replace stone_bricks
+/fill ~-51 ~2 ~-51 ~51 ~4 ~51 air replace stone_bricks
+/fill ~-51 ~5 ~-51 ~51 ~7 ~51 air replace stone_bricks
+/fill ~-51 ~8 ~-51 ~51 ~10 ~51 air replace stone_bricks
+/fill ~-51 ~11 ~-51 ~51 ~13 ~51 air replace stone_bricks
+/fill ~-51 ~14 ~-51 ~51 ~16 ~51 air replace stone_bricks
+/fill ~-51 ~-1 ~-51 ~51 ~1 ~51 air replace quartz_slab
+/fill ~-51 ~2 ~-51 ~51 ~4 ~51 air replace quartz_slab
+/fill ~-51 ~5 ~-51 ~51 ~7 ~51 air replace quartz_slab
+/fill ~-51 ~8 ~-51 ~51 ~10 ~51 air replace quartz_slab
+/fill ~-51 ~11 ~-51 ~51 ~13 ~51 air replace quartz_slab
+/fill ~-51 ~14 ~-51 ~51 ~16 ~51 air replace quartz_slab
+/fill ~-51 ~-1 ~-51 ~51 ~1 ~51 air replace sea_lantern
+/fill ~-51 ~2 ~-51 ~51 ~4 ~51 air replace sea_lantern
+/fill ~-51 ~5 ~-51 ~51 ~7 ~51 air replace sea_lantern
+/fill ~-51 ~8 ~-51 ~51 ~10 ~51 air replace sea_lantern
+/fill ~-51 ~11 ~-51 ~51 ~13 ~51 air replace sea_lantern
+/fill ~-51 ~14 ~-51 ~51 ~16 ~51 air replace sea_lantern
+/fill ~-51 ~-1 ~-51 ~51 ~1 ~51 air replace white_concrete
+/fill ~-51 ~2 ~-51 ~51 ~4 ~51 air replace white_concrete
+/fill ~-51 ~5 ~-51 ~51 ~7 ~51 air replace white_concrete
+/fill ~-51 ~8 ~-51 ~51 ~10 ~51 air replace white_concrete
+/fill ~-51 ~11 ~-51 ~51 ~13 ~51 air replace white_concrete
+/fill ~-51 ~14 ~-51 ~51 ~16 ~51 air replace white_concrete
+/fill ~-51 ~-1 ~-51 ~51 ~1 ~51 air replace red_concrete
+/fill ~-51 ~2 ~-51 ~51 ~4 ~51 air replace red_concrete
+/fill ~-51 ~5 ~-51 ~51 ~7 ~51 air replace red_concrete
+/fill ~-51 ~8 ~-51 ~51 ~10 ~51 air replace red_concrete
+/fill ~-51 ~11 ~-51 ~51 ~13 ~51 air replace red_concrete
+/fill ~-51 ~14 ~-51 ~51 ~16 ~51 air replace red_concrete
+/fill ~-51 ~-1 ~-51 ~51 ~1 ~51 air replace light_block_15
+/fill ~-51 ~2 ~-51 ~51 ~4 ~51 air replace light_block_15
+/fill ~-51 ~5 ~-51 ~51 ~7 ~51 air replace light_block_15
+/fill ~-51 ~8 ~-51 ~51 ~10 ~51 air replace light_block_15
+/fill ~-51 ~11 ~-51 ~51 ~13 ~51 air replace light_block_15
+/fill ~-51 ~14 ~-51 ~51 ~16 ~51 air replace light_block_15
+/fill ~-51 ~-1 ~-51 ~51 ~1 ~51 air replace barrier
+/fill ~-51 ~2 ~-51 ~51 ~4 ~51 air replace barrier
+/fill ~-51 ~5 ~-51 ~51 ~7 ~51 air replace barrier
+/fill ~-51 ~8 ~-51 ~51 ~10 ~51 air replace barrier
+/fill ~-51 ~11 ~-51 ~51 ~13 ~51 air replace barrier
+/fill ~-51 ~14 ~-51 ~51 ~16 ~51 air replace barrier
+/fill ~-51 ~17 ~-51 ~51 ~19 ~51 air replace barrier
+/fill ~-51 ~20 ~-51 ~51 ~22 ~51 air replace barrier
+/fill ~-51 ~23 ~-51 ~51 ~25 ~51 air replace barrier
+/fill ~-51 ~26 ~-51 ~51 ~27 ~51 air replace barrier

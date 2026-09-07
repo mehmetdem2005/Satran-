@@ -1,4 +1,4 @@
-# Market & Ekonomi — Kaynak Kod (v3.2)
+# Market & Ekonomi — Kaynak Kod (v3.3)
 
 Bu klasör Minecraft Bedrock için yazılan Market/Ekonomi addon'ının tüm
 kaynak dosyalarını içerir. `.mcaddon` sadece bunların zip'lenmiş hali;
@@ -145,6 +145,35 @@ görünmez engeller otomatik siliniyor.
 tickingarea ile yüklü tutuluyor. Aynı isimde eski bir alan varsa `add`
 komutu başarısız oluyor ve yeni arena bölgesi hiç yüklenmiyordu; artık
 önce `remove`, sonra `add` çalışıyor.
+
+### Stadyumu kaldırma (v3.3)
+
+Stadyum yanlış yere kurulduysa (birinin evinin dibine, tarlanın üstüne)
+yönetici **Düello menüsü → Stadyumu Kaldır** ya da **`!arenasil`**
+(`/mk:arenasil`) ile temizler.
+
+İki seçenek var:
+
+| Seçenek | Ne yapar |
+|---|---|
+| **Sadece stadyum blokları** (önerilen) | Yalnızca stadyumun yapıldığı blokları siler: taş tuğla duvar/tribün, kuvars oturma sırası, deniz feneri, beyaz+kırmızı beton pist, görünmez ışık ve görünmez duvarlar. Ahşap ev, tarla, yol, çim — hepsi **yerinde kalır**. |
+| **Alandaki her şey** | 103x103'lük alanı komple havaya çevirir. İçindeki her yapı gider; sadece gerçekten boş bir yerde kullan. |
+
+Her iki durumda da:
+
+- Görünmez duvarlar (barrier) daha geniş bir kutuda (yarıçap 74, y-20 ile
+  y+50 arası) silinir — asıl "geçemiyorum" sorununu yapan onlar.
+- `tickingarea mk_arena` kaldırılır.
+- Stadyum kaydı silinir; **bir sonraki düelloda stadyum varsayılan uzak
+  noktaya (30000, 120, 30000) kurulur**, kimsenin üssüne değmez.
+
+Uyarı: "sadece stadyum blokları" seçeneği blok türüne bakar. Alanın içinde
+**taş tuğladan** yapılmış kendi yapın varsa o da silinir; öyle bir durumda
+önce oradan taşı.
+
+Not: Minecraft'ta gerçek bir "geri al" yoktur. Stadyum kurulurken silinen
+bloklar geri gelmez; bu araç arenayı kaldırır, altındaki eski araziyi geri
+getiremez.
 
 ### Stadyum
 
@@ -509,10 +538,12 @@ Sohbete yazılır: `!menu !market !ara !sat !takas !alim !teklif !teklifler
 !para !arsa !pazar !hazir !ilanlarim !rehber !bakiye !id !kitap` ve v2.0
 ile gelen `!yenile` (eşya listesini yeniden kurar), `!liste` (listenin
 durumunu ve hangi kaynaktan kaç eşya geldiğini yazar). v3.2 ile `!pazar`
-satılık/kiralık arsaları açar, `!ev` kendi arsana ışınlar.
+satılık/kiralık arsaları açar, `!ev` kendi arsana ışınlar. v3.3 ile
+`!arenasil` (yönetici) yanlış yere kurulmuş stadyumu kaldırır.
 
 Aynı işleri eğik çizgili komutlarla da yapabilirsin:
-`/mk:arsa`, `/mk:pazar`, `/mk:ev`, `/mk:menu`, `/mk:market` ...
+`/mk:arsa`, `/mk:pazar`, `/mk:ev`, `/mk:dovus`, `/mk:arenasil`,
+`/mk:menu`, `/mk:market` ...
 
 Bir şey ters giderse Content Log'daki `[Market]` satırları listenin hangi
 kaynaktan kaç eşya topladığını yazıyor.
@@ -520,7 +551,7 @@ kaynaktan kaç eşya topladığını yazıyor.
 ## Paketleme
 
 ```bash
-bash paketle.sh          # -> Market_v3.2.mcaddon
+bash paketle.sh          # -> Market_v3.3.mcaddon
 ```
 
 Sürüm numarası hem `manifest.json` dosyalarında hem de `main.js` içindeki

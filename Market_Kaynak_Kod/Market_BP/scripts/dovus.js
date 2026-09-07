@@ -228,6 +228,49 @@ export function engelleriTemizle(p, yaricap, bitince) {
   });
 }
 
+// Stadyumun YAPILDIGI bloklar. Kaldirirken sadece bunlar silinir, boylece
+// arenanin icinde/kenarinda kalan oyuncu yapilari (ahsap ev, tarla, yol)
+// yerinde kalir.
+const STADYUM_BLOKLARI = [
+  "barrier", "light_block_15", "sea_lantern", "quartz_slab",
+  "stone_bricks", "red_concrete", "white_concrete"
+];
+
+// Kurulmus bir stadyumu kaldirir.
+//   tumu=false -> sadece stadyum bloklari silinir (ev/tarla durur)
+//   tumu=true  -> alandaki HER SEY havaya cevrilir (cim saha dahil)
+// Her iki durumda da gorunmez engeller genis bir kutuda temizlenir, cunku
+// oyuncunun asil takildigi sey onlar.
+export function stadyumuKaldir(api, merkez, tumu, bitince) {
+  const boyut = boyutGetir(merkez.d);
+  const { x, y, z } = merkez;
+  const R = disYaricap();
+  const C = DOVUS_CFG;
+
+  // 1) gorunmez engeller: yapinin disina da tastigi icin genis kutu
+  const komutlar = dilimler(x, z, R + 25, y - 20, y + C.tavan + 25, "air", "barrier");
+
+  // 2) stadyumun kendisi
+  if (tumu) {
+    komutlar.push(...dilimler(x, z, R + 2, y - 1, y + C.tavan + 2, "air"));
+  } else {
+    for (const blok of STADYUM_BLOKLARI) {
+      if (blok === "barrier") continue;            // yukarida halledildi
+      komutlar.push(...dilimler(x, z, R + 2, y - 1, y + C.duvarYuksek + 2, "air", blok));
+    }
+  }
+
+  console.warn(`[Duello] Stadyum kaldiriliyor: ${komutlar.length} komut, merkez ${x} ${y} ${z}, ${tumu ? "tum alan" : "sadece yapi"}.`);
+  try { boyut.runCommand("tickingarea remove mk_arena"); } catch { }
+
+  komutlariIsle(boyut, komutlar, (hata, basari) => {
+    // Kayit silinir: bir sonraki duelloda stadyum, kimsenin evinin dibinde
+    // olmayan varsayilan uzak noktaya kurulur.
+    try { arenaYaz(api, null); } catch { }
+    bitince({ silinen: basari, komut: komutlar.length, hata, yaricap: R });
+  });
+}
+
 // --- stadyum insaat komutlari ---
 function stadyumKomutlari(merkez) {
   const { x, y, z } = merkez;
@@ -659,6 +702,7 @@ export function dovusMenu(p, api) {
     ekle("§e§lStadyumdan Çık\n§r§7Takıldıysan buradan çık", "textures/blocks/barrier", () => { arenadanCik(p, api); dovusMenu(p, api); });
   if (api.adminMi(p)) {
     ekle("§c§lStadyumu Buraya Kur\n§r§7Durduğun yere inşa eder", "textures/blocks/stonebrick", () => arenaKurOnay(p, api));
+    ekle("§c§lStadyumu Kaldır\n§r§7Yanlış yere kurulduysa sil", "textures/blocks/tnt_side", () => arenaKaldirEkrani(p, api));
     ekle("§e§lGörünmez Engelleri Temizle\n§r§7Eski arenadan kalan duvarlar", "textures/blocks/barrier", () => engelTemizleEkrani(p, api));
     if (aktif) ekle("§c§lDüelloyu İptal Et", "textures/items/barrier", () => {
       dovusIptal("yönetici iptal etti"); dovusMenu(p, api);
@@ -733,6 +777,48 @@ function engelTemizleEkrani(p, api) {
           ? `§a[Düello] §f${sonuc.silinen}§7 görünmez engel silindi.`
           : "§7[Düello] Bu alanda görünmez engel bulunamadı.");
         p.sendMessage("§8Görünen bloklar (taş, cam vb.) silinmedi; onları elle kırabilirsin.");
+        dovusMenu(p, api);
+      });
+    });
+}
+
+// Stadyum yanlis yere kurulduysa (ornegin oyuncunun evinin dibine) buradan
+// kaldirilir.
+export function arenaKaldir(p, api) { return arenaKaldirEkrani(p, api); }
+
+function arenaKaldirEkrani(p, api) {
+  const kayit = arenaOku(api);
+  const m = kayit?.merkez;
+  const l = p.location;
+  const bx = Math.floor(l.x), by = Math.floor(l.y), bz = Math.floor(l.z);
+  const R = disYaricap();
+
+  const secenekler = [];
+  if (m) secenekler.push({
+    ad: `Kayitli stadyum (${Math.round(m.x)}, ${Math.round(m.y)}, ${Math.round(m.z)})`,
+    merkez: { x: Math.round(m.x), y: Math.round(m.y), z: Math.round(m.z), d: m.d ?? "minecraft:overworld" }
+  });
+  secenekler.push({ ad: `Durdugum yer (${bx}, ${by}, ${bz})`, merkez: { x: bx, y: by, z: bz, d: p.dimension.id } });
+
+  new ModalFormData()
+    .title("§lSTADYUMU KALDIR")
+    .dropdown("Hangi stadyum?", secenekler.map(s => s.ad), { defaultValueIndex: 0 })
+    .dropdown("Ne silinsin?",
+      ["Sadece stadyum blokları (önerilen)", "Alandaki HER ŞEY (tehlikeli)"], { defaultValueIndex: 0 })
+    .toggle("Anladım, kaldır", { defaultValue: false })
+    .show(p).then(r => {
+      if (r.canceled) return dovusMenu(p, api);
+      if (!r.formValues?.[2]) { p.sendMessage("§7[Düello] İşlem onaylanmadı."); return dovusMenu(p, api); }
+      const sec = secenekler[r.formValues?.[0] ?? 0];
+      const tumu = (r.formValues?.[1] ?? 0) === 1;
+      p.sendMessage(`§7[Düello] Stadyum kaldırılıyor (${sec.merkez.x}, ${sec.merkez.z}, yarıçap ${R})...`);
+      p.sendMessage("§8Bölge yüklü değilse eksik kalabilir; oraya gidip tekrar çalıştır.");
+      stadyumuKaldir(api, sec.merkez, tumu, (sonuc) => {
+        p.sendMessage(sonuc.silinen > 0
+          ? `§a[Düello] §f${sonuc.silinen}§7 blok temizlendi.`
+          : "§7[Düello] Bu alanda silinecek stadyum bloğu bulunamadı.");
+        if (!tumu) p.sendMessage("§8Sadece stadyumun taşı, betonu, camı ve görünmez duvarı silindi; evin ve tarlan yerinde.");
+        p.sendMessage("§7Stadyum kaydı silindi: sonraki düelloda §fuzak bir noktaya§7 yeniden kurulacak.");
         dovusMenu(p, api);
       });
     });

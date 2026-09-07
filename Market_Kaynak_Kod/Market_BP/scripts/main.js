@@ -13,7 +13,7 @@ const { ActionFormData, ModalFormData } = ui;
 
 // ==================== AYARLAR ====================
 const CFG = {
-  surum: "3.2",
+  surum: "3.3",
   ad: "m",
   objective: "money",
   simge: "$",
@@ -1411,6 +1411,10 @@ function calistir(p, komut, arg) {
     case "sopa": case "arsasopasi": return sopaVer(p);
     case "dovus": case "duello": case "pvp": return Dovus.dovusMenu(p, API);
     case "cik": case "arenadancik": return void Dovus.arenadanCik(p, API);
+    case "arenasil": case "stadyumsil": {
+      if (!adminMi(p)) return p.sendMessage("§c[Market] Bu komut yöneticilere özel.");
+      return Dovus.arenaKaldir(p, API);
+    }
     case "temizle": case "engeltemizle": {
       if (!adminMi(p)) return p.sendMessage("§c[Market] Bu komut yöneticilere özel.");
       p.sendMessage("§7[Düello] 48 blok yarıçapında görünmez engeller siliniyor...");
@@ -1427,7 +1431,7 @@ function calistir(p, komut, arg) {
       return p.sendMessage(it ? `§a[Market] §fElindeki: §e${it.typeId}` : "§c[Market] Elinde bir esya yok.");
     }
     default:
-      p.sendMessage("§7[Market] §f!menu !market !ara !sat !takas !alim !teklif !teklifler !para !arsa !pazar !hazir !ilanlarim !rehber !bakiye !id !kitap !sopa !ev !dovus !cik !yenile !liste");
+      p.sendMessage("§7[Market] §f!menu !market !ara !sat !takas !alim !teklif !teklifler !para !arsa !pazar !hazir !ilanlarim !rehber !bakiye !id !kitap !sopa !ev !dovus !cik !arenasil !yenile !liste");
   }
 }
 
@@ -1752,6 +1756,11 @@ guvenli("slash komutlari", () => {
     kayit("arsa", "Arsa / bolge menusu", (p) => Arsa.arsaMenu(p, API));
     kayit("pazar", "Satilik ve kiralik arsalar", (p) => Arsa.pazarMenu(p, API));
     kayit("ev", "Kendi arsana isinlan", (p) => { Arsa.eveIsinla(p, API); });
+    kayit("dovus", "Duello menusu", (p) => Dovus.dovusMenu(p, API));
+    kayit("arenasil", "Stadyumu kaldir (yonetici)", (p) => {
+      if (!adminMi(p)) return p.sendMessage("§c[Market] Bu komut yöneticilere özel.");
+      Dovus.arenaKaldir(p, API);
+    });
   });
 });
 
