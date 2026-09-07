@@ -39,7 +39,13 @@ export const DOVUS_CFG = {
   tavan: 25,       // sahanin uzerindeki gorunmez tavan yuksekligi
   duvarYuksek: 14, // dis duvar yuksekligi
 
-  arenaYaricap: 40,                 // bu mesafeden uzaklasan geri isinlanir
+  // --- v3.5: saha ---
+  // Duello icin ARTIK STADYUM KURULMUYOR. Meydan okuyan sahayi secer:
+  // durdugu yer ya da kendi arsalarindan biri. Iki oyuncu da AYNI noktaya
+  // (aralarinda birkac blokla) isinlanir.
+  ayniNoktaAralik: 2,               // iki dovusçu arasindaki baslangic mesafesi
+  arenaYaricap: 40,                 // nokta sahada bu mesafeden uzaklasan geri konur
+  arsaPayi: 2,                      // arsa sahasinda sinirin disina bu kadar tasinabilir
   arenaBeklemeTik: 300,             // chunk yuklenmesi icin en fazla bekleme
   maxKurtarma: 4,                   // ust uste bu kadar geri isinlama olursa iptal
   komutTikBasina: 5,                // insaatta tik basina komut (oyun donmesin)
@@ -166,6 +172,20 @@ export function arenaYaz(api, a) { api.kaydet(DOVUS_CFG.arenaAnahtar, a); }
 const disYaricap = () => DOVUS_CFG.saha + DOVUS_CFG.pist + 1
   + DOVUS_CFG.tribunKat * DOVUS_CFG.tribunEn + 2;
 
+// Oyuncu verilen sahanin icinde mi? (dovus bitince kurtarma agi kullanir)
+function sahadaMi(saha, p) {
+  const m = saha?.merkez;
+  if (!m || !p?.isValid) return false;
+  try {
+    if (p.dimension.id !== m.d) return false;
+    const l = p.location;
+    if (saha.arsa)
+      return l.x >= saha.arsa.x1 - 4 && l.x <= saha.arsa.x2 + 5 &&
+             l.z >= saha.arsa.z1 - 4 && l.z <= saha.arsa.z2 + 5;
+    return Math.hypot(l.x - m.x, l.z - m.z) <= DOVUS_CFG.arenaYaricap + 5;
+  } catch { return false; }
+}
+
 export function arenadaMi(api, p) {
   const a = arenaOku(api);
   const m = a?.merkez;
@@ -184,6 +204,109 @@ function arenaNoktalari(merkez) {
     b: { x: x + uzak, y, z, bakis: 90 },
     surum: DOVUS_CFG.arenaSurum
   };
+}
+
+// ============ SAHA (v3.5) ============
+// Saha = duellonun yapilacagi yer. Stadyum kurulmaz; secilen noktanin
+// etrafinda dovusulur. Iki oyuncu da ayni noktaya, karsilikli bakarak
+// isinlanir.
+//   saha: { x, y, z, d, ad, arsa?: {x1,z1,x2,z2} }
+function sahaNoktalari(saha) {
+  const ar = Math.max(0, DOVUS_CFG.ayniNoktaAralik);
+  const { x, y, z } = saha;
+  return {
+    merkez: { x, y, z, d: saha.d ?? "minecraft:overworld" },
+    a: { x: x - ar, y, z, bakis: -90 },
+    b: { x: x + ar, y, z, bakis: 90 },
+    ad: saha.ad ?? "seçilen yer",
+    arsa: saha.arsa
+  };
+}
+
+// x,z icin gercekten UZERINE BASILABILIR yukseklik.
+// isinla() da ayni kontrolu yapiyor; burada dogrulamazsak "zemin yok"
+// diye isinlama reddediliyor ve duello bosuna iptal oluyordu.
+function zeminY(boyut, x, z, tercih) {
+  const saglam = (y) => {
+    if (typeof y !== "number") return false;
+    const alt = blokOku(boyut, x, y - 1, z);
+    return !!alt && !alt.isAir;
+  };
+  if (saglam(tercih)) return tercih;
+  let ustY;
+  try {
+    const ust = boyut.getTopmostBlock?.({ x, z });
+    if (ust) ustY = ust.location.y + 1;
+  } catch { }
+  if (saglam(ustY)) return ustY;
+  // secilen noktanin birkac blok altina/ustune bak (yamac, yarim blok, merdiven)
+  if (typeof tercih === "number")
+    for (let d = 1; d <= 8; d++) {
+      if (saglam(tercih - d)) return tercih - d;
+      if (saglam(tercih + d)) return tercih + d;
+    }
+  return undefined;
+}
+
+// Sahayi kullanima hazirlar: bolgeyi yukle, zemini dogrula, iki baslangic
+// noktasini uret. Stadyum INSA ETMEZ.
+function sahaHazirla(api, saha, haberVer, geriCagir) {
+  const boyut = boyutGetir(saha.d);
+  const { x, z } = saha;
+  const R = DOVUS_CFG.arenaYaricap + 10;
+
+  try { boyut.runCommand("tickingarea remove mk_dovus"); } catch { }
+  try {
+    boyut.runCommand(`tickingarea add ${x - R} ${saha.y - 30} ${z - R} ${x + R} ${saha.y + 40} ${z + R} mk_dovus`);
+  } catch { }
+
+  let deneme = 0;
+  const dene = () => {
+    deneme++;
+    if (chunkYuklu(boyut, x, saha.y, z)) {
+      const ar = Math.max(0, DOVUS_CFG.ayniNoktaAralik);
+      // iki baslangic noktasinin da altinda zemin olmali
+      // Iki baslangic noktasinin zemini AYRI hesaplanir: biri yamacta
+      // kalirsa ortak bir Y ikisinden birini havada birakiyordu.
+      const yA = zeminY(boyut, x - ar, z, saha.y);
+      const yB = zeminY(boyut, x + ar, z, saha.y);
+      if (yA === undefined || yB === undefined) return geriCagir(null);
+      const nokta = sahaNoktalari({ ...saha, y: Math.min(yA, yB) });
+      nokta.a.y = yA;
+      nokta.b.y = yB;
+      return geriCagir(nokta);
+    }
+    if (deneme === 1) haberVer("§7[Düello] Saha bölgesi yükleniyor, bekle...");
+    if (deneme > DOVUS_CFG.arenaBeklemeTik / 10) return geriCagir(null);
+    system.runTimeout(dene, 10);
+  };
+  dene();
+}
+
+// Meydan okuyanin secebilecegi sahalar.
+export function sahaSecenekleri(p, api) {
+  const l = p.location;
+  const liste = [{
+    etiket: `Burası (${Math.floor(l.x)}, ${Math.floor(l.z)})`,
+    saha: { x: Math.floor(l.x), y: Math.floor(l.y), z: Math.floor(l.z), d: p.dimension.id, ad: "burası" }
+  }];
+  let arsalar = [];
+  try { arsalar = api.arsalarim?.(p.name) ?? []; } catch { }
+  for (const a of arsalar) {
+    const x = a.tp?.x ?? Math.floor((a.x1 + a.x2) / 2);
+    const y = a.tp?.y ?? Math.floor(l.y);
+    const z = a.tp?.z ?? Math.floor((a.z1 + a.z2) / 2);
+    liste.push({
+      etiket: `Arsa: ${a.ad}${a.kiraci ? " (kiralık)" : ""}`,
+      saha: { x, y, z, d: a.d, ad: a.ad, arsa: { x1: a.x1, z1: a.z1, x2: a.x2, z2: a.z2 } }
+    });
+  }
+  const m = arenaOku(api)?.merkez;
+  if (m) liste.push({
+    etiket: `Stadyum (${Math.round(m.x)}, ${Math.round(m.z)})`,
+    saha: { x: Math.round(m.x), y: Math.round(m.y), z: Math.round(m.z), d: m.d ?? "minecraft:overworld", ad: "stadyum" }
+  });
+  return liste;
 }
 
 // Zemin yerinde mi?
@@ -476,8 +599,10 @@ function arenaInsaEt(api, merkez, bitince) {
   });
 }
 
-// Arenayi kullanima hazir hale getirir: chunk yukle -> gerekiyorsa kur ->
-// zemini dogrula. Hazir olunca geriCagir(arena), olmazsa geriCagir(null).
+// v3.5'ten beri duello akisinda KULLANILMIYOR (stadyum kurulmuyor).
+// Yonetici "Stadyumu Buraya Kur" derse stadyum yine kurulabiliyor ve saha
+// olarak secilebiliyor; bu fonksiyon o eski akis icin duruyor.
+// eslint-disable-next-line no-unused-vars
 function arenaHazirla(api, haberVer, geriCagir) {
   const kayit = arenaOku(api);
   const merkez = (kayit?.merkez) ?? DOVUS_CFG.varsayilanArena;
@@ -509,7 +634,7 @@ function arenaHazirla(api, haberVer, geriCagir) {
 }
 
 // ============ ISTEK ============
-export function istekGonder(p, hedef, bahis, api) {
+export function istekGonder(p, hedef, bahis, api, saha) {
   if (aktif) { p.sendMessage("§c[Düello] Şu an başka bir düello sürüyor, bitmesini bekle."); return; }
   if (hedef.name === p.name) { p.sendMessage("§c[Düello] Kendine istek atamazsın."); return; }
   bahis = Math.max(0, Math.min(DOVUS_CFG.maxBahis, Math.floor(bahis) || 0));
@@ -517,9 +642,11 @@ export function istekGonder(p, hedef, bahis, api) {
     if (api.paraOku(p) < bahis) { p.sendMessage("§c[Düello] Bahis için yeterli paran yok."); return; }
     if (api.paraOku(hedef) < bahis) { p.sendMessage(`§c[Düello] §f${hedef.name}§c bu bahsi karşılayamıyor.`); return; }
   }
+  const secili = saha ?? sahaSecenekleri(p, api)[0].saha;
   const id = `d${++istekSayac}`;
-  istekler.set(id, { kimden: p.name, kime: hedef.name, bahis, zaman: Date.now() });
+  istekler.set(id, { kimden: p.name, kime: hedef.name, bahis, saha: secili, zaman: Date.now() });
   p.sendMessage(`§a[Düello] §f${hedef.name}§7 adlı oyuncuya istek gönderildi.${bahis ? ` §7Bahis: §a${api.fmt(bahis)}` : ""}`);
+  p.sendMessage(`§7Saha: §f${secili.ad} §8(${secili.x}, ${secili.z})`);
   hedef.sendMessage(`§6[Düello] §f${p.name}§7 seni düelloya çağırıyor!${bahis ? ` §7Bahis: §a${api.fmt(bahis)}` : ""}`);
   hedef.sendMessage("§c§lDİKKAT: §7Kendi eşyalarınla dövüşürsün.");
   ses(hedef, "random.orb");
@@ -545,8 +672,8 @@ function istekEkrani(p, api) {
     return;
   }
   const f = new ActionFormData().title("§lDÜELLO İSTEKLERİ")
-    .body("§7Kabul edersen ikiniz de stadyuma ışınlanır.\n§7Kendi eşyalarınla dövüşürsün, eşyaya dokunulmaz.");
-  for (const t of liste) f.button(`§f${t.kimden}\n§7${t.bahis ? `Bahis: ${api.fmt(t.bahis)}` : "Bahissiz"}`, "textures/items/iron_sword");
+    .body("§7Kabul edersen ikiniz de §faynı noktaya§7 ışınlanırsınız.\n§7Kendi eşyalarınla dövüşürsün, eşyaya dokunulmaz.");
+  for (const t of liste) f.button(`§f${t.kimden}\n§7${t.bahis ? `Bahis: ${api.fmt(t.bahis)}` : "Bahissiz"} §8- ${t.saha?.ad ?? "?"}`, "textures/items/iron_sword");
   f.button("§7< Geri");
   f.show(p).then(r => {
     if (r.canceled) return;
@@ -554,6 +681,8 @@ function istekEkrani(p, api) {
     const t = liste[r.selection];
     new ActionFormData().title("§lDÜELLO")
       .body(`§f${t.kimden}§7 ile düello:\n\n` +
+        `§7Saha: §f${t.saha?.ad ?? "?"} §8(${t.saha?.x ?? "?"}, ${t.saha?.z ?? "?"})\n` +
+        `§7İkiniz de §faynı noktaya§7 ışınlanırsınız.\n` +
         `§7Kendi eşyalarınla dövüşürsün — §fmod eşya vermez, almaz§7.\n` +
         `§7Canı §f${DOVUS_CFG.bitisCani / 2} kalbin§7 altına düşen kaybeder;\n§7ölüm beklenmez, eşya düşmez.\n` +
         `§7Bittiğinde ikiniz de §feski yerinize§7 dönersiniz.\n` +
@@ -569,29 +698,30 @@ function istekEkrani(p, api) {
           return dovusMenu(p, api);
         }
         if (!rakip) { p.sendMessage("§c[Düello] Rakip çevrimdışı."); return dovusMenu(p, api); }
-        dovusBaslat(api, rakip, p, t.bahis);
+        dovusBaslat(api, rakip, p, t.bahis, t.saha);
       });
   });
 }
 
 // ============ DOVUS ============
-export function dovusBaslat(api, a, b, bahis) {
+export function dovusBaslat(api, a, b, bahis, saha) {
   if (aktif) { a.sendMessage("§c[Düello] Şu an başka bir düello sürüyor."); return; }
   if (bahis > 0 && (api.paraOku(a) < bahis || api.paraOku(b) < bahis)) {
     a.sendMessage("§c[Düello] Bahis karşılanamıyor, iptal.");
     b.sendMessage("§c[Düello] Bahis karşılanamıyor, iptal.");
     return;
   }
-  a.sendMessage("§7[Düello] Stadyum hazırlanıyor...");
-  b.sendMessage("§7[Düello] Stadyum hazırlanıyor...");
-  arenaHazirla(api, (m) => { a.sendMessage(m); b.sendMessage(m); }, (arena) => {
-    if (!arena) {
-      const uyari = "§c[Düello] Stadyum hazırlanamadı, düello iptal. §7Yönetici: Düello menüsü > Arenayı Buraya Kur.";
+  const secili = saha ?? sahaSecenekleri(a, api)[0].saha;
+  a.sendMessage(`§7[Düello] Saha hazırlanıyor: §f${secili.ad}`);
+  b.sendMessage(`§7[Düello] Saha hazırlanıyor: §f${secili.ad}`);
+  sahaHazirla(api, secili, (m) => { a.sendMessage(m); b.sendMessage(m); }, (nokta) => {
+    if (!nokta) {
+      const uyari = "§c[Düello] Sahanın zemini bulunamadı, düello iptal. §7Düz bir yerde dene.";
       a.sendMessage(uyari); b.sendMessage(uyari);
       return;
     }
     if (!a?.isValid || !b?.isValid || aktif) return;
-    dovusuKur(api, a, b, bahis, arena);
+    dovusuKur(api, a, b, bahis, nokta);
   });
 }
 
@@ -601,7 +731,8 @@ function dovusuKur(api, a, b, bahis, arena) {
   yedekYaz(api, b.name, yedekB);
 
   aktif = {
-    api, bahis, arena,
+    api, bahis, saha: arena,   // arena degiskeni artik "saha noktalari"
+    arena,                     // eski adiyla da dursun (guvenlik agi kullaniyor)
     ad: { a: a.name, b: b.name },
     yedek: { [a.name]: yedekA, [b.name]: yedekB },
     kurtarma: { [a.name]: 0, [b.name]: 0 },
@@ -618,8 +749,8 @@ function dovusuKur(api, a, b, bahis, arena) {
   if (!hepsiIsindi) {
     for (const p of [a, b]) { try { eveGonder(p, aktif.yedek[p.name]); } catch { } yedekYaz(api, p.name, undefined); }
     aktif = null;
-    a.sendMessage("§c[Düello] Stadyum zemini doğrulanamadı, düello iptal edildi.");
-    b.sendMessage("§c[Düello] Stadyum zemini doğrulanamadı, düello iptal edildi.");
+    a.sendMessage("§c[Düello] Saha zemini doğrulanamadı, düello iptal edildi.");
+    b.sendMessage("§c[Düello] Saha zemini doğrulanamadı, düello iptal edildi.");
     return;
   }
 
@@ -629,7 +760,7 @@ function dovusuKur(api, a, b, bahis, arena) {
     ses(p, "random.anvil_use");
     p.sendMessage("§7[Düello] Kendi eşyalarınla dövüşüyorsun, eşyalarına dokunulmadı.");
   }
-  world.sendMessage(`§6[Düello] §f${a.name} §7vs §f${b.name}${bahis ? ` §7- bahis §a${api.fmt(bahis)}` : ""}`);
+  world.sendMessage(`§6[Düello] §f${a.name} §7vs §f${b.name}${bahis ? ` §7- bahis §a${api.fmt(bahis)}` : ""} §8- ${arena.ad ?? "saha"}`);
   donguBaslat();
 }
 
@@ -668,19 +799,28 @@ function tik() {
     return;
   }
 
-  // Sahadan cikani geri koy; ust uste gerekiyorsa arena bozuktur -> iptal
-  const m = aktif.arena.merkez;
+  // Sahadan cikani geri koy; ust uste gerekiyorsa saha bozuktur -> iptal
+  const saha = aktif.saha;
+  const m = saha.merkez;
+  const pay = DOVUS_CFG.arsaPayi;
   for (const p of [a, b]) {
     const l = p.location;
-    const disarida = Math.hypot(l.x - m.x, l.z - m.z) > DOVUS_CFG.arenaYaricap
-      || l.y < m.y - 3 || p.dimension.id !== m.d;
+    let disarida = p.dimension.id !== m.d || l.y < m.y - 12;
+    if (!disarida) {
+      disarida = saha.arsa
+        // arsa sahasi: arsanin sinirlari (biraz payla)
+        ? (l.x < saha.arsa.x1 - pay || l.x > saha.arsa.x2 + 1 + pay ||
+           l.z < saha.arsa.z1 - pay || l.z > saha.arsa.z2 + 1 + pay)
+        // nokta sahasi: merkez etrafinda yaricap
+        : Math.hypot(l.x - m.x, l.z - m.z) > DOVUS_CFG.arenaYaricap;
+    }
     if (!disarida) { aktif.kurtarma[p.name] = 0; continue; }
     aktif.kurtarma[p.name] = (aktif.kurtarma[p.name] ?? 0) + 1;
     if (aktif.kurtarma[p.name] > DOVUS_CFG.maxKurtarma) {
-      for (const q of [a, b]) q.sendMessage("§c[Düello] Stadyum bozuk görünüyor, düello iptal edildi.");
-      return dovusIptal("stadyum bozuk");
+      for (const q of [a, b]) q.sendMessage("§c[Düello] Saha uygun değil, düello iptal edildi.");
+      return dovusIptal("saha uygun degil");
     }
-    const kondu = isinla(p, p.name === aktif.ad.a ? aktif.arena.a : aktif.arena.b, m.d);
+    const kondu = isinla(p, p.name === aktif.ad.a ? saha.a : saha.b, m.d);
     try { p.onScreenDisplay.setActionBar(kondu ? "§cSahadan çıkamazsın" : "§cSaha zemini yok!"); } catch { }
   }
 
@@ -737,9 +877,15 @@ export function dovusBitir(kazananAd, sebep, bahisIadeEdildi) {
     for (const isim of [ad.a, ad.b]) {
       try {
         const p = oyuncu(isim);
-        if (p?.isValid && arenadaMi(api, p) && !dovustaMi(isim)) {
+        if (!p?.isValid || dovustaMi(isim)) continue;
+        // Zaten eski yerine dondiyse dokunma. Saha oyuncunun kendi
+        // durdugu yer olabilir; o zaman "sahada" gorunmesi normaldir.
+        const k = yedek[isim]?.konum;
+        const yerinde = k && p.dimension.id === (k.d ?? p.dimension.id) &&
+          Math.hypot(p.location.x - k.x, p.location.z - k.z) <= 3;
+        if (!yerinde && (sahadaMi(bitti.saha, p) || arenadaMi(api, p))) {
           eveGonder(p, yedek[isim]);
-          p.sendMessage("§7[Düello] Stadyumdan çıkarıldın.");
+          p.sendMessage("§7[Düello] Sahadan çıkarıldın.");
         }
       } catch { }
     }
@@ -788,11 +934,11 @@ export function aktifDovus() { return aktif; }
 // Arenada takilan icin acil cikis
 export function arenadanCik(p, api) {
   if (dovustaMi(p.name)) { p.sendMessage("§c[Düello] Dövüş sürerken çıkamazsın."); return false; }
-  if (!arenadaMi(api, p)) { p.sendMessage("§7[Düello] Zaten stadyumda değilsin."); return false; }
   const y = yedekleriOku(api)[p.name];
+  if (!y && !arenadaMi(api, p)) { p.sendMessage("§7[Düello] Takılı kaldığın bir düello yok."); return false; }
   yedekYaz(api, p.name, undefined);
   const oldu = eveGonder(p, y);
-  if (oldu) p.sendMessage("§a[Düello] §7Stadyumdan çıkarıldın.");
+  if (oldu) p.sendMessage("§a[Düello] §7Düellodan önceki yerine döndün.");
   else p.sendMessage("§c[Düello] Çıkarılamadın. §7Yatağında uyu ya da yönetici /tp ile alsın.");
   return oldu;
 }
@@ -809,7 +955,8 @@ export function dovusMenu(p, api) {
       `§7Kendi eşyalarınla dövüşürsün — §fmod eşya vermez, almaz§7.\n` +
       `§7Canı ${DOVUS_CFG.bitisCani / 2} kalbin altına düşen kaybeder; ölüm yok.\n` +
       `§7Süren düello: ${s}\n` +
-      `§7Stadyum: §f${arena?.merkez ? `${Math.round(arena.merkez.x)}, ${Math.round(arena.merkez.z)}` : "kurulmadı (ilk düelloda otomatik)"}\n` +
+      `§7Saha: §fmeydan okuyan seçer §8(durduğun yer ya da arsan)\n` +
+      `§7İkiniz de §faynı noktaya§7 ışınlanırsınız, stadyum kurulmaz.\n` +
       `§7Bakiyen: §a${api.fmt(api.paraOku(p))}`
     );
   const islem = [];
@@ -818,8 +965,8 @@ export function dovusMenu(p, api) {
   ekle("§lMeydan Oku\n§r§7Bir oyuncuya istek gönder", "textures/items/iron_sword", () => kisiSec(p, api));
   ekle(`§lGelen İstekler §7(${gelen})`, "textures/items/paper", () => istekEkrani(p, api));
   ekle("§lKurallar", "textures/items/book_normal", () => kurallar(p, api));
-  if (arenadaMi(api, p) && !dovustaMi(p.name))
-    ekle("§e§lStadyumdan Çık\n§r§7Takıldıysan buradan çık", "textures/blocks/barrier", () => { arenadanCik(p, api); dovusMenu(p, api); });
+  if (!dovustaMi(p.name) && (yedekleriOku(api)[p.name] || arenadaMi(api, p)))
+    ekle("§e§lDüellodan Çık\n§r§7Takıldıysan eski yerine dön", "textures/blocks/barrier", () => { arenadanCik(p, api); dovusMenu(p, api); });
   if (api.adminMi(p)) {
     ekle("§c§lStadyumu Buraya Kur\n§r§7Durduğun yere inşa eder", "textures/blocks/stonebrick", () => arenaKurOnay(p, api));
     ekle("§c§lStadyumu Kaldır §7(tek tık)\n§r§7En yakın arenayı siler, evine dokunmaz", "textures/blocks/tnt_side",
@@ -841,15 +988,18 @@ function kisiSec(p, api) {
       .button("§7< Geri").show(p).then(r => { if (!r.canceled) dovusMenu(p, api); });
     return;
   }
+  const sahalar = sahaSecenekleri(p, api);
   new ModalFormData().title("§lMEYDAN OKU")
     .dropdown("Kime meydan okuyorsun?", aday.map(x => x.name))
+    .dropdown("Nerede dövüşelim?", sahalar.map(x => x.etiket))
     .textField("Bahis (boş = bahissiz)", "sadece rakam", { defaultValue: "0" })
     .show(p).then(r => {
       if (r.canceled) return dovusMenu(p, api);
       const hedef = aday[r.formValues?.[0] ?? 0];
-      const bahis = parseInt(String(r.formValues?.[1] ?? "0").replace(/[^\d]/g, ""), 10) || 0;
+      const saha = sahalar[r.formValues?.[1] ?? 0]?.saha;
+      const bahis = parseInt(String(r.formValues?.[2] ?? "0").replace(/[^\d]/g, ""), 10) || 0;
       if (!hedef) return dovusMenu(p, api);
-      istekGonder(p, hedef, bahis, api);
+      istekGonder(p, hedef, bahis, api, saha);
     });
 }
 
@@ -862,15 +1012,17 @@ function kurallar(p, api) {
       `§f- Karşılıklı adil olması size kalmış.\n\n` +
       `§e§lNASIL İŞLER\n` +
       `§f1.§7 İstek gönderirsin, karşı taraf kabul eder.\n` +
-      `§f2.§7 Konumunuz kaydedilir, ikiniz sahanın iki ucuna ışınlanır.\n` +
+      `§f2.§7 Konumunuz kaydedilir, ikiniz aynı noktaya ışınlanır.\n` +
       `§f3.§7 §f${DOVUS_CFG.geriSayim} saniye§7 geri sayım (bu sırada canınız dolar).\n` +
       `§f4.§7 Canı §f${DOVUS_CFG.bitisCani / 2} kalbin§7 altına düşen kaybeder.\n` +
       `§7   Ölüm beklenmez, o yüzden §feşyan düşmez§7.\n` +
       `§f5.§7 Biter bitmez ikiniz de §feski yerinize§7 dönersiniz.\n\n` +
-      `§e§lSTADYUM\n` +
-      `§7${DOVUS_CFG.saha * 2 + 1}x${DOVUS_CFG.saha * 2 + 1} çim saha, koşu pisti, ${DOVUS_CFG.tribunKat} katlı tribün,\n` +
-      `§7dış duvar ve aydınlatma. Sahanın çevresi ve üstü görünmez\n§7duvarla kapalı; sahadan çıkamazsın.\n` +
-      `§8Takılırsan: Düello menüsü > Stadyumdan Çık (ya da §f!cik§8).\n\n` +
+      `§e§lSAHA\n` +
+      `§7Stadyum kurulmaz, kimsenin arazisi bozulmaz.\n` +
+      `§7Meydan okuyan sahayı seçer: §fdurduğu yer§7 ya da\n§fkendi arsalarından biri§7.\n` +
+      `§7İkiniz de §faynı noktaya§7, karşılıklı ışınlanırsınız.\n` +
+      `§7Arsada dövüşürken arsa sınırı, açık alanda ${DOVUS_CFG.arenaYaricap} blok\n§7yarıçap sınırdır; dışarı çıkan geri konur.\n` +
+      `§8Takılırsan: Düello menüsü > Düellodan Çık (ya da §f!cik§8).\n\n` +
       `§e§lÖDÜL\n` +
       `§7Bahissiz: kazanana §a${api.fmt(DOVUS_CFG.odul)}\n` +
       `§7Bahisli: iki bahis de kazanana. Berabere ise iade.\n` +

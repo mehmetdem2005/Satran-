@@ -1,12 +1,12 @@
 {
   "format_version": 2,
   "header": {
-    "name": "Market & Ekonomi BP v3.4",
-    "description": "v3.4 | Stadyumu kaldirma tek tikla: en yakin arenayi kendi bulur, evi ve tarlayi silmez.",
+    "name": "Market & Ekonomi BP v3.5",
+    "description": "v3.5 | Duello artik arsanda ya da durdugun yerde: stadyum kurulmuyor, ikiniz de ayni noktaya isinlaniyorsunuz.",
     "uuid": "bb41fa3d-7901-4559-8e61-d650ac191764",
     "version": [
       3,
-      4,
+      5,
       0
     ],
     "min_engine_version": [
@@ -22,7 +22,7 @@
       "uuid": "b9808c32-f7e3-4a89-93e1-f00313e58099",
       "version": [
         3,
-        4,
+        5,
         0
       ],
       "entry": "scripts/main.js"
@@ -41,7 +41,7 @@
       "uuid": "201cbafc-bcfc-4212-a13f-428a03328b5b",
       "version": [
         3,
-        4,
+        5,
         0
       ]
     }

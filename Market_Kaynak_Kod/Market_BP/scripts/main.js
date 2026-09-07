@@ -13,7 +13,7 @@ const { ActionFormData, ModalFormData } = ui;
 
 // ==================== AYARLAR ====================
 const CFG = {
-  surum: "3.4",
+  surum: "3.5",
   ad: "m",
   objective: "money",
   simge: "$",
@@ -1687,6 +1687,7 @@ function topluSat(p) {
 const API = {
   yukle, kaydet, paraOku, paraEkle, fmt, adminMi, sopaVer,
   paraVer: paraTeslim,          // cevrimdisi oyuncuya da odeme yapar
+  arsalarim: (ad) => Arsa.oyuncuArsalari(API, ad),   // duello sahasi secimi
   esyaVer: envantereVer,
   dovustaMi: (ad) => Dovus.dovustaMi(ad),
   simge: CFG.simge,

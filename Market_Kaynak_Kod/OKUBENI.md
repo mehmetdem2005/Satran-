@@ -1,4 +1,4 @@
-# Market & Ekonomi — Kaynak Kod (v3.4)
+# Market & Ekonomi — Kaynak Kod (v3.5)
 
 Bu klasör Minecraft Bedrock için yazılan Market/Ekonomi addon'ının tüm
 kaynak dosyalarını içerir. `.mcaddon` sadece bunların zip'lenmiş hali;
@@ -91,6 +91,46 @@ Düzeltmeler:
 
 Arsa ayarları `arsa.js` en başındaki `ARSA_CFG` içinde: blok başı fiyat,
 en küçük/en büyük kenar, oyuncu başına arsa sayısı, iade oranı.
+
+## Düello sahası: arsan ya da durduğun yer (v3.5)
+
+**Düello için artık stadyum kurulmuyor.** Kimsenin arazisi bozulmuyor.
+
+Meydan okuyan, istek gönderirken sahayı da seçiyor:
+
+| Seçenek | Nerede dövüşülür |
+|---|---|
+| **Burası** | Meydan okuyanın o an durduğu nokta |
+| **Arsa: <ad>** | Kendi arsalarından biri (kiraladıkların da listede) |
+| **Stadyum** | Daha önce yönetici bir stadyum kurduysa o da seçilebilir |
+
+İkiniz de **aynı noktaya** ışınlanırsınız — aranızda 2 blok, karşılıklı
+bakarak (`DOVUS_CFG.ayniNoktaAralik`). Eskiden 61 bloklu sahanın iki ucuna
+atılıyordunuz; artık düello başlar başlamaz karşı karşıyasınız.
+
+**Saha sınırı**
+
+- Arsa seçildiyse sınır **arsanın kendi sınırları** (2 blok pay ile).
+- Nokta seçildiyse merkez etrafında **40 blok** yarıçap
+  (`DOVUS_CFG.arenaYaricap`).
+- Dışarı çıkan geri konur; üst üste konamıyorsa (zemin yok) düello iptal
+  edilir ve ikisi de eski yerine döner.
+
+**Zemin doğrulaması**
+
+Işınlanmadan önce iki başlangıç noktasının da altında blok olduğu
+doğrulanır ve her oyuncunun Y'si **ayrı** hesaplanır — biri yamaçta kalırsa
+ortak bir Y ikisinden birini havada bırakıyordu. Zemin bulunamazsa düello
+hiç başlamaz ("Sahanın zemini bulunamadı"), kimse ışınlanmaz.
+
+**Arsa koruması düelloyu engellemez**: arsa koruması blokları ve hayvanları
+korur, oyunculara karışmaz — kiracı, üye ya da yabancı, arsada PvP serbest.
+
+Düello bitince ikiniz de düello öncesi konumunuza dönersiniz. Takılırsan
+`!cik` ya da Düello menüsü > **Düellodan Çık**.
+
+Stadyum kurma/kaldırma düğmeleri yönetici menüsünde duruyor; stadyum kurmak
+artık zorunlu değil, sadece isteyene.
 
 ## Düello / PvP (v2.9'da baştan yazıldı)
 
@@ -583,7 +623,7 @@ kaynaktan kaç eşya topladığını yazıyor.
 ## Paketleme
 
 ```bash
-bash paketle.sh          # -> Market_v3.4.mcaddon
+bash paketle.sh          # -> Market_v3.5.mcaddon
 ```
 
 Sürüm numarası hem `manifest.json` dosyalarında hem de `main.js` içindeki

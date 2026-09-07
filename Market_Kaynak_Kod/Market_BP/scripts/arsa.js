@@ -65,6 +65,20 @@ export function onbellegiBosalt() { ONBELLEK = null; }
 function icinde(a, d, x, z) {
   return a.d === d && x >= a.x1 && x <= a.x2 && z >= a.z1 && z <= a.z2;
 }
+// Bir oyuncunun kullanabilecegi arsalar (sahibi oldugu + kiraladiklari).
+// Duello sahasi secimi bunu kullanir.
+export function oyuncuArsalari(api, ad) {
+  try {
+    return arsalar(api)
+      .filter(a => a.s === ad || kiraciMi(a, ad))
+      .map(a => ({
+        id: a.id, ad: a.ad, d: a.d, s: a.s,
+        x1: a.x1, z1: a.z1, x2: a.x2, z2: a.z2,
+        tp: a.tp, kiraci: a.s !== ad
+      }));
+  } catch { return []; }
+}
+
 export function arsaBul(api, d, x, z) {
   const x0 = Math.floor(x), z0 = Math.floor(z);
   const liste = arsalar(api);
