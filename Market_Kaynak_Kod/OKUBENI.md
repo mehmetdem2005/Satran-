@@ -1,4 +1,4 @@
-# Market & Ekonomi — Kaynak Kod (v3.0)
+# Market & Ekonomi — Kaynak Kod (v3.1)
 
 Bu klasör Minecraft Bedrock için yazılan Market/Ekonomi addon'ının tüm
 kaynak dosyalarını içerir. `.mcaddon` sadece bunların zip'lenmiş hali;
@@ -323,6 +323,33 @@ işaret ediyor.
 ailesi şablonları, kök blok ikonu, son çare `textures/items/<id>` tahmini.
 Listeyi tazelemek için: `python3 ikon_guncelle.py`.
 
+## Arsalarına ışınlanma (v3.1)
+
+Herkes **kendi** arsalarına ışınlanabilir; başkasının arsasına ışınlanamaz.
+
+- **Arsa menüsü → Arsalarım**: kendi arsaların adlarıyla listelenir, birine
+  basınca oraya ışınlanırsın. Hangi arsanın içinde olduğun "(buradasın)"
+  ile işaretlenir.
+- **`!ev`**: tek arsan varsa doğrudan oraya ışınlar, birden fazlaysa listeyi
+  açar.
+- **Işınlanma noktası**: varsayılan olarak arsanın ortası (en üstteki
+  bloğun üstü). Arsanın içinde durup Arsalarım → ⚙ Arsaları Yönet →
+  *Işınlanma Noktasını Ayarla* dersen o nokta (bakış açınla birlikte)
+  kaydedilir — evinin kapısı, madenin girişi, ne istersen.
+- Arsaların adını değiştirmek yine aynı yerde: *Adını Değiştir*.
+
+Kurallar:
+
+- Sadece **sahibi** ışınlanabilir. Üyeler varsayılan olarak ışınlanamaz;
+  istersen `arsa.js` içinde `ARSA_CFG.uyeIsinlanabilir = true` yap.
+- Düello sırasında ışınlanma kapalı (dövüşten kaçılmasın).
+- Üst üste ışınlanmayı engellemek için 3 saniyelik bekleme var
+  (`ARSA_CFG.isinlanmaBekleme`).
+- Işınlanmayı tamamen kapatmak: `ARSA_CFG.isinlanma = false`.
+
+Özel nokta arsa kaydına `tp` alanı olarak yazılır; eski kayıtlarda bu alan
+yoktur ve arsanın ortası kullanılır — göç gerekmez.
+
 ## Arsa sopası (claim wand)
 
 Craft masasında **2x2 çubuk (4 çubuk)** ile yapılır. `!sopa` komutu ya da
@@ -410,7 +437,7 @@ kaynaktan kaç eşya topladığını yazıyor.
 ## Paketleme
 
 ```bash
-bash paketle.sh          # -> Market_v3.0.mcaddon
+bash paketle.sh          # -> Market_v3.1.mcaddon
 ```
 
 Sürüm numarası hem `manifest.json` dosyalarında hem de `main.js` içindeki

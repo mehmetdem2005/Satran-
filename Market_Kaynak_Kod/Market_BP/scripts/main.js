@@ -13,7 +13,7 @@ const { ActionFormData, ModalFormData } = ui;
 
 // ==================== AYARLAR ====================
 const CFG = {
-  surum: "3.0",
+  surum: "3.1",
   ad: "m",
   objective: "money",
   simge: "$",
@@ -372,6 +372,8 @@ function yardim(p) {
       `§e§lARSA / BÖLGE\n§7Köşe 1'i koy, karşı köşeye yürü, satın al.\n` +
       `§7Arsanda senden ve üyelerinden başkası blok kıramaz, koyamaz,\n§7sandık açamaz, hayvanlarına vuramaz.\n` +
       `§7Arsa sopası: §f2x2 çubuk§7 ile yapılır (§f!sopa§7 da verir).\n` +
+      `§7Kendi arsalarına ışınlanmak: §fArsa menüsü > Arsalarım§7 ya da §f!ev§7.\n` +
+      `§7Başkasının arsasına ışınlanamazsın.\n` +
       `§7Sopayla §fsol tık§7 = 1. köşe, §fsağ tık§7 = 2. köşe + satın alma,\n§7havaya sağ tık = arsa menüsü.\n` +
       `§7Bir şey çalışmıyorsa: §fArsa menüsü > Koruma Durumu§7.\n\n` +
       `§e§lKITAP KAYBOLURSA\n§f!kitap§7 , §f/give @s mk:kontrol_kitabi§7 ya da\n§7Crafting Table'da §f1 Kitap + 1 Gold Ingot§7.`
@@ -1392,6 +1394,7 @@ function calistir(p, komut, arg) {
     case "alim": return alimIlani(p);
     case "hazir": case "shop": return sistemKategoriler(p);
     case "arsa": case "claim": return Arsa.arsaMenu(p, API);
+    case "ev": case "home": case "arsalarim2": return void Arsa.eveIsinla(p, API);
     case "topluSat": case "toplusat": return topluSat(p);
     case "ara": return marketEkrani(p, { arama: arg.join(" "), sayfa: 0 });
     case "rehber": return rehberSec(p);
@@ -1423,7 +1426,7 @@ function calistir(p, komut, arg) {
       return p.sendMessage(it ? `§a[Market] §fElindeki: §e${it.typeId}` : "§c[Market] Elinde bir esya yok.");
     }
     default:
-      p.sendMessage("§7[Market] §f!menu !market !ara !sat !takas !alim !teklif !teklifler !para !arsa !hazir !ilanlarim !rehber !bakiye !id !kitap !sopa !dovus !cik !yenile !liste");
+      p.sendMessage("§7[Market] §f!menu !market !ara !sat !takas !alim !teklif !teklifler !para !arsa !hazir !ilanlarim !rehber !bakiye !id !kitap !sopa !ev !dovus !cik !yenile !liste");
   }
 }
 
@@ -1668,6 +1671,7 @@ function topluSat(p) {
 const API = {
   yukle, kaydet, paraOku, paraEkle, fmt, adminMi, sopaVer,
   esyaVer: envantereVer,
+  dovustaMi: (ad) => Dovus.dovustaMi(ad),
   simge: CFG.simge,
   anaMenu: (p) => kitapMenu(p)
 };

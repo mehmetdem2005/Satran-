@@ -21,7 +21,12 @@ export const ARSA_CFG = {
   // etiketi ver: /tag "Oyuncu" add market_admin
   adminGecebilir: false,
   hayvanKorumasi: true, // arsadaki hayvan/esya cercevesi/zirh standi korunur
-  sinirGosterme: true   // menude "Sinirlari Goster" (parcacikla cizer)
+  sinirGosterme: true,  // menude "Sinirlari Goster" (parcacikla cizer)
+
+  // v3.1: kendi arsana isinlanma
+  isinlanma: true,          // "Arsalarim" listesinden kendi arsana isinlan
+  uyeIsinlanabilir: false,  // uyeler de sahibinin arsasina isinlanabilsin mi
+  isinlanmaBekleme: 3       // saniye - ust uste isinlanma engeli
 };
 
 export const SOPA_ID = "mk:arsa_sopasi";
@@ -277,6 +282,80 @@ function sinirlariGoster(p, a) {
   for (let z = a.z1; z <= a.z2; z += adim) { nokta(a.x1, z); nokta(a.x2, z); }
 }
 
+// ==================== ISINLANMA ====================
+const sonIsinlanma = new Map();   // oyuncu.id -> zaman
+
+// Arsanin isinlanma noktasi: sahibi ayarladiysa o, yoksa arsanin ortasi.
+function isinlanmaNoktasi(a) {
+  if (a.tp && typeof a.tp.x === "number") return { ...a.tp, ozel: true };
+  return { x: Math.floor((a.x1 + a.x2) / 2), y: undefined, z: Math.floor((a.z1 + a.z2) / 2), ozel: false };
+}
+
+// Verilen x,z icin ustune basilabilecek guvenli yukseklik.
+function guvenliY(boyut, x, z, tercih) {
+  if (typeof tercih === "number") {
+    try {
+      const b = boyut.getBlock({ x, y: tercih - 1, z });
+      if (b && !b.isAir) return tercih;
+    } catch { }
+  }
+  try {
+    const ust = boyut.getTopmostBlock?.({ x, z });
+    if (ust) return ust.location.y + 1;
+  } catch { }
+  return typeof tercih === "number" ? tercih : 80;
+}
+
+// Bu oyuncu bu arsaya isinlanabilir mi?
+export function isinlanabilirMi(p, a, api) {
+  if (!a) return { olur: false, sebep: "Arsa bulunamadı." };
+  if (a.s === p.name) return { olur: true };
+  if (ARSA_CFG.uyeIsinlanabilir && (a.u ?? []).includes(p.name)) return { olur: true };
+  try { if (api.adminMi(p) && p.hasTag?.("market_admin")) return { olur: true }; } catch { }
+  return { olur: false, sebep: "Burası senin arsan değil." };
+}
+
+export function arsayaIsinla(p, api, a) {
+  if (!ARSA_CFG.isinlanma) { p.sendMessage("§c[Arsa] Işınlanma kapalı."); return false; }
+  const izin = isinlanabilirMi(p, a, api);
+  if (!izin.olur) { p.sendMessage(`§c[Arsa] ${izin.sebep}`); return false; }
+  try { if (api.dovustaMi?.(p.name)) { p.sendMessage("§c[Arsa] Düello sırasında ışınlanamazsın."); return false; } } catch { }
+
+  const bekle = ARSA_CFG.isinlanmaBekleme * 1000;
+  const son = sonIsinlanma.get(p.id) ?? 0;
+  if (bekle > 0 && Date.now() - son < bekle) {
+    p.sendMessage(`§7[Arsa] Biraz bekle (${Math.ceil((bekle - (Date.now() - son)) / 1000)} sn).`);
+    return false;
+  }
+
+  const nokta = isinlanmaNoktasi(a);
+  let boyut;
+  try { boyut = world.getDimension(a.d ?? "minecraft:overworld"); }
+  catch { p.sendMessage("§c[Arsa] Arsanın boyutu bulunamadı."); return false; }
+  const y = guvenliY(boyut, nokta.x, nokta.z, nokta.y);
+  try {
+    p.teleport({ x: nokta.x + 0.5, y, z: nokta.z + 0.5 },
+      { dimension: boyut, rotation: typeof nokta.bakis === "number" ? { x: 0, y: nokta.bakis } : undefined });
+  } catch (e) {
+    console.warn("[Arsa] isinlanma hatasi: " + e);
+    p.sendMessage("§c[Arsa] Işınlanamadın. §7Arsanın olduğu bölge yüklü olmayabilir, tekrar dene.");
+    return false;
+  }
+  sonIsinlanma.set(p.id, Date.now());
+  try { p.playSound("mob.endermen.portal"); } catch { }
+  p.sendMessage(`§a[Arsa] §f${a.ad}§7 arsasına ışınlandın.${nokta.ozel ? "" : " §8(ortası)"}`);
+  return true;
+}
+
+// !ev komutu: tek arsan varsa oraya isinlar, coksa listeyi acar
+export function eveIsinla(p, api) {
+  const benim = arsalar(api).filter(a => a.s === p.name);
+  if (benim.length === 0) { p.sendMessage("§7[Arsa] Henüz arsan yok. §f!arsa"); return false; }
+  if (benim.length === 1) return arsayaIsinla(p, api, benim[0]);
+  arsalarimMenu(p, api);
+  return true;
+}
+
 // ==================== MENULER ====================
 export function arsaMenu(p, api) {
   const hepsi = arsalar(api);
@@ -325,7 +404,7 @@ export function arsaMenu(p, api) {
     p.sendMessage("§7[Arsa] Seçim temizlendi.");
     arsaMenu(p, api);
   });
-  ekle("§lArsalarım\n§r§7Üye ekle, sil, sınır göster", "textures/items/book_normal",
+  ekle(`§lArsalarım §7(${benim.length})\n§r§7Kendi arsana ışınlan, yönet`, "textures/items/mk_sopa",
     () => arsalarimMenu(p, api));
   ekle("§lBurası Kimin?\n§r§7Bulunduğun bölgeyi sorgula", "textures/items/compass_item", () => {
     if (burada) {
@@ -444,19 +523,48 @@ function arsalarimMenu(p, api) {
       .button("§7< Geri").show(p).then(r => { if (!r.canceled) arsaMenu(p, api); });
     return;
   }
-  const f = new ActionFormData().title("§lARSALARIM").body("§7Yönetmek istediğine bas.");
-  for (const a of benim) f.button(`§f${a.ad}\n§7${a.x2 - a.x1 + 1}x${a.z2 - a.z1 + 1} §8- ${(a.u ?? []).length} üye`, "textures/items/book_normal");
+  const burada = arsaBul(api, p.dimension.id, p.location.x, p.location.z);
+  const f = new ActionFormData().title("§lARSALARIM")
+    .body(ARSA_CFG.isinlanma
+      ? `§7Bir arsana bas, oraya §fışınlanırsın§7.\n§8Sadece kendi arsalarına ışınlanabilirsin.\n§7Toplam: §f${benim.length}§7 arsa`
+      : `§7Yönetmek istediğine bas.\n§7Toplam: §f${benim.length}§7 arsa`);
+  for (const a of benim) {
+    const olcu = `${a.x2 - a.x1 + 1}x${a.z2 - a.z1 + 1}`;
+    const nokta = a.tp ? "§8özel nokta" : "§8ortası";
+    const sen = burada?.id === a.id ? " §a(buradasın)" : "";
+    f.button(`§f${a.ad}${sen}\n§7${olcu} §8- ${(a.u ?? []).length} üye ${ARSA_CFG.isinlanma ? nokta : ""}`,
+      "textures/items/mk_sopa");
+  }
+  f.button("§e⚙ Arsaları Yönet\n§r§8Üye ekle, ad değiştir, sil");
   f.button("§7< Geri");
   f.show(p).then(r => {
     if (r.canceled) return;
-    if (r.selection === benim.length) return arsaMenu(p, api);
+    if (r.selection === benim.length) return arsaYonetListe(p, api);
+    if (r.selection === benim.length + 1) return arsaMenu(p, api);
+    const a = benim[r.selection];
+    if (!ARSA_CFG.isinlanma) return arsaYonet(p, api, a.id);
+    arsayaIsinla(p, api, a);
+  });
+}
+
+// Yonetim listesi (isinlanma listesinden ayri)
+function arsaYonetListe(p, api) {
+  const benim = arsalar(api).filter(a => a.s === p.name);
+  if (benim.length === 0) return arsalarimMenu(p, api);
+  const f = new ActionFormData().title("§lARSALARI YÖNET").body("§7Yönetmek istediğine bas.");
+  for (const a of benim)
+    f.button(`§f${a.ad}\n§7${a.x2 - a.x1 + 1}x${a.z2 - a.z1 + 1} §8- ${(a.u ?? []).length} üye`, "textures/items/book_normal");
+  f.button("§7< Geri");
+  f.show(p).then(r => {
+    if (r.canceled) return;
+    if (r.selection === benim.length) return arsalarimMenu(p, api);
     arsaYonet(p, api, benim[r.selection].id);
   });
 }
 
 function arsaYonet(p, api, id) {
   const a = arsalar(api).find(x => x.id === id);
-  if (!a) return arsalarimMenu(p, api);
+  if (!a) return arsaYonetListe(p, api);
   const alanBlok = alan(a);
   const iade = Math.floor(alanBlok * ARSA_CFG.birimFiyat * ARSA_CFG.iadeOrani);
 
@@ -467,8 +575,11 @@ function arsaYonet(p, api, id) {
       `§7Sınırlar: §f${a.x1},${a.z1} §7- §f${a.x2},${a.z2}\n` +
       `§7Boyut: §f${a.d.replace("minecraft:", "")}\n` +
       `§7Üyeler: §f${(a.u ?? []).join(", ") || "yok"}\n` +
+      `§7Işınlanma noktası: §f${a.tp ? `${a.tp.x}, ${a.tp.y}, ${a.tp.z}` : "arsanın ortası"}\n` +
       `§7Silersen iade: §a${api.fmt(iade)}`
     )
+    .button("§aBuraya Işınlan", "textures/items/mk_sopa")
+    .button("§eIşınlanma Noktasını Ayarla\n§r§8Durduğun yer", "textures/items/redstone_dust")
     .button("§aÜye Ekle", "textures/items/name_tag")
     .button("§eÜye Çıkar", "textures/items/barrier")
     .button("§eAdını Değiştir", "textures/items/book_writable")
@@ -476,22 +587,43 @@ function arsaYonet(p, api, id) {
     .button("§cArsayı Sil", "textures/blocks/tnt_side")
     .button("§7< Geri")
     .show(p).then(r => {
-      if (r.canceled || r.selection === 5) return arsalarimMenu(p, api);
-      if (r.selection === 0) return uyeEkle(p, api, id);
-      if (r.selection === 1) return uyeCikar(p, api, id);
-      if (r.selection === 2) return adDegistir(p, api, id);
-      if (r.selection === 3) {
+      if (r.canceled || r.selection === 7) return arsaYonetListe(p, api);
+      if (r.selection === 0) { arsayaIsinla(p, api, a); return; }
+      if (r.selection === 1) return isinlanmaNoktasiAyarla(p, api, id);
+      if (r.selection === 2) return uyeEkle(p, api, id);
+      if (r.selection === 3) return uyeCikar(p, api, id);
+      if (r.selection === 4) return adDegistir(p, api, id);
+      if (r.selection === 5) {
         if (a.d !== p.dimension.id) p.sendMessage("§c[Arsa] Bu arsa başka bir boyutta.");
         else { sinirlariGoster(p, a); p.sendMessage("§a[Arsa] §7Sınırlar parçacıkla çizildi."); }
         return arsaYonet(p, api, id);
       }
-      if (r.selection === 4) return arsaSil(p, api, id, iade);
+      if (r.selection === 6) return arsaSil(p, api, id, iade);
     });
+}
+
+// Sahibi, arsanin icinde durdugu yeri isinlanma noktasi yapar.
+function isinlanmaNoktasiAyarla(p, api, id) {
+  const g = arsalar(api).slice();
+  const t = g.find(x => x.id === id);
+  if (!t) return arsaYonetListe(p, api);
+  const x = Math.floor(p.location.x), y = Math.floor(p.location.y), z = Math.floor(p.location.z);
+  if (p.dimension.id !== t.d || !icinde(t, p.dimension.id, x, z)) {
+    p.sendMessage("§c[Arsa] Nokta arsanın İÇİNDE olmalı. §7Arsana git, sonra bu düğmeye bas.");
+    return arsaYonet(p, api, id);
+  }
+  let bakis = 0;
+  try { bakis = p.getRotation().y; } catch { }
+  t.tp = { x, y, z, bakis };
+  arsalariYaz(api, g);
+  p.sendMessage(`§a[Arsa] §7Işınlanma noktası ayarlandı: §f${x}, ${y}, ${z}`);
+  try { p.playSound("random.orb"); } catch { }
+  arsaYonet(p, api, id);
 }
 
 function uyeEkle(p, api, id) {
   const a = arsalar(api).find(x => x.id === id);
-  if (!a) return arsalarimMenu(p, api);
+  if (!a) return arsaYonetListe(p, api);
   const aday = world.getAllPlayers().filter(x => x.name !== p.name && !(a.u ?? []).includes(x.name));
   if (aday.length === 0) {
     // Cevrimdisi oyuncu da eklenebilsin: eskiden online kimse yoksa hic eklenemiyordu.
@@ -522,7 +654,7 @@ function uyeElle(p, api, id) {
 function uyeKaydet(p, api, id, ad) {
   const g = arsalar(api).slice();
   const t = g.find(x => x.id === id);
-  if (!t) return arsalarimMenu(p, api);
+  if (!t) return arsaYonetListe(p, api);
   if (ad === t.s) { p.sendMessage("§7[Arsa] Sahibi zaten sensin."); return arsaYonet(p, api, id); }
   if ((t.u ?? []).includes(ad)) { p.sendMessage("§7[Arsa] Zaten üye."); return arsaYonet(p, api, id); }
   (t.u ??= []).push(ad);
@@ -542,7 +674,7 @@ function uyeCikar(p, api, id) {
       const ad = a.u[r.formValues?.[0] ?? 0];
       const g = arsalar(api).slice();
       const t = g.find(x => x.id === id);
-      if (!t) return arsalarimMenu(p, api);
+      if (!t) return arsaYonetListe(p, api);
       t.u = (t.u ?? []).filter(x => x !== ad);
       arsalariYaz(api, g);
       p.sendMessage(`§a[Arsa] §f${ad} §7çıkarıldı.`);
@@ -552,7 +684,7 @@ function uyeCikar(p, api, id) {
 
 function adDegistir(p, api, id) {
   const a = arsalar(api).find(x => x.id === id);
-  if (!a) return arsalarimMenu(p, api);
+  if (!a) return arsaYonetListe(p, api);
   new ModalFormData().title("§lADI DEĞİŞTİR")
     .textField("Yeni ad", "örn: Çiftlik", { defaultValue: a.ad })
     .show(p).then(r => {
@@ -574,7 +706,7 @@ function arsaSil(p, api, id, iade) {
       if (r.canceled || r.selection !== 0) return arsaYonet(p, api, id);
       const g = arsalar(api).slice();
       const ix = g.findIndex(x => x.id === id);
-      if (ix === -1) return arsalarimMenu(p, api);
+      if (ix === -1) return arsaYonetListe(p, api);
       const [c] = g.splice(ix, 1);
       arsalariYaz(api, g);
       api.paraEkle(p, iade);
