@@ -619,8 +619,9 @@ const HAM_KURAL = [
      "chorus_fruit", "hay_block", "beef", "porkchop", "chicken", "mutton",
      "rabbit", "cod", "salmon", "tropical_fish", "pufferfish"].includes(a)],
 
+  ["Yün & Renkli", "minecraft:white_wool", a => /_wool$/.test(a)],
+
   ["Hayvan Ürünleri", "minecraft:leather", a =>
-    /_wool$/.test(a) ||
     ["string", "feather", "leather", "rabbit_hide", "egg", "brown_egg", "blue_egg",
      "milk_bucket", "honeycomb", "honey_bottle", "bone", "bone_meal", "ink_sac",
      "glow_ink_sac", "scute", "turtle_scute", "armadillo_scute", "slime_ball",
@@ -648,6 +649,19 @@ const HAM_KURAL = [
 
 export const HAM_KATEGORILER = HAM_KURAL.map(([ad, ikon]) => ({ ad, ikon }))
   .concat([{ ad: "Doğal Bloklar", ikon: "minecraft:stone" }]);
+
+// Hazir Markette SATIN ALINAMAYAN kategoriler. Oyuncu bunlari markete
+// satabilir ama marketten alamaz: madenler kazilarak elde edilmeli,
+// parayla alinmamali.
+export const ALINAMAZ_KATEGORILER = new Set(["Madenler & Cevher"]);
+
+// Bu esya Hazir Marketten SATIN ALINABILIR mi? (satmak her zaman serbest)
+export function marketAlinabilir(id) {
+  try {
+    const k = HAM_KATEGORILER[hamKategoriIndex(id)]?.ad;
+    return !ALINAMAZ_KATEGORILER.has(k);
+  } catch { return true; }
+}
 
 export function hamKategoriIndex(id) {
   const a = ad(id);

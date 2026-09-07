@@ -1,4 +1,4 @@
-# Market & Ekonomi — Kaynak Kod (v3.1)
+# Market & Ekonomi — Kaynak Kod (v3.2)
 
 Bu klasör Minecraft Bedrock için yazılan Market/Ekonomi addon'ının tüm
 kaynak dosyalarını içerir. `.mcaddon` sadece bunların zip'lenmiş hali;
@@ -237,13 +237,14 @@ içinde; yeni bir biçim değişikliği yaparsan `VERI_SURUMU` sayısını artı
 ## Hazır Market sadece ham madde (v2.7)
 
 Hazır Market artık oyundaki her eşyayı satmıyor. Yalnızca **doğadan
-toplanan ham maddeler** listeleniyor — ~296 eşya, altı kategoride:
+toplanan ham maddeler** listeleniyor — ~296 eşya, yedi kategoride:
 
 | Kategori | İçerik |
 |---|---|
 | Tarım & Yiyecek | buğday, havuç, patates, pancar, kabak, karpuz, **kamış, şeker**, kakao, bambu, kaktüs, meyveler, çiğ et ve balık |
-| Hayvan Ürünleri | **yün (16 renk), ip, tüy, deri, tavşan derisi**, yumurta, süt, bal, petek, kemik, mürekkep, kabuk |
-| Madenler & Cevher | tüm cevherler, ham demir/altın/bakır, külçeler, elmas, zümrüt, lapis, kızıltaş, kuvars, ametist, netherit, çakmaktaşı, kil topağı |
+| Yün & Renkli | **16 rengin yünü** (v3.2'de kendi düğmesine ayrıldı) |
+| Hayvan Ürünleri | ip, tüy, deri, tavşan derisi, yumurta, süt, bal, petek, kemik, mürekkep, kabuk, barut |
+| Madenler & Cevher | tüm cevherler, ham demir/altın/bakır, külçeler, elmas, zümrüt, lapis, kızıltaş, kuvars, ametist, netherit, çakmaktaşı, kil topağı — **v3.2: sadece satılır, satın alınamaz** |
 | Ahşap | tüm kütükler, odunlar, soyulmuş kütükler, tahtalar, fidanlar, yapraklar |
 | Bitki & Deniz | çiçekler, mantarlar, mercanlar, deniz yosunu, sarmaşık, yosun |
 | Doğal Bloklar | taş, çakıltaşı, derin arduvaz, toprak, kum, çakıl, kil, netherrack, obsidyen, buz, sünger |
@@ -261,6 +262,29 @@ Ayar `main.js` içindeki `CFG.sadeceHammadde`. `false` yaparsan eski
 davranışa (her eşya listede) döner. Hangi eşyanın ham madde sayıldığı
 `fiyat.js` içindeki `HAM_TAM` / `HAM_DESEN` listelerinde — bir şey
 eklemek/çıkarmak için orası yeterli.
+
+### Madenler sadece satılır (v3.2)
+
+Maden ve cevherler **parayla alınamaz**; kazarak elde edilir. Markete
+satmak serbesttir, hatta tek para kaynağın odur.
+
+- Liste satırında fiyat yerine `$12 / sadece satılır` yazar.
+- Eşya ekranında "SATIN AL" düğmesinin yerinde `(Sadece satılır)` durur;
+  bassan da alım reddedilir.
+- **Oyuncu marketi bundan etkilenmez**: oyuncular birbirine elmas, demir,
+  netherit satmaya devam eder. Kısıtlama sadece sınırsız stoklu Hazır
+  Market içindir — yoksa "para bas, elmas al" döngüsü ekonomiyi bozardı.
+
+Hangi kategorilerin alınamayacağı `fiyat.js` içindeki
+`ALINAMAZ_KATEGORILER` kümesinde; kontrolü `marketAlinabilir(id)` yapar.
+Başka bir kategoriyi de satın alınamaz yapmak istersen o kümeye adını
+eklemen yeterli.
+
+### Yün kendi kategorisinde (v3.2)
+
+16 rengin yünü artık "Hayvan Ürünleri" içinde kaybolmuyor, kendi
+**Yün & Renkli** düğmesinde. Kural `fiyat.js` içindeki `HAM_KURAL`
+listesinde tek satır: `/_wool$/`.
 
 ## Fiyatlandırma (v2.4'te elden geçti)
 
@@ -350,6 +374,61 @@ Kurallar:
 Özel nokta arsa kaydına `tp` alanı olarak yazılır; eski kayıtlarda bu alan
 yoktur ve arsanın ortası kullanılır — göç gerekmez.
 
+## Arsa pazarı: satış ve kiralama (v3.2)
+
+Bir oyuncu artık **10 arsaya** kadar kurabilir (`ARSA_CFG.maxArsaOyuncu`,
+eskiden 3) ve arsalarını **istediği fiyata** başka oyunculara satabilir ya
+da kiraya verebilir.
+
+**Arsa menüsü → Arsa Pazarı** (`!pazar`) başkalarının satılık/kiralık
+arsalarını listeler; bir ilana basınca boyutu, sınırları, sahibi ve fiyatı
+görünür.
+
+### Satış
+
+- Sahibi: **Arsalarım → Arsaları Yönet → (arsa) → Satışa Koy**, fiyatı
+  kendisi yazar (öneri olarak kuruluş bedeli hazır gelir).
+- Alıcı pazardan "SATIN AL" der. Para alıcıdan düşer, satıcıya geçer —
+  satıcı **çevrimdışıysa** para bekleyen ödemelere yazılır, oyuna girince
+  otomatik alır.
+- Devirde arsanın sahibi değişir, **üye listesi sıfırlanır**, satış ve kira
+  ilanları kalkar. Yeni sahip adını değiştirebilir, ışınlanma noktası
+  koyabilir.
+- Alıcının arsa hakkı doluysa (10/10) satın alma reddedilir.
+- Form açıkken ilan değişirse (başkası kaptı, fiyat değişti, arsa kiraya
+  girdi) işlem iptal edilir — para gitmez.
+
+### Kiralama
+
+- Sahibi **Kiraya Ver** der: bedel + kaç gün (en fazla
+  `ARSA_CFG.maxKiraGun` = 60).
+- Kiracı öder; kira boyunca o arsada **inşa edebilir** ve **oraya
+  ışınlanabilir**. Arsa sahibi değişmez, sahibi de haklarını kaybetmez.
+- Kiracı **Arsalarım** listesinde arsayı "kiracısısın, 2 gün 3 saat kaldı"
+  diye görür. Yönet ekranından **Kirayı Uzat** (süre mevcut sürenin üstüne
+  eklenir) ya da **Kiradan Çık** (para iadesi yok) diyebilir.
+- Sahibi isterse **Kiracıyı Çıkar** der; kalan sürenin parası oransal
+  olarak kiracıya iade edilir (iade sahibinin bakiyesinden düşer).
+- Kirası dolan arsa otomatik geri döner: kiracının inşa hakkı ve
+  ışınlanması kapanır, iki tarafa da mesaj gider. Kontrol ana döngüde
+  dakikada bir çalışır (`Arsa.kiraKontrol`).
+- **Kirada olan arsa silinemez ve satışa konulamaz** — önce kiracı
+  çıkarılır.
+
+### Veri
+
+Yeni alanlar arsa kaydının içine yazılır, eski kayıtlar olduğu gibi
+çalışır (göç gerekmez):
+
+| Alan | Anlamı |
+|---|---|
+| `sat: {fiyat}` | satılık ilanı |
+| `kira: {fiyat, gun}` | kiralık ilanı (kira bitince ilan durur, arsa yeniden kiralanabilir) |
+| `kiraci: {ad, basla, bitis, odenen}` | aktif kiracı; `bitis` gerçek zamanlı milisaniye |
+
+Süreler **gerçek zamanlıdır** (oyun içi gün değil): 3 günlük kira,
+takvimde 3 gün sürer. Dünya kapalıyken de akar.
+
 ## Arsa sopası (claim wand)
 
 Craft masasında **2x2 çubuk (4 çubuk)** ile yapılır. `!sopa` komutu ya da
@@ -427,9 +506,13 @@ ikon_guncelle.py           İkon haritasını resmî resource pack verisinden ü
 ## Komutlar
 
 Sohbete yazılır: `!menu !market !ara !sat !takas !alim !teklif !teklifler
-!para !arsa !hazir !ilanlarim !rehber !bakiye !id !kitap` ve v2.0 ile
-gelen `!yenile` (eşya listesini yeniden kurar), `!liste` (listenin durumunu
-ve hangi kaynaktan kaç eşya geldiğini yazar).
+!para !arsa !pazar !hazir !ilanlarim !rehber !bakiye !id !kitap` ve v2.0
+ile gelen `!yenile` (eşya listesini yeniden kurar), `!liste` (listenin
+durumunu ve hangi kaynaktan kaç eşya geldiğini yazar). v3.2 ile `!pazar`
+satılık/kiralık arsaları açar, `!ev` kendi arsana ışınlar.
+
+Aynı işleri eğik çizgili komutlarla da yapabilirsin:
+`/mk:arsa`, `/mk:pazar`, `/mk:ev`, `/mk:menu`, `/mk:market` ...
 
 Bir şey ters giderse Content Log'daki `[Market]` satırları listenin hangi
 kaynaktan kaç eşya topladığını yazıyor.
@@ -437,7 +520,7 @@ kaynaktan kaç eşya topladığını yazıyor.
 ## Paketleme
 
 ```bash
-bash paketle.sh          # -> Market_v3.1.mcaddon
+bash paketle.sh          # -> Market_v3.2.mcaddon
 ```
 
 Sürüm numarası hem `manifest.json` dosyalarında hem de `main.js` içindeki

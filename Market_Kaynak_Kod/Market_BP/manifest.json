@@ -1,12 +1,12 @@
 {
   "format_version": 2,
   "header": {
-    "name": "Market & Ekonomi BP v3.1",
-    "description": "v3.1 | Herkes kendi arsalarina isinlanabiliyor: Arsalarim listesi, arsa basina ozel isinlanma noktasi, !ev komutu.",
+    "name": "Market & Ekonomi BP v3.2",
+    "description": "v3.2 | Arsa pazari: arsani istedigin fiyata sat ya da kiraya ver, 10 arsa hakki. Hazir markette madenler sadece satilir, yun ayri kategori.",
     "uuid": "bb41fa3d-7901-4559-8e61-d650ac191764",
     "version": [
       3,
-      1,
+      2,
       0
     ],
     "min_engine_version": [
@@ -22,7 +22,7 @@
       "uuid": "b9808c32-f7e3-4a89-93e1-f00313e58099",
       "version": [
         3,
-        1,
+        2,
         0
       ],
       "entry": "scripts/main.js"
@@ -41,7 +41,7 @@
       "uuid": "201cbafc-bcfc-4212-a13f-428a03328b5b",
       "version": [
         3,
-        1,
+        2,
         0
       ]
     }
