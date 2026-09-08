@@ -1,4 +1,4 @@
-# Market & Ekonomi — Kaynak Kod (v3.5)
+# Market & Ekonomi — Kaynak Kod (v3.6)
 
 Bu klasör Minecraft Bedrock için yazılan Market/Ekonomi addon'ının tüm
 kaynak dosyalarını içerir. `.mcaddon` sadece bunların zip'lenmiş hali;
@@ -342,7 +342,7 @@ toplanan ham maddeler** listeleniyor — ~296 eşya, yedi kategoride:
 | Kategori | İçerik |
 |---|---|
 | Tarım & Yiyecek | buğday, havuç, patates, pancar, kabak, karpuz, **kamış, şeker**, kakao, bambu, kaktüs, meyveler, çiğ et ve balık |
-| Yün & Renkli | **16 rengin yünü** (v3.2'de kendi düğmesine ayrıldı) |
+| Yün | **16 rengin yünü**, hepsi aynı fiyat (v3.6) |
 | Hayvan Ürünleri | ip, tüy, deri, tavşan derisi, yumurta, süt, bal, petek, kemik, mürekkep, kabuk, barut |
 | Madenler & Cevher | tüm cevherler, ham demir/altın/bakır, külçeler, elmas, zümrüt, lapis, kızıltaş, kuvars, ametist, netherit, çakmaktaşı, kil topağı — **v3.2: sadece satılır, satın alınamaz** |
 | Ahşap | tüm kütükler, odunlar, soyulmuş kütükler, tahtalar, fidanlar, yapraklar |
@@ -380,11 +380,31 @@ Hangi kategorilerin alınamayacağı `fiyat.js` içindeki
 Başka bir kategoriyi de satın alınamaz yapmak istersen o kümeye adını
 eklemen yeterli.
 
-### Yün kendi kategorisinde (v3.2)
+### Yün: kendi kategorisi ve tek fiyat (v3.6)
 
-16 rengin yünü artık "Hayvan Ürünleri" içinde kaybolmuyor, kendi
-**Yün & Renkli** düğmesinde. Kural `fiyat.js` içindeki `HAM_KURAL`
-listesinde tek satır: `/_wool$/`.
+16 rengin yünü "Hayvan Ürünleri" içinde kaybolmuyor, kendi **Yün**
+düğmesinde. Kural `fiyat.js` içindeki `HAM_KURAL` listesinde tek satır:
+`/_wool$/`.
+
+**Bütün renkler aynı fiyat: satarsan 20, alırsan 44** (`YUN_FIYATI`).
+Eskiden `white_wool` tarifinden (4 ip → 14) hesaplanıyor, diğer 15 renk ise
+sabit 4'e düşüyordu — aynı eşya renkten renge farklı fiyat verdiği için
+rastgele görünüyordu.
+
+Ekonomi açığı yok: 4 ipin **alış** fiyatı 4 × 7 = 28, yün **satışı** 20.
+"İp al, yün yap, sat" hâlâ zarar.
+
+Aynı kusur yünden yapılan eşyalarda da vardı — beyazı tariften, diğer
+renkler sabit sayıdan hesaplanıyordu:
+
+| Eşya | Eskiden (beyaz / kırmızı) | Şimdi |
+|---|---|---|
+| Yatak | 72 / 18 | 72 / 72 |
+| Sancak | 139 / 24 | 139 / 139 |
+| Halı | 15 / 3 | 15 / 15 |
+
+Artık her renk beyazın tariften çıkan değerini alıyor. `moss_carpet` gibi
+`TABAN` listesinde kendi değeri olanlar bundan etkilenmiyor.
 
 ## Fiyatlandırma (v2.4'te elden geçti)
 
@@ -623,7 +643,7 @@ kaynaktan kaç eşya topladığını yazıyor.
 ## Paketleme
 
 ```bash
-bash paketle.sh          # -> Market_v3.5.mcaddon
+bash paketle.sh          # -> Market_v3.6.mcaddon
 ```
 
 Sürüm numarası hem `manifest.json` dosyalarında hem de `main.js` içindeki

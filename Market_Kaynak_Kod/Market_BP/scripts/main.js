@@ -13,7 +13,7 @@ const { ActionFormData, ModalFormData } = ui;
 
 // ==================== AYARLAR ====================
 const CFG = {
-  surum: "3.5",
+  surum: "3.6",
   ad: "m",
   objective: "money",
   simge: "$",
@@ -1473,7 +1473,7 @@ function sistemKategoriler(p) {
 
   const f = new ActionFormData()
     .title("\u00a7lHAZIR MARKET")
-    .body(`\u00a77Her zaman a\u00e7\u0131k, s\u0131n\u0131rs\u0131z stok. \u00a7f${toplam}\u00a77 e\u015fya listede.\n${CFG.sadeceHammadde ? "\u00a78Sadece ham madde: tar\u0131m, hayvan \u00fcr\u00fcn\u00fc, maden, odun.\n" : ""}\u00a77Bakiyen: \u00a7a${fmt(paraOku(p))}\n\u00a78Madenler sat\u0131n al\u0131namaz, sadece markete sat\u0131l\u0131r.\n\u00a78Fiyatlar ham madde de\u011ferinden hesaplan\u0131r; i\u015flenmi\u015f \u00fcr\u00fcn her zaman girdisinden pahal\u0131d\u0131r.${listeDurumu()}`);
+    .body(`\u00a77Her zaman a\u00e7\u0131k, s\u0131n\u0131rs\u0131z stok. \u00a7f${toplam}\u00a77 e\u015fya listede.\n${CFG.sadeceHammadde ? "\u00a78Sadece ham madde: tar\u0131m, y\u00fcn, hayvan \u00fcr\u00fcn\u00fc, maden, odun.\n" : ""}\u00a77Bakiyen: \u00a7a${fmt(paraOku(p))}\n\u00a78Madenler sat\u0131n al\u0131namaz, sadece markete sat\u0131l\u0131r.\n\u00a78Fiyatlar ham madde de\u011ferinden hesaplan\u0131r; i\u015flenmi\u015f \u00fcr\u00fcn her zaman girdisinden pahal\u0131d\u0131r.${listeDurumu()}`);
 
   const islem = [];
   gruplar.forEach((g, i) => {

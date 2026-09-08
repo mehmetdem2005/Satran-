@@ -353,8 +353,24 @@ const ESKI_AD = {
   stonecutter_block: "stonecutter", magma: "magma_block", melon_block: "melon_block"
 };
 
+// Butun yun renkleri ayni fiyat. Eskiden white_wool tarifinden (4 ip)
+// hesaplaniyordu, diger renkler ise sabit 4'e dusuyordu; ayni esyanin
+// renkten renge farkli fiyat vermesi rastgele gorunuyordu.
+// Guvenlik: 4 ip'in ALIS fiyati 4 x ceil(3 x 2.2) = 28 > 20, yani
+// "ip al, yun yap, sat" hala zarar. Acik yok.
+export const YUN_FIYATI = 20;
+
 function hesapla(a) {
   if (TABAN[a] !== undefined) return TABAN[a];
+  if (a.endsWith("_wool")) return YUN_FIYATI;   // her renk ayni
+  // Yunden yapilan esyalarin her rengi beyaziyla AYNI fiyat. Eskiden beyaz
+  // tariften (yatak 72), diger renkler sabit/son-ek kuralindan (18, hali 3)
+  // hesaplaniyordu; ayni esya renge gore 4-5 kat farkli fiyat veriyordu.
+  if (TABAN[a] === undefined) {
+    if (a.endsWith("_bed") && a !== "white_bed") return D("white_bed");
+    if (a.endsWith("_banner") && a !== "banner") return D("banner");
+    if (a.endsWith("_carpet") && a !== "white_carpet") return D("white_carpet");
+  }
   if (ESKI_AD[a] && ESKI_AD[a] !== a) return D(ESKI_AD[a]);
   if (a === "chipped_anvil") return D("anvil") * 0.7;
   if (a === "damaged_anvil") return D("anvil") * 0.45;
@@ -476,10 +492,7 @@ function hesapla(a) {
     return 3 * carpan + 1;
   }
 
-  // renkli aile
-  if (a.endsWith("_wool")) return 4;
-  if (a.endsWith("_bed")) return 18;
-  if (a.endsWith("_banner")) return 24;
+  // renkli aile  (yun ve yunden yapilanlar yukarida sabitlendi)
   if (a.endsWith("_dye")) return 3;
   if (a.endsWith("_concrete") || a.endsWith("_concrete_powder")) return 3;
   if (a.endsWith("_terracotta") || a === "terracotta") return 3;
@@ -619,7 +632,7 @@ const HAM_KURAL = [
      "chorus_fruit", "hay_block", "beef", "porkchop", "chicken", "mutton",
      "rabbit", "cod", "salmon", "tropical_fish", "pufferfish"].includes(a)],
 
-  ["Yün & Renkli", "minecraft:white_wool", a => /_wool$/.test(a)],
+  ["Yün", "minecraft:white_wool", a => /_wool$/.test(a)],
 
   ["Hayvan Ürünleri", "minecraft:leather", a =>
     ["string", "feather", "leather", "rabbit_hide", "egg", "brown_egg", "blue_egg",
