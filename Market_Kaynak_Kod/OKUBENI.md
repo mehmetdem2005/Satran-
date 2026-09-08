@@ -1,4 +1,4 @@
-# Market & Ekonomi — Kaynak Kod (v3.9)
+# Market & Ekonomi — Kaynak Kod (v4.0)
 
 Bu klasör Minecraft Bedrock için yazılan Market/Ekonomi addon'ının tüm
 kaynak dosyalarını içerir. `.mcaddon` sadece bunların zip'lenmiş hali;
@@ -504,6 +504,95 @@ doğrudan `copper_block × 0.22` oldu.
 `arac/arbitraj.mjs` artık bu sınıfı da denetliyor: 45 ana blok × 3 kesim
 biçimi + bakır/cam/yün çevrimleri. Toplam **350 kontrol, 0 açık**.
 
+## Para ölçeği: yüzbinler ve milyonlar (v4.0)
+
+Fiyatlar çok küçüktü — elytra 5.000'e alınıyordu. v4.0 ekonomiyi baştan
+ölçekledi.
+
+### Yeni merdiven
+
+| | Satarsan | Alırsan |
+|---|---|---|
+| Netherit bloğu | 1.761.210 | **6.974.392** |
+| Beacon | 1.038.450 | **4.112.262** |
+| Nether yıldızı | 900.000 | 3.564.000 |
+| **Elytra** | 600.000 | **2.376.000** |
+| Trident | 240.000 | 950.400 |
+| Totem | 180.000 | 712.801 |
+| Netherit külçe | 195.690 | 430.518 |
+| Netherit kazma | 124.260 | 492.070 |
+| Elmas bloğu | 43.200 | 171.073 |
+| Büyülü altın elma | 44.880 | 177.725 |
+| Elmas kılıç | 6.270 | 24.830 |
+| Elmas | 4.800 | 10.560 |
+| Demir külçe | 360 | 793 |
+| Meşe kütüğü | 120 | 264 |
+| Taş / toprak / kum | 30 | 66 |
+
+Başlangıç parası **25.000**, düello ödülü **7.500**, arsa **60/blok**
+(10x10 arsa = 6.000).
+
+### İki katmanlı yapıldı
+
+**1. Küresel ölçek** — `fiyat.js` içindeki tek sabit:
+
+```js
+export const OLCEK = 30;
+```
+
+Bütün fiyatlar bununla çarpılır. Çarpım **bütün oranları birebir korur**:
+"girdiyi al, craftla, çıktıyı sat" hesabının iki tarafı da aynı sayıyla
+büyüdüğü için ölçeği değiştirmek yeni bir arbitraj açığı yaratamaz. `1`
+yaparsan v3.9 fiyatlarına dönersin, `60` yaparsan her şey iki katına çıkar.
+
+**2. Nadir eşyaların tabanı yeniden katmanlandı** — 41 değer. Sadece
+**craftlanamayan** eşyalar elle değiştirildi (elytra 1.500→20.000, nether
+yıldızı 2.500→30.000, totem 400→6.000, ancient debris 260→1.400, elmas
+90→160...). Craftlananlar girdilerinden hesaplandığı için kendiliğinden
+yükseldi ve açık oluşmadı.
+
+Ayrıca oyunda craftlanabilen ama tabloda sabit değeri olan 4 eşya
+(netherit külçe, büyülü altın elma, mace, kurtarma pusulası) tabandan
+çıkarılıp gerçek tariflerine bağlandı — artık arbitraj denetçisi onları da
+kontrol ediyor.
+
+### Eski dünyalar: para göçü
+
+Veri sürümü 2 → 3. Dünya ilk açıldığında **birikmiş her şey aynı katsayıyla
+büyütülür**, yoksa eski oyuncuların parası bir anda değersizleşirdi:
+
+| Ne | Örnek |
+|---|---|
+| Oyuncu bakiyeleri (scoreboard) | 81 → 2.430 |
+| Oyuncu ilanlarının fiyatları | 450 → 13.500 |
+| Bekleyen ödemeler | 1.200 → 36.000 |
+| Fiyat rehberi geçmişi | 90 → 2.700 |
+| Arsa satış / kira fiyatları | 800 → 24.000 |
+
+Göç bir kere çalışır (sürüm işareti tutuluyor), ikinci açılışta tekrar
+çarpmaz. Göçten önce otomatik yedek alınır.
+
+Scoreboard 32 bit tam sayı tuttuğu için (~2,14 milyar) `paraYaz` artık
+`PARA_TAVANI = 2.000.000.000`'a kırpıyor; taşma olmuyor.
+
+### Bu sırada bulunan üç açık
+
+Ölçeği değiştirince arbitraj denetçisi üç gerçek hatayı ortaya çıkardı:
+
+1. **Islak sünger → sünger**: süngerin tabanını yükselttim ama ıslak
+   süngerinkini değil. Islak süngeri 2.640'a alıp fırında kurutup 7.500'e
+   satmak kâr ediyordu. İkisi de 250 oldu.
+2. **Çatlak taş tuğla**: `cracked_stone_bricks` gerçek anasına
+   bağlanamayıp sabit 3'e düşüyordu, türev anasından pahalı çıkıyordu
+   (çatlak 4, düz 1). Yapı son eki çözülürken `cracked_/mossy_/polished_`
+   gibi ön ekler soyulup gerçek ana blok da deneniyor artık.
+3. **Kesilmiş bakır yarım bloğu**: `_slab` kuralı bakır kuralından önce
+   çalıştığı için yarım blok `cut_copper`dan değil `copper`dan
+   hesaplanıyordu. Bakır ailesi kuralı öne alındı, yarım blok ayrıca 0,45
+   ile çarpılıyor.
+
+**354 kontrol, 0 açık.**
+
 ## Fiyatlandırma (v2.4'te elden geçti)
 
 Fiyatlar artık üç katmanda hesaplanıyor:
@@ -768,7 +857,7 @@ kaynaktan kaç eşya topladığını yazıyor.
 ## Paketleme
 
 ```bash
-bash paketle.sh          # -> Market_v3.9.mcaddon
+bash paketle.sh          # -> Market_v4.0.mcaddon
 ```
 
 Sürüm numarası hem `manifest.json` dosyalarında hem de `main.js` içindeki

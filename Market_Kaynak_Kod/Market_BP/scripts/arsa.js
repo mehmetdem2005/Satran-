@@ -7,7 +7,7 @@ const { ActionFormData, ModalFormData } = ui;
 export const ARSA_CFG = {
   anahtar: "mk_arsa",
   koseAnahtar: "mk_arsa_kose",
-  birimFiyat: 2,        // blok basina fiyat (alan * bu)
+  birimFiyat: 60,       // blok basina fiyat (alan * bu) - v4.0 olcegi
   maxKenar: 128,        // tek kenar en fazla
   minKenar: 5,
   maxArsaOyuncu: 10,    // v3.2: bir oyuncu kac arsa kurabilir
@@ -31,7 +31,7 @@ export const ARSA_CFG = {
   // v3.2: arsa pazari (satis / kiralama)
   pazar: true,            // arsalari baska oyunculara satabilir/kiralayabilir
   maxKiraGun: 60,         // tek seferde en fazla kac gunluk kira
-  maxFiyat: 100000000,    // satis/kira fiyat tavani (yanlis yazimi engeller)
+  maxFiyat: 1000000000,   // satis/kira fiyat tavani (yanlis yazimi engeller)
   kiraciUyeEkleyebilir: false
 };
 

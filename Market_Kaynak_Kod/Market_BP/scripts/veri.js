@@ -16,9 +16,10 @@
 //     istenildigi an geri yuklenebilir.
 
 import * as mc from "@minecraft/server";
+import { OLCEK, PARA_TAVANI } from "./fiyat.js";
 const { world } = mc;
 
-export const VERI_SURUMU = 2;          // veri bicimi her degistiginde artir
+export const VERI_SURUMU = 3;          // veri bicimi her degistiginde artir
 const SURUM_ANAHTARI = "mk_veri_surumu";
 const YEDEK_BILGI = "mk_yedek_bilgi";
 
@@ -105,6 +106,73 @@ const GOCLER = {
     }
     api.kaydet("mk_arsa_kose", yeni);
     return `${n} arsa kose secimi yeni bicime gecirildi`;
+  },
+
+  // v2 -> v3: para olcegi degisti (v4.0). Butun fiyatlar OLCEK katina
+  // cikti; dunyada birikmis para ve fiyatlar da ayni katsayiyla buyutulur,
+  // yoksa eski oyuncularin birikimi bir anda degersizlesirdi.
+  3: (api) => {
+    const K = OLCEK;
+    const buyut = (n) => Math.max(0, Math.min(PARA_TAVANI, Math.round((Number(n) || 0) * K)));
+    const raporlar = [];
+
+    // 1) oyuncu bakiyeleri (scoreboard)
+    try {
+      const hedef = world.scoreboard.getObjective("money");
+      let n = 0;
+      for (const katilimci of hedef?.getParticipants?.() ?? []) {
+        const eski = hedef.getScore(katilimci);
+        if (typeof eski !== "number" || eski <= 0) continue;
+        hedef.setScore(katilimci, buyut(eski));
+        n++;
+      }
+      raporlar.push(`${n} bakiye`);
+    } catch (e) { raporlar.push("bakiye okunamadi"); }
+
+    // 2) oyuncu ilanlarinin fiyatlari
+    try {
+      const ilan = api.yukle("mk_ilan", []) ?? [];
+      let n = 0;
+      for (const i of ilan) {
+        if (typeof i?.f === "number") { i.f = buyut(i.f); n++; }
+        if (typeof i?.bahis === "number") i.bahis = buyut(i.bahis);
+      }
+      if (n) api.kaydet("mk_ilan", ilan);
+      raporlar.push(`${n} ilan`);
+    } catch { raporlar.push("ilan hatasi"); }
+
+    // 3) bekleyen odemeler
+    try {
+      const bp = api.yukle("mk_bpara", {}) ?? {};
+      let n = 0;
+      for (const ad of Object.keys(bp)) { bp[ad] = buyut(bp[ad]); n++; }
+      if (n) api.kaydet("mk_bpara", bp);
+      raporlar.push(`${n} bekleyen odeme`);
+    } catch { raporlar.push("bekleyen odeme hatasi"); }
+
+    // 4) fiyat gecmisi (rehber ortalamalari)
+    try {
+      const g = api.yukle("mk_gecmis", []) ?? [];
+      let n = 0;
+      for (const k of g) { if (typeof k?.b === "number") { k.b = buyut(k.b); n++; } }
+      if (n) api.kaydet("mk_gecmis", g);
+      raporlar.push(`${n} gecmis kaydi`);
+    } catch { raporlar.push("gecmis hatasi"); }
+
+    // 5) arsa satis / kira fiyatlari
+    try {
+      const arsalar = api.yukle("mk_arsa", []) ?? [];
+      let n = 0;
+      for (const a of arsalar) {
+        if (typeof a?.sat?.fiyat === "number") { a.sat.fiyat = buyut(a.sat.fiyat); n++; }
+        if (typeof a?.kira?.fiyat === "number") { a.kira.fiyat = buyut(a.kira.fiyat); n++; }
+        if (typeof a?.kiraci?.odenen === "number") a.kiraci.odenen = buyut(a.kiraci.odenen);
+      }
+      if (n) api.kaydet("mk_arsa", arsalar);
+      raporlar.push(`${n} arsa fiyati`);
+    } catch { raporlar.push("arsa hatasi"); }
+
+    return `para olcegi x${K}: ` + raporlar.join(", ");
   }
 };
 

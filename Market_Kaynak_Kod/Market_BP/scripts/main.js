@@ -3,7 +3,7 @@ import * as ui from "@minecraft/server-ui";
 import { ikon, VARSAYILAN } from "./icons.js";
 import { fiyat, esyaDegeri, KATEGORILER, kategoriIndex, HAM_KATEGORILER, hamKategoriIndex,
   hammaddeMi, yasakMi, marketAlinabilir, ALINAMAZ_KATEGORILER, ISLENMIS_ZAM,
-  MAKAS } from "./fiyat.js";
+  OLCEK, PARA_TAVANI, MAKAS } from "./fiyat.js";
 import { katalog, aramaGruplari } from "./esyalar.js";
 import * as Dovus from "./dovus.js";
 import * as Veri from "./veri.js";
@@ -15,16 +15,16 @@ const { ActionFormData, ModalFormData } = ui;
 
 // ==================== AYARLAR ====================
 const CFG = {
-  surum: "3.9",
+  surum: "4.0",
   ad: "m",
   objective: "money",
   simge: "$",
-  baslangicParasi: 500,
+  baslangicParasi: 25000,      // v4.0 olcegi
   komisyon: 0,
   maxIlanOyuncu: 15,
   maxIlanToplam: 300,
   minFiyat: 1,
-  maxFiyat: 10000000,
+  maxFiyat: 1000000000,        // oyuncu ilani tavani (milyarin altinda)
   maxAdet: 2304,
   sayfaBoyu: 25,
   teklifSuresiSn: 300,
@@ -86,7 +86,12 @@ function obj() {
   return world.scoreboard.getObjective(CFG.objective) ?? world.scoreboard.addObjective(CFG.objective, "Para");
 }
 function paraOku(p) { try { return obj().getScore(p) ?? 0; } catch { return 0; } }
-function paraYaz(p, v) { obj().setScore(p, Math.max(0, Math.floor(v))); }
+// Scoreboard 32 bit tam sayi tutar. v4.0 fiyatlari milyonlara ciktigi icin
+// bakiye tavana dayanabilir; burada kirpiyoruz, tasma olmuyor.
+function paraYaz(p, v) {
+  const n = Math.max(0, Math.min(PARA_TAVANI, Math.floor(v)));
+  obj().setScore(p, n);
+}
 function paraEkle(p, v) { paraYaz(p, paraOku(p) + v); }
 function fmt(n) { return CFG.simge + Math.floor(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, "."); }
 

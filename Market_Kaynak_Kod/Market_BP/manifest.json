@@ -1,12 +1,12 @@
 {
   "format_version": 2,
   "header": {
-    "name": "Market & Ekonomi BP v3.9",
-    "description": "v3.9 | Bakir golem hizlandirici: bir turda 10 yigin duzenler. Esya listesi denetlendi, eksik esya yok.",
+    "name": "Market & Ekonomi BP v4.0",
+    "description": "v4.0 | Ekonomi elden gecti: fiyatlar yuzbinler ve milyonlar seviyesinde. Eski dunyadaki para ve fiyatlar otomatik olceklenir.",
     "uuid": "bb41fa3d-7901-4559-8e61-d650ac191764",
     "version": [
-      3,
-      9,
+      4,
+      0,
       0
     ],
     "min_engine_version": [
@@ -21,8 +21,8 @@
       "language": "javascript",
       "uuid": "b9808c32-f7e3-4a89-93e1-f00313e58099",
       "version": [
-        3,
-        9,
+        4,
+        0,
         0
       ],
       "entry": "scripts/main.js"
@@ -40,8 +40,8 @@
     {
       "uuid": "201cbafc-bcfc-4212-a13f-428a03328b5b",
       "version": [
-        3,
-        9,
+        4,
+        0,
         0
       ]
     }

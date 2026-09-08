@@ -16,18 +16,18 @@ const TABAN = {
   sand: 1, red_sand: 1, gravel: 1, clay: 4, clay_ball: 1, flint: 2,
   stone: 1, cobblestone: 1, andesite: 1, diorite: 1, granite: 1, tuff: 1,
   deepslate: 1, cobbled_deepslate: 1, calcite: 3, basalt: 2, blackstone: 2,
-  netherrack: 1, soul_sand: 3, soul_soil: 3, end_stone: 3, obsidian: 20,
-  crying_obsidian: 35, magma: 6, glowstone: 12, snowball: 1, snow_block: 4, ice: 2, packed_ice: 8, blue_ice: 30,
-  moss_block: 3, sponge: 40, glass: 2, gravel_block: 1, bedrock: 0,
+  netherrack: 1, soul_sand: 3, soul_soil: 3, end_stone: 3, obsidian: 30,
+  crying_obsidian: 60, magma: 6, glowstone: 12, snowball: 1, snow_block: 4, ice: 2, packed_ice: 8, blue_ice: 60,
+  moss_block: 3, sponge: 250, glass: 2, gravel_block: 1, bedrock: 0,
 
   // madenler
   coal: 4, charcoal: 3,
   raw_copper: 4, copper_ingot: 5,
   raw_iron: 9, iron_ingot: 12, iron_nugget: 2,
   raw_gold: 14, gold_ingot: 18, gold_nugget: 2,
-  diamond: 90, emerald: 55, lapis_lazuli: 8, redstone: 5, quartz: 7,
-  amethyst_shard: 10, ancient_debris: 260, netherite_scrap: 260, netherite_ingot: 1200,
-  echo_shard: 160, nether_star: 2500,
+  diamond: 160, emerald: 110, lapis_lazuli: 8, redstone: 5, quartz: 7,
+  amethyst_shard: 18, ancient_debris: 1400, netherite_scrap: 1400, 
+  echo_shard: 700, nether_star: 30000,
 
   // tarim
   wheat: 2, wheat_seeds: 1, carrot: 2, potato: 2, beetroot: 2, beetroot_seeds: 1,
@@ -35,21 +35,21 @@ const TABAN = {
   sugar_cane: 2, cocoa_beans: 3, bamboo: 1, cactus: 2,
   kelp: 1, dried_kelp: 2, sweet_berries: 2, glow_berries: 5, apple: 5,
   nether_wart: 5, brown_mushroom: 2, red_mushroom: 2, chorus_fruit: 8,
-  torchflower_seeds: 40, pitcher_pod: 40, egg: 2, // et / balik (cig)
+  torchflower_seeds: 120, pitcher_pod: 120, egg: 2, // et / balik (cig)
   beef: 3, porkchop: 3, chicken: 2, mutton: 2, rabbit: 3,
   cod: 2, salmon: 3, tropical_fish: 6, pufferfish: 6,
 
   // mob dusurmeleri
-  string: 3, feather: 2, leather: 6, bone: 3, gunpowder: 7, slime_ball: 8,
-  rotten_flesh: 1, spider_eye: 4, ender_pearl: 25, blaze_rod: 30,
-  ghast_tear: 55, phantom_membrane: 22, shulker_shell: 120,
-  prismarine_shard: 7, prismarine_crystals: 11, nautilus_shell: 40,
-  heart_of_the_sea: 300, ink_sac: 3, glow_ink_sac: 10,
-  rabbit_hide: 3, rabbit_foot: 28, scute: 40, turtle_scute: 40,
-  totem_of_undying: 400, dragon_breath: 60, wither_rose: 25,
+  string: 3, feather: 2, leather: 6, bone: 3, gunpowder: 7, slime_ball: 14,
+  rotten_flesh: 1, spider_eye: 4, ender_pearl: 60, blaze_rod: 70,
+  ghast_tear: 200, phantom_membrane: 50, shulker_shell: 900,
+  prismarine_shard: 7, prismarine_crystals: 11, nautilus_shell: 150,
+  heart_of_the_sea: 4000, ink_sac: 3, glow_ink_sac: 18,
+  rabbit_hide: 3, rabbit_foot: 60, scute: 90, turtle_scute: 90,
+  totem_of_undying: 6000, dragon_breath: 900, wither_rose: 300,
 
   // esyalar
-  elytra: 1500,
+  elytra: 20000,
   experience_bottle: 25, cobweb: 5, honeycomb: 8, honey_bottle: 10,
   gunpowder_block: 0, lily_pad: 2, vine: 1,
   dandelion: 2, poppy: 2, blue_orchid: 3, allium: 3, azure_bluet: 2,
@@ -61,32 +61,32 @@ const TABAN = {
   copper: 45, netherite_upgrade_smithing_template: 200,
   hardened_clay: 3, web: 5, waterlily: 2, noteblock: 12, grass_path: 1,
   deadbush: 1, brick_block: 5, netherbrick: 2, snowball: 1, frog_spawn: 10,
-  cinnabar: 8, sulfur: 6, potent_sulfur: 20, sulfur_spike: 10, dried_ghast: 60,
+  cinnabar: 8, sulfur: 6, potent_sulfur: 20, sulfur_spike: 10, dried_ghast: 400,
   copper_golem_statue: 60, copper_lantern: 16, copper_torch: 2, copper_bars: 5,
   copper_chest: 12, lodestone_compass: 120, golden_dandelion: 6, red_shrub: 1,
   pink_petals: 2, shelf_mushroom: 3, closed_eyeblossom: 5, open_eyeblossom: 5,
   camel_husk_spawn_egg: 400,
   brick: 2, netherbrick: 2, mob_spawner: 800, nether_brick_item: 2,
   carved_pumpkin: 6, azalea_leaves_flowered: 2, brown_mushroom_block: 3, red_mushroom_block: 3,
-  mace: 900, breeze_rod: 60, wind_charge: 8, heavy_core: 400,
-  trial_key: 90, ominous_trial_key: 180, ominous_bottle: 60,
-  resin_clump: 6, resin_block: 20, creaking_heart: 90,
-  sculk: 6, sculk_vein: 4, sculk_catalyst: 90, sculk_shrieker: 70,
-  sculk_sensor: 40, calibrated_sculk_sensor: 60, reinforced_deepslate: 150,
+  breeze_rod: 250, wind_charge: 8, heavy_core: 6000,
+  trial_key: 250, ominous_trial_key: 500, ominous_bottle: 200,
+  resin_clump: 6, resin_block: 20, creaking_heart: 400,
+  sculk: 6, sculk_vein: 4, sculk_catalyst: 200, sculk_shrieker: 70,
+  sculk_sensor: 40, calibrated_sculk_sensor: 60, reinforced_deepslate: 900,
   dripstone_block: 4, pointed_dripstone: 4, powder_snow: 6,
   spawner: 800, trial_spawner: 800, vault: 800, dragon_egg: 2000,
   budding_amethyst: 200, amethyst_cluster: 30,
   glow_lichen: 4, spore_blossom: 12, big_dripleaf: 4, small_dripleaf: 4,
   hanging_roots: 2, azalea: 6, flowering_azalea: 9, moss_carpet: 2,
-  goat_horn: 90, recovery_compass: 200, armadillo_scute: 20,
+  goat_horn: 500, armadillo_scute: 45,
   disc_fragment_5: 30, echo_shard_block: 0,
   glow_frame: 12, decorated_pot: 12,
   crafter: 90, end_rod: 8,
-  fermented_spider_eye: 12, suspicious_stew: 15, enchanted_golden_apple: 900,
+  fermented_spider_eye: 12, suspicious_stew: 15, 
   poisonous_potato: 1, popped_chorus_fruit: 9,
   enchanted_book: 120,
-  trident: 500, spectral_arrow: 6, tipped_arrow: 8, golden_rail: 12, tinted_glass: 12,
-  turtle_egg: 30, sniffer_egg: 200, frogspawn: 10, wet_sponge: 40,
+  trident: 8000, spectral_arrow: 6, tipped_arrow: 8, golden_rail: 12, tinted_glass: 12,
+  turtle_egg: 30, sniffer_egg: 200, frogspawn: 10, wet_sponge: 250,
   suspicious_sand: 6, suspicious_gravel: 6, packed_mud: 3, farmland: 1,
   brown_egg: 2, blue_egg: 2, armadillo: 0, glowstone_dust: 4,
   nether_wart_block: 45, warped_wart_block: 45, shroomlight: 25,
@@ -253,6 +253,12 @@ const TARIF = {
   end_crystal: { g: [["glass", 7], ["ender_eye", 1], ["ghast_tear", 1]], n: 1 },
   beacon: { g: [["glass", 5], ["obsidian", 3], ["nether_star", 1]], n: 1 },
   conduit: { g: [["nautilus_shell", 8], ["heart_of_the_sea", 1]], n: 1 },
+  // v4.0: bu esyalar TABAN'da sabit degerdeydi; oyunda craftlanabildikleri
+  // icin artik girdilerinden hesaplaniyorlar (arbitraj denetcisi de gorur).
+  netherite_ingot: { g: [["netherite_scrap", 4], ["gold_ingot", 4]], n: 1 },
+  enchanted_golden_apple: { g: [["gold_block", 8], ["apple", 1]], n: 1 },
+  mace: { g: [["heavy_core", 1], ["breeze_rod", 1]], n: 1 },
+  recovery_compass: { g: [["echo_shard", 8], ["compass", 1]], n: 1 },
   respawn_anchor: { g: [["crying_obsidian", 6], ["glowstone", 3]], n: 1 },
   enchanting_table: { g: [["obsidian", 4], ["diamond", 2], ["book", 1]], n: 1 },
   brewing_stand: { g: [["cobblestone", 3], ["blaze_rod", 1]], n: 1 },
@@ -389,6 +395,14 @@ function hesapla(a) {
   // Yunden yapilan esyalarin her rengi beyaziyla AYNI fiyat. Eskiden beyaz
   // tariften (yatak 72), diger renkler sabit/son-ek kuralindan (18, hali 3)
   // hesaplaniyordu; ayni esya renge gore 4-5 kat farkli fiyat veriyordu.
+  // Kesilmis bakir ailesi: 1 bakir blogundan 4 kesilmis bakir, 8 yarim blok
+  // cikar. Bu kural "_slab" son ek kuralindan ONCE calismali, yoksa yarim
+  // blok kesilmis bakirdan degil "copper"dan hesaplanip acik yaratiyordu.
+  if (a.includes("cut_copper")) {
+    const kesilmis = D("copper_block") * 0.22;
+    return a.endsWith("_slab") ? kesilmis * 0.45 : kesilmis;
+  }
+
   if (TABAN[a] === undefined) {
     if (a.endsWith("_bed") && a !== "white_bed") return D("white_bed");
     if (a.endsWith("_banner") && a !== "banner") return D("banner");
@@ -515,7 +529,13 @@ function hesapla(a) {
     if (!a.endsWith(ek)) continue;
     const kok = a.slice(0, -ek.length);
     if (!kok) break;
-    const adaylar = [kok, kok + "_planks", kok + "s", "polished_" + kok];
+    // "cracked_stone_bricks" -> kok "cracked_stone" -> TABAN'da yok -> eskiden
+    // sabit 3'e dusuyordu ve turev anasindan pahali cikiyordu (catlak tugla 4,
+    // duz tugla 1). On ekleri soyup gercek anasini da deniyoruz.
+    const koksuz = kok.replace(
+      /^(cracked_|mossy_|chiseled_|polished_|smooth_|cut_|infested_|waxed_|exposed_|weathered_|oxidized_|deepslate_)/, "");
+    const adaylar = [kok, kok + "_planks", kok + "s", "polished_" + kok,
+                     koksuz, koksuz + "_planks", koksuz + "s"];
     // NOT: eskiden sonuca "+1" ekleniyordu. Ucuz bir blokta bu, turevi
     // anasindan pahali yapiyordu: tas 1, tas yarim blok 1*0.5+1 = 2. Tas
     // kesici 1 taştan 2 yarim blok verdigi icin "tas al, kes, sat" para
@@ -537,12 +557,6 @@ function hesapla(a) {
   if (a.startsWith("potion") || a.startsWith("splash_potion") || a.startsWith("lingering_potion")) return 25;
   if (a.endsWith("_horse_armor")) return 150;
   if (a.startsWith("smithing_template") || a.endsWith("_smithing_template")) return 200;
-  // Kesilmis bakir: 1 bakir blogundan 4 adet cikar, o yuzden en fazla
-  // blogun dortte biri. (Genel 1.3 carpani burada acik yaratiyordu:
-  // blok 45'e satilirken 4 kesilmis bakir 240 ediyordu.)
-  if (/^cut_copper/.test(a) || /_cut_copper/.test(a))
-    return D("copper_block") * 0.22;
-
   if (a.startsWith("polished_") || a.startsWith("chiseled_") || a.startsWith("cut_") || a.startsWith("smooth_")) {
     const kok = a.replace(/^(polished_|chiseled_|cut_|smooth_)/, "");
     return D(kok) * 1.3;
@@ -593,13 +607,32 @@ export function esyaDegeri(item) {
 // yani "ucuz al -> craftla -> pahali sat" acigi yaratmaz (tersine kapatir).
 export const ISLENMIS_ZAM = 1.8;
 
+// ============ PARA OLCEGI (v4.0) ============
+// Butun fiyatlar bu sayiyla carpilir. Ekonominin "buyuklugunu" tek yerden
+// ayarlamak icin: 1 yaparsan v3.9 fiyatlarina donersin, 60 yaparsan her sey
+// iki katina cikar.
+//
+// NEDEN CARPAN, NEDEN TEK TEK DEGIL: carpim butun oranlari birebir korur.
+// "girdiyi al, craftla, ciktiyi sat" hesabinin iki tarafi da ayni sayiyla
+// buyudugu icin mevcut denge hic bozulmaz; olcegi degistirmek yeni bir
+// arbitraj acigi yaratamaz. Tek tek elle yazilan fiyatlar bunu garanti
+// etmezdi.
+export const OLCEK = 30;
+
+// Scoreboard 32 bit tam sayi tutar (en fazla ~2.14 milyar). Fiyatlar
+// milyonlara cikinca bir yigin satisi bu tavani zorlayabilir; para yazan
+// yer de ayrica sinirliyor.
+export const PARA_TAVANI = 2000000000;
+
 export function fiyat(id) {
   if (yasakMi(id)) return null;
   const taban = tabanDeger(id);
   const zam = hammaddeMi(id) ? 1 : ISLENMIS_ZAM;
+  const alis = Math.max(1, Math.round(taban * OLCEK));
+  const satis = Math.max(2, Math.ceil(taban * MAKAS * zam * OLCEK));
   return {
-    alis: Math.max(1, taban),
-    satis: Math.max(2, Math.ceil(taban * MAKAS * zam))
+    alis: Math.min(PARA_TAVANI, alis),
+    satis: Math.min(PARA_TAVANI, satis)
   };
 }
 
