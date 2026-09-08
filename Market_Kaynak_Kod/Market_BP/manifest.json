@@ -1,12 +1,12 @@
 {
   "format_version": 2,
   "header": {
-    "name": "Market & Ekonomi BP v3.6",
-    "description": "v3.6 | Butun yun renkleri ayni fiyat (20) ve Hazir Markette kendi 'Yun' kategorisinde.",
+    "name": "Market & Ekonomi BP v3.7",
+    "description": "v3.7 | Uyeler ekrani: arsa menusunden tek tikla uye ekle/cikar (!uye), cevrimdisi oyuncu da eklenebilir.",
     "uuid": "bb41fa3d-7901-4559-8e61-d650ac191764",
     "version": [
       3,
-      6,
+      7,
       0
     ],
     "min_engine_version": [
@@ -22,7 +22,7 @@
       "uuid": "b9808c32-f7e3-4a89-93e1-f00313e58099",
       "version": [
         3,
-        6,
+        7,
         0
       ],
       "entry": "scripts/main.js"
@@ -41,7 +41,7 @@
       "uuid": "201cbafc-bcfc-4212-a13f-428a03328b5b",
       "version": [
         3,
-        6,
+        7,
         0
       ]
     }

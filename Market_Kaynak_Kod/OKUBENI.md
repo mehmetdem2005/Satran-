@@ -1,4 +1,4 @@
-# Market & Ekonomi — Kaynak Kod (v3.6)
+# Market & Ekonomi — Kaynak Kod (v3.7)
 
 Bu klasör Minecraft Bedrock için yazılan Market/Ekonomi addon'ının tüm
 kaynak dosyalarını içerir. `.mcaddon` sadece bunların zip'lenmiş hali;
@@ -494,6 +494,33 @@ Kurallar:
 Özel nokta arsa kaydına `tp` alanı olarak yazılır; eski kayıtlarda bu alan
 yoktur ve arsanın ortası kullanılır — göç gerekmez.
 
+## Üyeler: arsana birini al, çıkar (v3.7)
+
+Arsa sahibi istediği oyuncuyu üye yapabilir, istediğinde çıkarabilir.
+Üyeler o arsada **blok kırar, koyar, sandık açar** — sahibiyle aynı inşa
+hakkına sahip olur.
+
+Üye ekleme/çıkarma zaten vardı ama dört menü derindeydi. v3.7 ile tek
+ekrana indi:
+
+- **Arsa menüsü → Üyeler** (ya da **`!uye`** / `/mk:uye`)
+- İçinde durduğun arsa senin ise doğrudan onun üye ekranı açılır. Değilse
+  (ve birden fazla arsan varsa) hangi arsa olduğu sorulur.
+- Ekranda üyeler listelenir; **üyeye basınca çıkar**. Alttaki **Üye Ekle**
+  düğmesi çevrimiçi oyuncuları açılır listede gösterir, "(elle isim yaz)"
+  seçeneğiyle **çevrimdışı** birini de adını yazarak ekleyebilirsin.
+- Eklenen/çıkarılan oyuncu çevrimiçiyse kendisine de mesaj gider.
+
+Yönet ekranındaki ayrı "Üye Ekle" ve "Üye Çıkar" düğmeleri tek bir
+**Üyeler (n)** düğmesinde birleşti; o da aynı ekranı açıyor.
+
+Kurallar:
+
+- Sadece **arsanın sahibi** üye ekleyip çıkarabilir (kiracı ekleyemez).
+- Üyeler varsayılan olarak arsaya **ışınlanamaz**; istersen `arsa.js`
+  içinde `ARSA_CFG.uyeIsinlanabilir = true` yap.
+- Arsa el değiştirince (satış) üye listesi sıfırlanır.
+
 ## Arsa pazarı: satış ve kiralama (v3.2)
 
 Bir oyuncu artık **10 arsaya** kadar kurabilir (`ARSA_CFG.maxArsaOyuncu`,
@@ -626,7 +653,7 @@ ikon_guncelle.py           İkon haritasını resmî resource pack verisinden ü
 ## Komutlar
 
 Sohbete yazılır: `!menu !market !ara !sat !takas !alim !teklif !teklifler
-!para !arsa !pazar !hazir !ilanlarim !rehber !bakiye !id !kitap` ve v2.0
+!para !arsa !pazar !uye !hazir !ilanlarim !rehber !bakiye !id !kitap` ve v2.0
 ile gelen `!yenile` (eşya listesini yeniden kurar), `!liste` (listenin
 durumunu ve hangi kaynaktan kaç eşya geldiğini yazar). v3.2 ile `!pazar`
 satılık/kiralık arsaları açar, `!ev` kendi arsana ışınlar. v3.3 ile
@@ -634,7 +661,7 @@ satılık/kiralık arsaları açar, `!ev` kendi arsana ışınlar. v3.3 ile
 `!temizle` görünmez engelleri siler.
 
 Aynı işleri eğik çizgili komutlarla da yapabilirsin:
-`/mk:arsa`, `/mk:pazar`, `/mk:ev`, `/mk:dovus`, `/mk:arenasil`,
+`/mk:arsa`, `/mk:pazar`, `/mk:uye`, `/mk:ev`, `/mk:dovus`, `/mk:arenasil`,
 `/mk:menu`, `/mk:market` ...
 
 Bir şey ters giderse Content Log'daki `[Market]` satırları listenin hangi
@@ -643,7 +670,7 @@ kaynaktan kaç eşya topladığını yazıyor.
 ## Paketleme
 
 ```bash
-bash paketle.sh          # -> Market_v3.6.mcaddon
+bash paketle.sh          # -> Market_v3.7.mcaddon
 ```
 
 Sürüm numarası hem `manifest.json` dosyalarında hem de `main.js` içindeki

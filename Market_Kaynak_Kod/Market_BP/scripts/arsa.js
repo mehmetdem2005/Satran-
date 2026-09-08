@@ -453,6 +453,9 @@ export function arsaMenu(p, api) {
   });
   ekle(`§lArsalarım §7(${benim.length + kiralarim.length})\n§r§7Kendi arsana ışınlan, yönet`, "textures/items/mk_sopa",
     () => arsalarimMenu(p, api));
+  if (benim.length > 0)
+    ekle(`§lÜyeler\n§r§7Arsana birini al, çıkar`, "textures/items/name_tag",
+      () => uyeArsaSec(p, api));
   if (ARSA_CFG.pazar)
     ekle(`§lArsa Pazarı §7(${ilanlar.length})\n§r§7Satılık ve kiralık arsalar`, "textures/items/emerald",
       () => pazarMenu(p, api));
@@ -661,8 +664,8 @@ function arsaYonet(p, api, id) {
   ekle("§aBuraya Işınlan", "textures/items/mk_sopa", () => { arsayaIsinla(p, api, a); });
   ekle("§eIşınlanma Noktasını Ayarla\n§r§8Durduğun yer", "textures/items/redstone_dust",
     () => isinlanmaNoktasiAyarla(p, api, id));
-  ekle("§aÜye Ekle", "textures/items/name_tag", () => uyeEkle(p, api, id));
-  ekle("§eÜye Çıkar", "textures/items/barrier", () => uyeCikar(p, api, id));
+  ekle(`§aÜyeler §7(${(a.u ?? []).length})\n§r§8Ekle / çıkar`, "textures/items/name_tag",
+    () => uyelerMenu(p, api, id));
   ekle("§eAdını Değiştir", "textures/items/book_writable", () => adDegistir(p, api, id));
 
   if (ARSA_CFG.pazar) {
@@ -1080,65 +1083,137 @@ function isinlanmaNoktasiAyarla(p, api, id) {
   arsaYonet(p, api, id);
 }
 
-function uyeEkle(p, api, id) {
+// Uye ekranlari "geri" ile cagrildigi yere doner: hem Yonet ekranindan
+// hem de dogrudan Uyeler ekranindan kullanilabiliyorlar.
+function uyeEkle(p, api, id, geri) {
+  const don = geri ?? (() => arsaYonet(p, api, id));
   const a = arsalar(api).find(x => x.id === id);
   if (!a) return arsaYonetListe(p, api);
   const aday = world.getAllPlayers().filter(x => x.name !== p.name && !(a.u ?? []).includes(x.name));
   if (aday.length === 0) {
     // Cevrimdisi oyuncu da eklenebilsin: eskiden online kimse yoksa hic eklenemiyordu.
-    return uyeElle(p, api, id);
+    return uyeElle(p, api, id, don);
   }
 
   const f = new ModalFormData().title("§lÜYE EKLE")
     .dropdown("Kimi ekleyeyim?", [...aday.map(x => x.name), "(elle isim yaz)"]);
   f.show(p).then(r => {
-    if (r.canceled) return arsaYonet(p, api, id);
+    if (r.canceled) return don();
     const ix = r.formValues?.[0] ?? 0;
-    if (ix === aday.length) return uyeElle(p, api, id);
-    uyeKaydet(p, api, id, aday[ix].name);
+    if (ix === aday.length) return uyeElle(p, api, id, don);
+    uyeKaydet(p, api, id, aday[ix].name, don);
   });
 }
 
-function uyeElle(p, api, id) {
+function uyeElle(p, api, id, geri) {
+  const don = geri ?? (() => arsaYonet(p, api, id));
   new ModalFormData().title("§lÜYE EKLE")
     .textField("Oyuncu adı (birebir yaz)", "örn: Ahmet123")
     .show(p).then(r => {
-      if (r.canceled) return arsaYonet(p, api, id);
+      if (r.canceled) return don();
       const ad = String(r.formValues?.[0] ?? "").trim();
-      if (!ad) return arsaYonet(p, api, id);
-      uyeKaydet(p, api, id, ad);
+      if (!ad) return don();
+      uyeKaydet(p, api, id, ad, don);
     });
 }
 
-function uyeKaydet(p, api, id, ad) {
+function uyeKaydet(p, api, id, ad, geri) {
+  const don = geri ?? (() => arsaYonet(p, api, id));
   const g = arsalar(api).slice();
   const t = g.find(x => x.id === id);
   if (!t) return arsaYonetListe(p, api);
-  if (ad === t.s) { p.sendMessage("§7[Arsa] Sahibi zaten sensin."); return arsaYonet(p, api, id); }
-  if ((t.u ?? []).includes(ad)) { p.sendMessage("§7[Arsa] Zaten üye."); return arsaYonet(p, api, id); }
+  if (t.s !== p.name) { p.sendMessage("§c[Arsa] Bu arsa senin değil."); return don(); }
+  if (ad === t.s) { p.sendMessage("§7[Arsa] Sahibi zaten sensin."); return don(); }
+  if ((t.u ?? []).includes(ad)) { p.sendMessage("§7[Arsa] Zaten üye."); return don(); }
+  if (ad.length > 32) { p.sendMessage("§c[Arsa] Bu isim çok uzun."); return don(); }
   (t.u ??= []).push(ad);
   arsalariYaz(api, g);
-  p.sendMessage(`§a[Arsa] §f${ad} §aeklendi.`);
+  p.sendMessage(`§a[Arsa] §f${ad} §a"${t.ad}" arsasına üye yapıldı.`);
+  p.sendMessage("§8Artık orada blok kırıp koyabilir, sandık açabilir.");
   try { world.getAllPlayers().find(x => x.name === ad)?.sendMessage(`§a[Arsa] §f${p.name} §7seni "${t.ad}" arsasına üye yaptı.`); } catch { }
-  arsaYonet(p, api, id);
+  don();
 }
 
-function uyeCikar(p, api, id) {
+function uyeSil(p, api, id, ad, geri) {
+  const don = geri ?? (() => arsaYonet(p, api, id));
+  const g = arsalar(api).slice();
+  const t = g.find(x => x.id === id);
+  if (!t) return arsaYonetListe(p, api);
+  if (t.s !== p.name) { p.sendMessage("§c[Arsa] Bu arsa senin değil."); return don(); }
+  t.u = (t.u ?? []).filter(x => x !== ad);
+  arsalariYaz(api, g);
+  p.sendMessage(`§a[Arsa] §f${ad} §7"${t.ad}" arsasından çıkarıldı.`);
+  try { world.getAllPlayers().find(x => x.name === ad)?.sendMessage(`§e[Arsa] §f${p.name} §7seni "${t.ad}" arsasından çıkardı.`); } catch { }
+  don();
+}
+
+function uyeCikar(p, api, id, geri) {
+  const don = geri ?? (() => arsaYonet(p, api, id));
   const a = arsalar(api).find(x => x.id === id);
-  if (!a || (a.u ?? []).length === 0) { p.sendMessage("§7[Arsa] Üye yok."); return arsaYonet(p, api, id); }
+  if (!a || (a.u ?? []).length === 0) { p.sendMessage("§7[Arsa] Üye yok."); return don(); }
   new ModalFormData().title("§lÜYE ÇIKAR")
     .dropdown("Kimi çıkarayım?", a.u)
     .show(p).then(r => {
-      if (r.canceled) return arsaYonet(p, api, id);
-      const ad = a.u[r.formValues?.[0] ?? 0];
-      const g = arsalar(api).slice();
-      const t = g.find(x => x.id === id);
-      if (!t) return arsaYonetListe(p, api);
-      t.u = (t.u ?? []).filter(x => x !== ad);
-      arsalariYaz(api, g);
-      p.sendMessage(`§a[Arsa] §f${ad} §7çıkarıldı.`);
-      arsaYonet(p, api, id);
+      if (r.canceled) return don();
+      uyeSil(p, api, id, a.u[r.formValues?.[0] ?? 0], don);
     });
+}
+
+// ==================== ÜYELER EKRANI (v3.7) ====================
+// Uye ekleme/cikarma dort menu derinde kaliyordu. Bu ekran arsa
+// menusunden tek tikla aciliyor ve ikisini birden yapiyor.
+export function uyelerMenu(p, api, id) {
+  const a = arsalar(api).find(x => x.id === id);
+  if (!a) return uyeArsaSec(p, api);
+  if (a.s !== p.name) { p.sendMessage("§c[Arsa] Sadece arsanın sahibi üye ekleyip çıkarabilir."); return arsaMenu(p, api); }
+  const uyeler = a.u ?? [];
+  const online = new Set(world.getAllPlayers().map(x => x.name));
+
+  const f = new ActionFormData()
+    .title(`§l${a.ad.toUpperCase()} - ÜYELER`)
+    .body(
+      `§7Sahibi: §f${a.s}\n` +
+      `§7Üye sayısı: §f${uyeler.length}\n\n` +
+      (uyeler.length
+        ? "§7Üyeler bu arsada blok kırabilir, koyabilir, sandık açabilir.\n§8Çıkarmak için üyeye bas."
+        : "§7Henüz üye yok.\n§8Çevrimdışı birini de elle adını yazarak ekleyebilirsin.")
+    );
+
+  for (const ad of uyeler)
+    f.button(`§f${ad}${online.has(ad) ? " §a(çevrimiçi)" : ""}\n§8çıkarmak için bas`, "textures/items/name_tag");
+  f.button("§aÜye Ekle\n§r§8Listeden seç ya da adını yaz", "textures/items/name_tag");
+  f.button("§7< Geri");
+
+  f.show(p).then(r => {
+    if (r.canceled) return;
+    if (r.selection < uyeler.length)
+      return uyeSil(p, api, id, uyeler[r.selection], () => uyelerMenu(p, api, id));
+    if (r.selection === uyeler.length)
+      return uyeEkle(p, api, id, () => uyelerMenu(p, api, id));
+    arsaMenu(p, api);
+  });
+}
+
+// Hangi arsanin uyeleri? Icinde durdugun arsa varsa dogrudan onu acar.
+export function uyeArsaSec(p, api) {
+  const benim = arsalar(api).filter(x => x.s === p.name);
+  if (benim.length === 0) {
+    p.sendMessage("§7[Arsa] Henüz arsan yok. §f!arsa");
+    return arsaMenu(p, api);
+  }
+  const burada = arsaBul(api, p.dimension.id, p.location.x, p.location.z);
+  if (burada && burada.s === p.name) return uyelerMenu(p, api, burada.id);
+  if (benim.length === 1) return uyelerMenu(p, api, benim[0].id);
+
+  const f = new ActionFormData().title("§lÜYELER").body("§7Hangi arsanın üyelerini düzenleyeceksin?");
+  for (const a of benim)
+    f.button(`§f${a.ad}\n§7${a.x2 - a.x1 + 1}x${a.z2 - a.z1 + 1} §8- ${(a.u ?? []).length} üye`, "textures/items/name_tag");
+  f.button("§7< Geri");
+  f.show(p).then(r => {
+    if (r.canceled) return;
+    if (r.selection === benim.length) return arsaMenu(p, api);
+    uyelerMenu(p, api, benim[r.selection].id);
+  });
 }
 
 function adDegistir(p, api, id) {

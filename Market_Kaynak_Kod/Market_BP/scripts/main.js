@@ -13,7 +13,7 @@ const { ActionFormData, ModalFormData } = ui;
 
 // ==================== AYARLAR ====================
 const CFG = {
-  surum: "3.6",
+  surum: "3.7",
   ad: "m",
   objective: "money",
   simge: "$",
@@ -1395,6 +1395,7 @@ function calistir(p, komut, arg) {
     case "hazir": case "shop": return sistemKategoriler(p);
     case "arsa": case "claim": return Arsa.arsaMenu(p, API);
     case "pazar": case "arsapazar": return Arsa.pazarMenu(p, API);
+    case "uye": case "uyeler": return Arsa.uyeArsaSec(p, API);
     case "ev": case "home": case "arsalarim2": return void Arsa.eveIsinla(p, API);
     case "topluSat": case "toplusat": return topluSat(p);
     case "ara": return marketEkrani(p, { arama: arg.join(" "), sayfa: 0 });
@@ -1431,7 +1432,7 @@ function calistir(p, komut, arg) {
       return p.sendMessage(it ? `§a[Market] §fElindeki: §e${it.typeId}` : "§c[Market] Elinde bir esya yok.");
     }
     default:
-      p.sendMessage("§7[Market] §f!menu !market !ara !sat !takas !alim !teklif !teklifler !para !arsa !pazar !hazir !ilanlarim !rehber !bakiye !id !kitap !sopa !ev !dovus !cik !arenasil !yenile !liste");
+      p.sendMessage("§7[Market] §f!menu !market !ara !sat !takas !alim !teklif !teklifler !para !arsa !pazar !uye !hazir !ilanlarim !rehber !bakiye !id !kitap !sopa !ev !dovus !cik !arenasil !yenile !liste");
   }
 }
 
@@ -1756,6 +1757,7 @@ guvenli("slash komutlari", () => {
     kayit("id", "Elindeki esyanin id'si", (p) => calistir(p, "id", []));
     kayit("arsa", "Arsa / bolge menusu", (p) => Arsa.arsaMenu(p, API));
     kayit("pazar", "Satilik ve kiralik arsalar", (p) => Arsa.pazarMenu(p, API));
+    kayit("uye", "Arsana uye ekle / cikar", (p) => Arsa.uyeArsaSec(p, API));
     kayit("ev", "Kendi arsana isinlan", (p) => { Arsa.eveIsinla(p, API); });
     kayit("dovus", "Duello menusu", (p) => Dovus.dovusMenu(p, API));
     kayit("arenasil", "Stadyumu kaldir (yonetici)", (p) => {
