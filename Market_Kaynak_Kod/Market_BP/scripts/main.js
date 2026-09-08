@@ -8,13 +8,14 @@ import { katalog, aramaGruplari } from "./esyalar.js";
 import * as Dovus from "./dovus.js";
 import * as Veri from "./veri.js";
 import * as Arsa from "./arsa.js";
+import * as Golem from "./golem.js";
 
 const { world, system, ItemStack } = mc;
 const { ActionFormData, ModalFormData } = ui;
 
 // ==================== AYARLAR ====================
 const CFG = {
-  surum: "3.8",
+  surum: "3.9",
   ad: "m",
   objective: "money",
   simge: "$",
@@ -1399,6 +1400,9 @@ function calistir(p, komut, arg) {
     case "arsa": case "claim": return Arsa.arsaMenu(p, API);
     case "pazar": case "arsapazar": return Arsa.pazarMenu(p, API);
     case "uye": case "uyeler": return Arsa.uyeArsaSec(p, API);
+    case "golem": case "bakirgolem":
+      for (const satir of Golem.rapor(p)) p.sendMessage(satir);
+      return;
     case "ev": case "home": case "arsalarim2": return void Arsa.eveIsinla(p, API);
     case "topluSat": case "toplusat": return topluSat(p);
     case "ara": return marketEkrani(p, { arama: arg.join(" "), sayfa: 0 });
@@ -1435,7 +1439,7 @@ function calistir(p, komut, arg) {
       return p.sendMessage(it ? `§a[Market] §fElindeki: §e${it.typeId}` : "§c[Market] Elinde bir esya yok.");
     }
     default:
-      p.sendMessage("§7[Market] §f!menu !market !ara !sat !takas !alim !teklif !teklifler !para !arsa !pazar !uye !hazir !ilanlarim !rehber !bakiye !id !kitap !sopa !ev !dovus !cik !arenasil !yenile !liste");
+      p.sendMessage("§7[Market] §f!menu !market !ara !sat !takas !alim !teklif !teklifler !para !arsa !pazar !uye !golem !hazir !ilanlarim !rehber !bakiye !id !kitap !sopa !ev !dovus !cik !arenasil !yenile !liste");
   }
 }
 
@@ -1699,6 +1703,7 @@ const API = {
   yukle, kaydet, paraOku, paraEkle, fmt, adminMi, sopaVer,
   paraVer: paraTeslim,          // cevrimdisi oyuncuya da odeme yapar
   arsalarim: (ad) => Arsa.oyuncuArsalari(API, ad),   // duello sahasi secimi
+  arsaVar: (d, x, z) => Arsa.arsaBul(API, d, x, z),  // golem: arsa siniri
   esyaVer: envantereVer,
   dovustaMi: (ad) => Dovus.dovustaMi(ad),
   simge: CFG.simge,
@@ -1768,6 +1773,7 @@ guvenli("slash komutlari", () => {
     kayit("arsa", "Arsa / bolge menusu", (p) => Arsa.arsaMenu(p, API));
     kayit("pazar", "Satilik ve kiralik arsalar", (p) => Arsa.pazarMenu(p, API));
     kayit("uye", "Arsana uye ekle / cikar", (p) => Arsa.uyeArsaSec(p, API));
+    kayit("golem", "Bakir golem durumu", (p) => { for (const s of Golem.rapor(p)) p.sendMessage(s); });
     kayit("ev", "Kendi arsana isinlan", (p) => { Arsa.eveIsinla(p, API); });
     kayit("dovus", "Duello menusu", (p) => Dovus.dovusMenu(p, API));
     kayit("arenasil", "Stadyumu kaldir (yonetici)", (p) => {
@@ -1814,6 +1820,7 @@ function oyuncuyuHazirla(p) {
 }
 
 guvenli("arsa korumasi", () => Arsa.arsaKur(API));
+guvenli("bakir golem", () => Golem.kur(API));
 
 guvenli("duello olum kontrolu", () => {
   world.afterEvents.entityDie.subscribe(ev => {

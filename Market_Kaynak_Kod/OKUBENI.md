@@ -1,4 +1,4 @@
-# Market & Ekonomi — Kaynak Kod (v3.8)
+# Market & Ekonomi — Kaynak Kod (v3.9)
 
 Bu klasör Minecraft Bedrock için yazılan Market/Ekonomi addon'ının tüm
 kaynak dosyalarını içerir. `.mcaddon` sadece bunların zip'lenmiş hali;
@@ -333,6 +333,86 @@ alınır, sonra eski kayıtlar yeni biçime çevrilir, veri sürümü işaretlen
 Aynı sürümde tekrar açılışta hiçbir şey yapılmaz. Kod `scripts/veri.js`
 içinde; yeni bir biçim değişikliği yaparsan `VERI_SURUMU` sayısını artırıp
 `GOCLER` nesnesine bir adım eklemen yeterli.
+
+## Bakır golemi hızlandırıcı (v3.9)
+
+Vanilla bakır golemi bakır sandıktan **tek yığın** alıp en yakın sandığa
+bırakır, sonra bekler. Büyük bir depoda bu çok yavaş kalıyor.
+
+`golem.js` golemi akıllı çalıştırıyor: golemin çevresindeki bakır
+sandıklardan **bir turda 10 yığını** aynı anda uygun sandıklara dağıtıyor.
+Vanilla mantığın aynısı korunuyor, sadece hızlanıyor:
+
+| | Vanilla | v3.9 |
+|---|---|---|
+| Tur başına yığın | 1 | **10** |
+| Tur arası | ~7 sn bekleme | 1 sn |
+| Hedef kap | sandık, kapanlı sandık | + **varil** |
+| Yerleştirme | aynı eşya varsa oraya, yoksa boşa | aynı |
+
+Kaynak, Mojang'ın kendi listesindeki 8 bakır sandık çeşidi (normal,
+paslanmış, mumlu…). Ayarlar `golem.js` içindeki `GOLEM_CFG`:
+`partiBoyutu` (10), `yaricap` (8 blok), `tikAraligi` (20 tik = 1 sn),
+`arsaGuvenligi`.
+
+**`!golem`** (ya da `/mk:golem`) yakındaki golemleri, kaç bakır sandık ve
+kaç hedef sandık gördüklerini ve toplam taşınan yığını yazar.
+
+Güvenlik kuralları (hepsi test edildi):
+
+- **Arsa sınırı**: kaynak ve hedef aynı arsada olmalı. Arsanın içindeki
+  bakır sandıktan dışarıdaki sandığa eşya taşınmaz (`arsaGuvenligi`).
+- Dolu sandık atlanır, boşu bulunur.
+- Heykele dönüşmekte olan golem çalışmaz.
+- Golem yoksa hiçbir şey yapılmaz — modül tamamen golem varlığına bağlı.
+
+### Mojang'ın entity dosyası neden değiştirilmedi
+
+Golemin kendi yürüme AI'ını değiştirmek `entities/copper_golem.json`
+dosyasını ezmeyi gerektirir. Bunu **varsayılan olarak yapmıyoruz**: Mojang
+o dosyayı güncelleyince bizim kopyamız eskide kalır, ve bakır golemin
+olmadığı eski sürümlerde içerik hatası verir.
+
+İsteyen için hazır dosya: **`arac/copper_golem_hizli.json`**. Mojang'ın
+güncel dosyasının birebir kopyası, sadece şu değerler değiştirilmiş:
+
+| Ayar | Vanilla | Hızlı |
+|---|---|---|
+| `max_stack_size` | 16 | 64 |
+| `search_distance` | [32, 8] | [48, 12] |
+| `max_visited_containers` | 10 | 24 |
+| `initial_cooldown` / `idle_cooldown` | 3 / 7 | 1 / 2 |
+| `minecraft:movement` | 0.2 | 0.3 |
+| hedef kaplar | sandık, kapanlı | + varil |
+
+Kullanmak için: `Market_BP/entities/` klasörü aç, dosyayı içine
+`copper_golem.json` adıyla kopyala, paketi yeniden üret. Oyun sürümün
+bakır golemi içermiyorsa ekleme, içerik hatası verir.
+
+## Eşya listesi denetimi (v3.9)
+
+`Mojang'ın resmi listesiyle karşılaştırıldı: **eksik eşya yok.**
+
+| | Adet | Ne |
+|---|---|---|
+| Mojang'ın kaydı | 1938 | items + blocks metadata |
+| Bizim katalog | 1902 | |
+| Markette | 1753 | |
+| Kasten dışarıda | 149 | 89 doğurma yumurtası, 29 teknik blok, 22 oyun bozan, 9 kafa |
+
+Katalogda olmayan 328 kayıt da eksik değil, listelenemeyecek şeyler:
+162 Education Edition kimya eşyası, 115 blok iç durumu
+(`*_double_slab`, `*_standing_sign`, `flowing_water`, `lit_furnace`…),
+29 yerleşik bitki hali (`carrots`, `candle_cake`…), 4 teknik
+(`air`, `fire`, `portal`).
+
+**216 eşyanın ikonu yok** (menüde soru işareti çıkar): kavak (`poplar_*`)
+ağaç seti, `shelf_mushroom`, `straw_bed`, `iron_chain`, crimson/warped
+kayıklar. Sebep bizde değil: Mojang bu eşyaların **id'lerini** yayınlamış
+ama **dokularını** henüz yayınlamamış. Bu eşyalar zaten senin oyun
+sürümünde yoksa listeye hiç girmiyorlar; girerlerse mor-siyah bozuk kare
+değil, güvenli soru işareti görünür. Mojang dokuları yayınlayınca
+`python3 ikon_guncelle.py` çalıştırmak yeterli.
 
 ## Hazır Market: her şey var, işlenmiş pahalı (v3.8)
 
@@ -671,7 +751,7 @@ ikon_guncelle.py           İkon haritasını resmî resource pack verisinden ü
 ## Komutlar
 
 Sohbete yazılır: `!menu !market !ara !sat !takas !alim !teklif !teklifler
-!para !arsa !pazar !uye !hazir !ilanlarim !rehber !bakiye !id !kitap` ve v2.0
+!para !arsa !pazar !uye !golem !hazir !ilanlarim !rehber !bakiye !id !kitap` ve v2.0
 ile gelen `!yenile` (eşya listesini yeniden kurar), `!liste` (listenin
 durumunu ve hangi kaynaktan kaç eşya geldiğini yazar). v3.2 ile `!pazar`
 satılık/kiralık arsaları açar, `!ev` kendi arsana ışınlar. v3.3 ile
@@ -679,7 +759,7 @@ satılık/kiralık arsaları açar, `!ev` kendi arsana ışınlar. v3.3 ile
 `!temizle` görünmez engelleri siler.
 
 Aynı işleri eğik çizgili komutlarla da yapabilirsin:
-`/mk:arsa`, `/mk:pazar`, `/mk:uye`, `/mk:ev`, `/mk:dovus`, `/mk:arenasil`,
+`/mk:arsa`, `/mk:pazar`, `/mk:uye`, `/mk:golem`, `/mk:ev`, `/mk:dovus`, `/mk:arenasil`,
 `/mk:menu`, `/mk:market` ...
 
 Bir şey ters giderse Content Log'daki `[Market]` satırları listenin hangi
@@ -688,7 +768,7 @@ kaynaktan kaç eşya topladığını yazıyor.
 ## Paketleme
 
 ```bash
-bash paketle.sh          # -> Market_v3.8.mcaddon
+bash paketle.sh          # -> Market_v3.9.mcaddon
 ```
 
 Sürüm numarası hem `manifest.json` dosyalarında hem de `main.js` içindeki
