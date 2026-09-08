@@ -15,7 +15,7 @@ const { ActionFormData, ModalFormData } = ui;
 
 // ==================== AYARLAR ====================
 const CFG = {
-  surum: "4.0",
+  surum: "4.1",
   ad: "m",
   objective: "money",
   simge: "$",
@@ -1790,12 +1790,15 @@ guvenli("slash komutlari", () => {
 
 // ==================== OYUNCU HAZIRLIGI ====================
 const hazirlananlar = new Set();
-function oyuncuyuHazirla(p) {
+// gercekGiris: oyuncu dunyaya YENI girdiyse true. Duellonun "arenada
+// takili kalmissin" kurtarmasi sadece o zaman calisir; 5 saniyelik
+// dongude calistiginda oyuncuyu kendi evinden surekli disari atiyordu.
+function oyuncuyuHazirla(p, gercekGiris = false) {
   if (!p?.isValid) return;
   if (Dovus.dovustaMi(p.name)) return;   // dovus sirasinda kitap/para verme
 
   // Duello ortasinda cikmissa once esyalarini iade et, sonra normal hazirlik
-  try { Dovus.girisKontrol(API, p); } catch (e) { console.warn("[Market] duello iade: " + e); }
+  try { Dovus.girisKontrol(API, p, gercekGiris); } catch (e) { console.warn("[Market] duello iade: " + e); }
   let mevcut;
   try { mevcut = obj().getScore(p); } catch { mevcut = undefined; }
   if (mevcut === undefined) {
@@ -1838,7 +1841,7 @@ guvenli("duello olum kontrolu", () => {
 guvenli("playerSpawn", () => {
   world.afterEvents.playerSpawn.subscribe(ev => {
     if (!ev.initialSpawn) return;
-    system.run(() => { try { oyuncuyuHazirla(ev.player); } catch (e) { console.warn("[Market] hazirlik: " + e); } });
+    system.run(() => { try { oyuncuyuHazirla(ev.player, true); } catch (e) { console.warn("[Market] hazirlik: " + e); } });
   });
 });
 

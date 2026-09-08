@@ -145,22 +145,87 @@ function yedekYaz(api, ad, veri) {
 }
 
 // Oyuncu dovus sirasinda cikip geri geldiyse eski yerine gonderir.
-export function girisKontrol(api, p) {
+// Bu dunya oturumunda "arenada takili mi" diye bakilan oyuncular.
+const girisBakildi = new Set();
+
+export function girisKontrol(api, p, gercekGiris = false) {
+  // 1) Yarim kalan duello yedegi: her zaman bakilir, cunku yedek SADECE
+  //    gercekten duelloya girmis oyuncuda olur, yanlis pozitif veremez.
   const h = yedekleriOku(api);
   const y = h[p.name];
   if (y) {
-    yedekYaz(api, p.name, undefined);
-    eveGonder(p, y);
-    p.sendMessage("§e[Düello] §fYarım kalan düellodan döndün, eski yerine gönderildin.");
-    return true;
+    // Yedek ANCAK isinlama basarili olursa silinir. Eskiden once siliniyor,
+    // sonra isinlaniyordu; isinlama basarisiz olursa oyuncu hem yerinde
+    // kaliyor hem de geri donus kaydini kaybediyordu.
+    const oldu = eveGonder(p, y);
+    if (oldu) {
+      yedekYaz(api, p.name, undefined);
+      p.sendMessage("§e[Düello] §fYarım kalan düellodan döndün, eski yerine gönderildin.");
+      return true;
+    }
+    if (gercekGiris) p.sendMessage("§c[Düello] Eski yerine gönderilemedin. §7Tekrar dene: §f!cik");
+    return false;
   }
-  // Yedegi yok ama arenada duruyorsa (eski surumden kalma takilma) kurtar
-  if (!dovustaMi(p.name) && arenadaMi(api, p)) {
-    eveGonder(p, null);
-    p.sendMessage("§e[Düello] §fArenada takılı kalmışsın, dışarı gönderildin.");
-    return true;
+
+  // 2) Eski surumlerden kalma "arenada sikisma" kurtarmasi.
+  //    v4.1'e kadar bu kontrol 5 SANIYEDE BIR calisiyordu ve sadece arena
+  //    KAYDINA olan mesafeye bakiyordu. Stadyum kaldirilmis olsa bile kayit
+  //    duruyorsa, o noktanin 54 blok cevresindeki herkes - kendi evinde
+  //    otursa bile - surekli disari isinlaniyordu.
+  //    Artik: yalnizca dunyaya GIRISTE, oturumda bir kez, ve ancak stadyum
+  //    gercekten ayaktaysa.
+  if (!gercekGiris || girisBakildi.has(p.name)) return false;
+  girisBakildi.add(p.name);
+  if (dovustaMi(p.name) || !arenadaSikismisMi(api, p)) return false;
+  eveGonder(p, null);
+  p.sendMessage("§e[Düello] §fArenada takılı kalmışsın, dışarı gönderildin.");
+  return true;
+}
+
+// Stadyum GERCEKTEN duruyor mu? Gorunmez duvardan ve tribun tasindan ornek
+// alir. Arena kaldirildiysa (ya da kayit yanlis yeri gosteriyorsa) false
+// doner, kimse "takilmis" sayilmaz.
+function arenaAyaktaMi(merkez) {
+  const boyut = boyutGetir(merkez.d);
+  const R = DOVUS_CFG.saha + DOVUS_CFG.pist + 1;      // gorunmez duvar halkasi
+  for (const [dx, dz] of [[R, 0], [-R, 0], [0, R], [0, -R]]) {
+    const b = blokOku(boyut, merkez.x + dx, merkez.y + 2, merkez.z + dz);
+    if (b?.typeId === "minecraft:barrier") return true;
+  }
+  const D = disYaricap();                              // dis duvar
+  for (const [dx, dz] of [[D, 0], [-D, 0], [0, D], [0, -D]]) {
+    const b = blokOku(boyut, merkez.x + dx, merkez.y + 1, merkez.z + dz);
+    if (b?.typeId === "minecraft:stone_bricks") return true;
   }
   return false;
+}
+
+// Sadece geometri: oyuncu kayitli arenanin alaninda mi? Stadyumun ayakta
+// olup olmadigina BAKMAZ. Otomatik kurtarmada kullanilmaz (yanlis pozitif
+// verir); sadece oyuncunun kendi yazdigi !cik komutunda kullanilir.
+function arenaAlanindaMi(api, p) {
+  const m = arenaOku(api)?.merkez;
+  if (!m) return false;
+  try {
+    if (p.dimension.id !== (m.d ?? "minecraft:overworld")) return false;
+    const l = p.location;
+    return Math.hypot(l.x - m.x, l.z - m.z) <= disYaricap() + 5 && Math.abs(l.y - m.y) < 40;
+  } catch { return false; }
+}
+
+// "Arenada sikismis" sayilmak icin: oyuncu gorunmez duvarin ICINDE olacak
+// (dis duvarin degil) ve stadyum ayakta olacak.
+function arenadaSikismisMi(api, p) {
+  const m = arenaOku(api)?.merkez;
+  if (!m) return false;
+  try {
+    if (p.dimension.id !== (m.d ?? "minecraft:overworld")) return false;
+    const l = p.location;
+    const ic = DOVUS_CFG.saha + DOVUS_CFG.pist + 1;
+    if (Math.hypot(l.x - m.x, l.z - m.z) > ic) return false;
+    if (Math.abs(l.y - m.y) > 20) return false;
+  } catch { return false; }
+  return arenaAyaktaMi(m);
 }
 
 // ============ ARENA ============
@@ -186,13 +251,20 @@ function sahadaMi(saha, p) {
   } catch { return false; }
 }
 
+// Oyuncu stadyumun icinde mi? Sadece kayda olan mesafeye BAKMAZ; stadyumun
+// gercekten ayakta oldugunu da dogrular. Yoksa kaldirilmis bir arenanin
+// kaydi yuzunden evindeki oyuncu "arenada" sayiliyordu.
 export function arenadaMi(api, p) {
   const a = arenaOku(api);
   const m = a?.merkez;
   if (!m) return false;
-  if (p.dimension.id !== m.d) return false;
-  const l = p.location;
-  return Math.hypot(l.x - m.x, l.z - m.z) <= disYaricap() + 5 && Math.abs(l.y - m.y) < 40;
+  try {
+    if (p.dimension.id !== (m.d ?? "minecraft:overworld")) return false;
+    const l = p.location;
+    if (Math.hypot(l.x - m.x, l.z - m.z) > disYaricap() + 5) return false;
+    if (Math.abs(l.y - m.y) >= 40) return false;
+  } catch { return false; }
+  return arenaAyaktaMi(m);
 }
 
 function arenaNoktalari(merkez) {
@@ -934,8 +1006,10 @@ export function aktifDovus() { return aktif; }
 // Arenada takilan icin acil cikis
 export function arenadanCik(p, api) {
   if (dovustaMi(p.name)) { p.sendMessage("§c[Düello] Dövüş sürerken çıkamazsın."); return false; }
+  // Oyuncu bunu KENDI yaziyor: burada gevsek davranmak guvenli. Yedegi
+  // varsa oraya, yoksa arena alanindaysa disari cikarilir.
   const y = yedekleriOku(api)[p.name];
-  if (!y && !arenadaMi(api, p)) { p.sendMessage("§7[Düello] Takılı kaldığın bir düello yok."); return false; }
+  if (!y && !arenaAlanindaMi(api, p)) { p.sendMessage("§7[Düello] Takılı kaldığın bir düello yok."); return false; }
   yedekYaz(api, p.name, undefined);
   const oldu = eveGonder(p, y);
   if (oldu) p.sendMessage("§a[Düello] §7Düellodan önceki yerine döndün.");
@@ -965,7 +1039,7 @@ export function dovusMenu(p, api) {
   ekle("§lMeydan Oku\n§r§7Bir oyuncuya istek gönder", "textures/items/iron_sword", () => kisiSec(p, api));
   ekle(`§lGelen İstekler §7(${gelen})`, "textures/items/paper", () => istekEkrani(p, api));
   ekle("§lKurallar", "textures/items/book_normal", () => kurallar(p, api));
-  if (!dovustaMi(p.name) && (yedekleriOku(api)[p.name] || arenadaMi(api, p)))
+  if (!dovustaMi(p.name) && (yedekleriOku(api)[p.name] || arenaAlanindaMi(api, p)))
     ekle("§e§lDüellodan Çık\n§r§7Takıldıysan eski yerine dön", "textures/blocks/barrier", () => { arenadanCik(p, api); dovusMenu(p, api); });
   if (api.adminMi(p)) {
     ekle("§c§lStadyumu Buraya Kur\n§r§7Durduğun yere inşa eder", "textures/blocks/stonebrick", () => arenaKurOnay(p, api));

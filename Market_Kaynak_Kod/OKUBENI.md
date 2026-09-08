@@ -1,4 +1,4 @@
-# Market & Ekonomi — Kaynak Kod (v4.0)
+# Market & Ekonomi — Kaynak Kod (v4.1)
 
 Bu klasör Minecraft Bedrock için yazılan Market/Ekonomi addon'ının tüm
 kaynak dosyalarını içerir. `.mcaddon` sadece bunların zip'lenmiş hali;
@@ -91,6 +91,39 @@ Düzeltmeler:
 
 Arsa ayarları `arsa.js` en başındaki `ARSA_CFG` içinde: blok başı fiyat,
 en küçük/en büyük kenar, oyuncu başına arsa sayısı, iade oranı.
+
+## "Arenada takılı kalmışsın" hatası (v4.1'de düzeldi)
+
+Oyuncular kendi evlerinde otururken **5 saniyede bir** dışarı ışınlanıyor ve
+"[Düello] Arenada takılı kalmışsın, dışarı gönderildin." mesajı alıyorlardı.
+
+İki hata üst üste binmişti:
+
+1. **Kontrol yanlış yerde çalışıyordu.** `girisKontrol` sadece dünyaya
+   girişte çalışması gerekirken, `oyuncuyuHazirla` üzerinden **5 saniyelik
+   döngüde** de çağrılıyordu.
+2. **"Arenada mı" kontrolü sadece kayda bakıyordu.** `arenadaMi` yalnızca
+   kayıtlı arena merkezine olan mesafeye bakıyordu: **54 blok** yatay,
+   40 blok dikey. Stadyum kaldırılmış olsa bile kayıt duruyorsa o noktanın
+   54 blok çevresindeki herkes "arenada" sayılıyordu. Evi arenanın eski
+   yerine yakın olan oyuncu (28 blok) sürekli evinden atılıyordu.
+
+Düzeltme:
+
+- Eski sürümlerden kalma "arenada sıkışma" kurtarması artık **yalnızca
+  dünyaya girişte, oturumda bir kez** çalışıyor.
+- `arenadaMi` artık stadyumun **gerçekten ayakta** olduğunu da doğruluyor:
+  görünmez duvar halkasından ve dış duvar taşından örnek alıyor. Arena
+  kaldırılmışsa kimse "takılmış" sayılmıyor.
+- Yarıçap dış duvardan (54) görünmez duvarın içine (35) çekildi — "sıkışmak"
+  zaten orada olur.
+- `!cik` ve menüdeki "Düellodan Çık" **gevşek** kaldı: oyuncu bunu kendi
+  yazıyor, orada yanlış pozitif zararsız.
+
+Ayrıca yarım kalan düello yedeği artık **ışınlanma başarılı olursa**
+siliniyor. Eskiden önce siliniyor sonra ışınlanıyordu; ışınlanma
+başarısız olursa oyuncu hem yerinde kalıyor hem de geri dönüş kaydını
+kaybediyordu.
 
 ## Düello sahası: arsan ya da durduğun yer (v3.5)
 
@@ -857,7 +890,7 @@ kaynaktan kaç eşya topladığını yazıyor.
 ## Paketleme
 
 ```bash
-bash paketle.sh          # -> Market_v4.0.mcaddon
+bash paketle.sh          # -> Market_v4.1.mcaddon
 ```
 
 Sürüm numarası hem `manifest.json` dosyalarında hem de `main.js` içindeki
