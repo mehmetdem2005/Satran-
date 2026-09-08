@@ -1,12 +1,12 @@
 {
   "format_version": 2,
   "header": {
-    "name": "Market & Ekonomi BP v3.7",
-    "description": "v3.7 | Uyeler ekrani: arsa menusunden tek tikla uye ekle/cikar (!uye), cevrimdisi oyuncu da eklenebilir.",
+    "name": "Market & Ekonomi BP v3.8",
+    "description": "v3.8 | Market butun esyalara acildi: 12 kategori, islenmis esyalar pahali, madenler yine alinabilir; ejderha yumurtasi/kafalar/spawner yasak.",
     "uuid": "bb41fa3d-7901-4559-8e61-d650ac191764",
     "version": [
       3,
-      7,
+      8,
       0
     ],
     "min_engine_version": [
@@ -22,7 +22,7 @@
       "uuid": "b9808c32-f7e3-4a89-93e1-f00313e58099",
       "version": [
         3,
-        7,
+        8,
         0
       ],
       "entry": "scripts/main.js"
@@ -41,7 +41,7 @@
       "uuid": "201cbafc-bcfc-4212-a13f-428a03328b5b",
       "version": [
         3,
-        7,
+        8,
         0
       ]
     }

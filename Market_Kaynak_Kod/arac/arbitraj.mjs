@@ -55,5 +55,56 @@ for (const [blk, parca] of bloklar) {
   if (alis(parca) * 9 > satis(blk)) { acik++; console.log(`  ACIK  ${blk} -> 9x${parca}: ${satis(blk)} -> ${alis(parca)*9}`); }
 }
 
+// TAS KESICI: bir bloktan kac parca cikiyorsa hepsini satmak, blogu
+// almaktan ucuz olmali. Market butun esyalara acildiginda (v3.8) burasi
+// para basiyordu: tas 3'e alinip 2 yarim blok 4'e satiliyordu.
+// Kaynak listesi elle degil, fiyat motorundaki her "ana blok" icin uretilir.
+const ANA_BLOKLAR = [
+  "stone", "cobblestone", "mossy_cobblestone", "stone_bricks", "mossy_stone_bricks",
+  "andesite", "diorite", "granite", "polished_andesite", "polished_diorite",
+  "polished_granite", "sandstone", "red_sandstone", "smooth_sandstone", "deepslate",
+  "cobbled_deepslate", "polished_deepslate", "deepslate_bricks", "deepslate_tiles",
+  "tuff", "polished_tuff", "tuff_bricks", "blackstone", "polished_blackstone",
+  "polished_blackstone_bricks", "nether_bricks", "red_nether_bricks", "quartz_block",
+  "smooth_quartz", "purpur_block", "prismarine", "prismarine_bricks", "dark_prismarine",
+  "end_stone_bricks", "mud_bricks", "bricks", "resin_bricks",
+  "oak_planks", "spruce_planks", "birch_planks", "jungle_planks", "acacia_planks",
+  "dark_oak_planks", "mangrove_planks", "cherry_planks", "bamboo_planks",
+  "crimson_planks", "warped_planks", "pale_oak_planks"
+];
+// [son ek, bir bloktan cikan adet]
+const KESIM = [["_slab", 2], ["_stairs", 1], ["_wall", 1]];
+for (const blk of ANA_BLOKLAR) {
+  const maliyet = satis(blk);
+  if (!maliyet) continue;
+  const kok = blk.replace(/_planks$/, "").replace(/s$/, blk.endsWith("bricks") ? "s" : "");
+  for (const [ek, adet] of KESIM) {
+    for (const aday of [blk + ek, kok + ek, blk.replace(/_planks$/, "") + ek]) {
+      if (!F.fiyat("minecraft:" + aday)) continue;
+      kontrol++;
+      const kazanc = alis(aday) * adet;
+      if (kazanc >= maliyet) {
+        acik++;
+        console.log(`  ACIK  tas kesici ${blk} (${maliyet}) -> ${adet}x ${aday} (${kazanc})  +${kazanc - maliyet}`);
+      }
+      break;
+    }
+  }
+}
+
+// Bakir ailesi: 1 bakir blogundan 4 kesilmis bakir cikar
+for (const [blk, urun, adet] of [
+  ["copper_block", "cut_copper", 4], ["copper_block", "cut_copper_stairs", 4],
+  ["copper_block", "cut_copper_slab", 8], ["cut_copper", "cut_copper_slab", 2],
+  ["glass", "glass_pane", 2], ["white_wool", "white_carpet", 1]
+]) {
+  if (!F.fiyat("minecraft:" + urun) || !F.fiyat("minecraft:" + blk)) continue;
+  kontrol++;
+  if (alis(urun) * adet >= satis(blk)) {
+    acik++;
+    console.log(`  ACIK  ${blk} (${satis(blk)}) -> ${adet}x ${urun} (${alis(urun) * adet})`);
+  }
+}
+
 console.log(`\n${kontrol} kontrol, ${acik} acik.`);
 process.exit(acik ? 1 : 0);

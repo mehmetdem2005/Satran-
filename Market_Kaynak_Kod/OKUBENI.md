@@ -1,4 +1,4 @@
-# Market & Ekonomi — Kaynak Kod (v3.7)
+# Market & Ekonomi — Kaynak Kod (v3.8)
 
 Bu klasör Minecraft Bedrock için yazılan Market/Ekonomi addon'ının tüm
 kaynak dosyalarını içerir. `.mcaddon` sadece bunların zip'lenmiş hali;
@@ -334,77 +334,95 @@ Aynı sürümde tekrar açılışta hiçbir şey yapılmaz. Kod `scripts/veri.js
 içinde; yeni bir biçim değişikliği yaparsan `VERI_SURUMU` sayısını artırıp
 `GOCLER` nesnesine bir adım eklemen yeterli.
 
-## Hazır Market sadece ham madde (v2.7)
+## Hazır Market: her şey var, işlenmiş pahalı (v3.8)
 
-Hazır Market artık oyundaki her eşyayı satmıyor. Yalnızca **doğadan
-toplanan ham maddeler** listeleniyor — ~296 eşya, yedi kategoride:
+Market artık **1716 eşya** listeliyor — aletler, zırhlar, mekanizmalar,
+dekor, yapı blokları, hepsi. Madenler de yeniden **satın alınabiliyor**
+(v3.2'de kapatılmıştı, v3.8'de açıldı).
 
-| Kategori | İçerik |
-|---|---|
-| Tarım & Yiyecek | buğday, havuç, patates, pancar, kabak, karpuz, **kamış, şeker**, kakao, bambu, kaktüs, meyveler, çiğ et ve balık |
-| Yün | **16 rengin yünü**, hepsi aynı fiyat (v3.6) |
-| Hayvan Ürünleri | ip, tüy, deri, tavşan derisi, yumurta, süt, bal, petek, kemik, mürekkep, kabuk, barut |
-| Madenler & Cevher | tüm cevherler, ham demir/altın/bakır, külçeler, elmas, zümrüt, lapis, kızıltaş, kuvars, ametist, netherit, çakmaktaşı, kil topağı — **v3.2: sadece satılır, satın alınamaz** |
-| Ahşap | tüm kütükler, odunlar, soyulmuş kütükler, tahtalar, fidanlar, yapraklar |
-| Bitki & Deniz | çiçekler, mantarlar, mercanlar, deniz yosunu, sarmaşık, yosun |
-| Doğal Bloklar | taş, çakıltaşı, derin arduvaz, toprak, kum, çakıl, kil, netherrack, obsidyen, buz, sünger |
+### Kategoriler
 
-Listede **olmayanlar**: aletler, zırhlar, silahlar, mekanizmalar
-(piston, huni, ray...), dekor blokları, doğurma yumurtaları, plaklar,
-iksirler, işlenmiş yiyecek — kısacası craftlanan her şey.
-
-**Oyuncu marketi bundan etkilenmez.** Oyuncular kendi eşyalarını
-birbirine istedikleri gibi satmaya, takas etmeye ve alım ilanı vermeye
-devam eder; kılıcını satmak isteyen oyuncu marketine koyar. Toplu satış
-da sadece ham madde alır (elmas kılıcını sisteme satamazsın).
-
-Ayar `main.js` içindeki `CFG.sadeceHammadde`. `false` yaparsan eski
-davranışa (her eşya listede) döner. Hangi eşyanın ham madde sayıldığı
-`fiyat.js` içindeki `HAM_TAM` / `HAM_DESEN` listelerinde — bir şey
-eklemek/çıkarmak için orası yeterli.
-
-### Madenler sadece satılır (v3.2)
-
-Maden ve cevherler **parayla alınamaz**; kazarak elde edilir. Markete
-satmak serbesttir, hatta tek para kaynağın odur.
-
-- Liste satırında fiyat yerine `$12 / sadece satılır` yazar.
-- Eşya ekranında "SATIN AL" düğmesinin yerinde `(Sadece satılır)` durur;
-  bassan da alım reddedilir.
-- **Oyuncu marketi bundan etkilenmez**: oyuncular birbirine elmas, demir,
-  netherit satmaya devam eder. Kısıtlama sadece sınırsız stoklu Hazır
-  Market içindir — yoksa "para bas, elmas al" döngüsü ekonomiyi bozardı.
-
-Hangi kategorilerin alınamayacağı `fiyat.js` içindeki
-`ALINAMAZ_KATEGORILER` kümesinde; kontrolü `marketAlinabilir(id)` yapar.
-Başka bir kategoriyi de satın alınamaz yapmak istersen o kümeye adını
-eklemen yeterli.
-
-### Yün: kendi kategorisi ve tek fiyat (v3.6)
-
-16 rengin yünü "Hayvan Ürünleri" içinde kaybolmuyor, kendi **Yün**
-düğmesinde. Kural `fiyat.js` içindeki `HAM_KURAL` listesinde tek satır:
-`/_wool$/`.
-
-**Bütün renkler aynı fiyat: satarsan 20, alırsan 44** (`YUN_FIYATI`).
-Eskiden `white_wool` tarifinden (4 ip → 14) hesaplanıyor, diğer 15 renk ise
-sabit 4'e düşüyordu — aynı eşya renkten renge farklı fiyat verdiği için
-rastgele görünüyordu.
-
-Ekonomi açığı yok: 4 ipin **alış** fiyatı 4 × 7 = 28, yün **satışı** 20.
-"İp al, yün yap, sat" hâlâ zarar.
-
-Aynı kusur yünden yapılan eşyalarda da vardı — beyazı tariften, diğer
-renkler sabit sayıdan hesaplanıyordu:
-
-| Eşya | Eskiden (beyaz / kırmızı) | Şimdi |
+| Kategori | Kaç eşya | İçerik |
 |---|---|---|
-| Yatak | 72 / 18 | 72 / 72 |
-| Sancak | 139 / 24 | 139 / 139 |
-| Halı | 15 / 3 | 15 / 15 |
+| Alet, Zırh & Silah | 163 | kılıç, kazma, zırh, yay, elytra, kova, kitap, fişek |
+| Madenler & Cevher | 60 | cevherler, külçeler, elmas, zümrüt, netherit, blokları |
+| Tarım & Yiyecek | 68 | ham ve pişmiş yiyecek, tohum, çorba, pasta |
+| Kırmızı Taş & Mekanizma | 71 | piston, huni, ray, vagon, TNT, gözlemci, kapı |
+| Yün | 16 | 16 rengin yünü, hepsi aynı fiyat |
+| Boya & Renkli Blok | 118 | boyalar, beton, çini, renkli cam |
+| Dekor & Eşya | 237 | yatak, sancak, halı, tablo, fener, tabela, plak |
+| Yapı Blokları | 398 | merdiven, yarım blok, duvar, çit, kapı, tuğla |
+| Ahşap | 111 | kütük, tahta, soyulmuş odun, sal, çubuk, kağıt |
+| Bitki & Çiçek | 134 | yaprak, fidan, çiçek, mantar, mercan, yosun |
+| Mob & Değerli | 44 | ender incisi, blaze çubuğu, shulker kabuğu, iksir, beacon |
+| Taş & Toprak | 296 | doğal bloklar: taş, toprak, kum, obsidyen, buz |
 
-Artık her renk beyazın tariften çıkan değerini alıyor. `moss_carpet` gibi
-`TABAN` listesinde kendi değeri olanlar bundan etkilenmiyor.
+Kategori kuralları `fiyat.js` içindeki `KURAL` listesinde; sıra önemli,
+ilk uyan kural kazanır.
+
+### Fiyatlar: ham madde ucuz, işlenmiş pahalı
+
+İşlenmiş (craftlanan) eşyaların **alış** fiyatına `ISLENMIS_ZAM = 1.8`
+çarpanı bindiriliyor. Ham madde makası 2.2 iken işlenmiş eşyanınki
+2.2 × 1.8 ≈ **4 kat**:
+
+| Eşya | Satarsan | Alırsan |
+|---|---|---|
+| Demir külçe (ham) | 12 | 27 |
+| Meşe kütüğü (ham) | 4 | 9 |
+| Elmas kılıç | 209 | 828 |
+| Elytra | 1.500 | 5.941 |
+| Beacon | 2.955 | 11.702 |
+
+Böylece kazmak/toplamak hâlâ en ucuz yol; hazır alet almak lüks kalıyor.
+Zam yalnız **alış** tarafına bindiği için açık yaratmaz — tersine, girdiyi
+pahalılaştırdığı için mevcut açıkları da kapatır.
+
+### Yasaklılar: oyunun amacını bozanlar
+
+Bunlar markette **hiç görünmez**, ne alınır ne satılır:
+
+- **Benzersiz ganimetler**: ejderha yumurtası, bütün mob kafaları
+  (iskelet, wither iskeleti, zombi, creeper, ejderha, oyuncu, piglin).
+  Marketten alınabilse o yapıyı/boss'u yenmenin anlamı kalmazdı.
+- **Sınırsız mob kaynakları**: spawner, deneme spawner'ı, kasa, bütün
+  doğurma yumurtaları.
+- **Survival'da elde edilemeyenler**: bedrock, güçlendirilmiş derin
+  arduvaz, tomurcuklanan ametist, şüpheli kum/çakıl, kaplumbağa/koklayıcı
+  yumurtası, silverfish blokları.
+- **Teknik/yaratıcı bloklar**: komut bloğu (vagonu dahil), bariyer, yapı
+  bloğu, jigsaw, portal blokları, ışık bloğu.
+
+Liste `fiyat.js` içindeki `OYUN_BOZAN` kümesinde; bir şey eklemek/çıkarmak
+için orası yeterli.
+
+### Sadece ham madde moduna dönmek
+
+`main.js` içindeki `CFG.sadeceHammadde = true` yaparsan v2.7 - v3.7
+davranışına döner: sadece doğadan toplanan ~296 eşya listelenir, kendi
+ham madde kategorileriyle (`HAM_KURAL`).
+
+Bir kategoriyi "sadece satılık" yapmak istersen (madenlerde v3.2-v3.7
+arası olduğu gibi) `fiyat.js` içindeki `ALINAMAZ_KATEGORILER` kümesine
+adını ekle; menü yazısı ve alım engeli kendiliğinden çalışır.
+
+### Taş kesici açığı (v3.8'de kapatıldı)
+
+Market tüm eşyalara açılınca ortaya çıktı: **taş 3'e alınıp, taş kesiciyle
+2 yarım bloğa çevrilip 4'e satılabiliyordu.** Sebep, yapı çarpanlarındaki
+`+1` sabitiydi — ucuz bir blokta türevi anasından pahalı yapıyordu
+(taş 1, yarım blok 1 × 0.5 + 1 = 2).
+
+Aynı sınıftan ikinci açık: 1 bakır bloğundan 4 kesilmiş bakır çıkarken
+kesilmiş bakır bloktan pahalı fiyatlanıyordu (blok 45, 4 kesilmiş bakır
+240).
+
+Düzeltme: `+1` kaldırıldı, çarpanlar taş kesicinin verimine göre yeniden
+seçildi (yarım blok 0.45, cam paneli 0.3, halı 0.5), kesilmiş bakır
+doğrudan `copper_block × 0.22` oldu.
+
+`arac/arbitraj.mjs` artık bu sınıfı da denetliyor: 45 ana blok × 3 kesim
+biçimi + bakır/cam/yün çevrimleri. Toplam **350 kontrol, 0 açık**.
 
 ## Fiyatlandırma (v2.4'te elden geçti)
 
@@ -670,7 +688,7 @@ kaynaktan kaç eşya topladığını yazıyor.
 ## Paketleme
 
 ```bash
-bash paketle.sh          # -> Market_v3.7.mcaddon
+bash paketle.sh          # -> Market_v3.8.mcaddon
 ```
 
 Sürüm numarası hem `manifest.json` dosyalarında hem de `main.js` içindeki

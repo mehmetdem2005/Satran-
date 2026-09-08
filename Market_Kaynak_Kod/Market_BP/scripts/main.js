@@ -2,7 +2,8 @@ import * as mc from "@minecraft/server";
 import * as ui from "@minecraft/server-ui";
 import { ikon, VARSAYILAN } from "./icons.js";
 import { fiyat, esyaDegeri, KATEGORILER, kategoriIndex, HAM_KATEGORILER, hamKategoriIndex,
-  hammaddeMi, yasakMi, marketAlinabilir, MAKAS } from "./fiyat.js";
+  hammaddeMi, yasakMi, marketAlinabilir, ALINAMAZ_KATEGORILER, ISLENMIS_ZAM,
+  MAKAS } from "./fiyat.js";
 import { katalog, aramaGruplari } from "./esyalar.js";
 import * as Dovus from "./dovus.js";
 import * as Veri from "./veri.js";
@@ -13,7 +14,7 @@ const { ActionFormData, ModalFormData } = ui;
 
 // ==================== AYARLAR ====================
 const CFG = {
-  surum: "3.7",
+  surum: "3.8",
   ad: "m",
   objective: "money",
   simge: "$",
@@ -34,7 +35,9 @@ const CFG = {
   // Hazir Market yalnizca ham madde satsin mi? (tarim, hayvan urunu, maden,
   // odun, dogal blok). false yaparsan oyundaki her esya yine listelenir.
   // Oyuncu ilanlarini etkilemez: oyuncular her esyayi birbirine satabilir.
-  sadeceHammadde: true
+  // v3.8: market butun esyalara acik. true yaparsan sadece ham madde
+  // listelenir (v2.7 - v3.7 davranisi).
+  sadeceHammadde: false
 };
 
 const KITAP_ID = "mk:kontrol_kitabi";
@@ -1466,6 +1469,13 @@ function kategoriListeleri() {
 
 const MARKET_SAYFA = 50;
 
+// Satin alinamayan kategori varsa menude uyari yazisi cikar.
+function satisSiniriYazi() {
+  const k = [...ALINAMAZ_KATEGORILER];
+  if (k.length === 0) return "";
+  return `\u00a78${k.join(", ")}: sadece sat\u0131l\u0131r, sat\u0131n al\u0131namaz.\n`;
+}
+
 function sistemKategoriler(p) {
   tumItemler();
   envanterdekileriKat(p);
@@ -1474,7 +1484,7 @@ function sistemKategoriler(p) {
 
   const f = new ActionFormData()
     .title("\u00a7lHAZIR MARKET")
-    .body(`\u00a77Her zaman a\u00e7\u0131k, s\u0131n\u0131rs\u0131z stok. \u00a7f${toplam}\u00a77 e\u015fya listede.\n${CFG.sadeceHammadde ? "\u00a78Sadece ham madde: tar\u0131m, y\u00fcn, hayvan \u00fcr\u00fcn\u00fc, maden, odun.\n" : ""}\u00a77Bakiyen: \u00a7a${fmt(paraOku(p))}\n\u00a78Madenler sat\u0131n al\u0131namaz, sadece markete sat\u0131l\u0131r.\n\u00a78Fiyatlar ham madde de\u011ferinden hesaplan\u0131r; i\u015flenmi\u015f \u00fcr\u00fcn her zaman girdisinden pahal\u0131d\u0131r.${listeDurumu()}`);
+    .body(`\u00a77Her zaman a\u00e7\u0131k, s\u0131n\u0131rs\u0131z stok. \u00a7f${toplam}\u00a77 e\u015fya listede.\n${CFG.sadeceHammadde ? "\u00a78Sadece ham madde: tar\u0131m, y\u00fcn, hayvan \u00fcr\u00fcn\u00fc, maden, odun.\n" : ""}\u00a77Bakiyen: \u00a7a${fmt(paraOku(p))}\n${satisSiniriYazi()}\u00a78Fiyatlar ham madde de\u011ferinden hesaplan\u0131r; i\u015flenmi\u015f \u00fcr\u00fcn ham maddeden \u00e7ok daha pahal\u0131d\u0131r.${listeDurumu()}`);
 
   const islem = [];
   gruplar.forEach((g, i) => {

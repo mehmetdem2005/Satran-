@@ -315,7 +315,30 @@ const YASAK_TAM = new Set([
   "bubble_column", "standing_sign", "wall_sign", "standing_banner", "wall_banner",
   "flowing_lava", "lit_furnace", "lit_smoker", "lit_blast_furnace"
 ]);
-const YASAK_DESEN = [/^reserved/, /_command_block$/, /^light_block(_\d+)?$/];
+// Oyunun amacini bozan / survival'da elde edilemeyen esyalar. Bunlar
+// markette hic gorunmez: ne alinir ne satilir.
+//  - Benzersiz gani̇metler: ejderha yumurtasi, mob kafalari. Marketten
+//    alinabilse o yapiyi/bossu yenmenin anlami kalmaz.
+//  - Spawner ve dogurma yumurtalari: sinirsiz mob = sinirsiz her sey.
+//  - Kirilmayan/yaratici blok: bedrock, guclendirilmis derin arduvaz.
+//  - budding_amethyst: survival'da kirilamaz, sinirsiz ametist verirdi.
+const OYUN_BOZAN = new Set([
+  "dragon_egg",
+  "skull", "skeleton_skull", "wither_skeleton_skull", "zombie_head",
+  "creeper_head", "dragon_head", "player_head", "piglin_head",
+  "spawner", "mob_spawner", "trial_spawner", "vault",
+  "bedrock", "reinforced_deepslate", "budding_amethyst",
+  "suspicious_sand", "suspicious_gravel", "sniffer_egg", "turtle_egg", "frog_spawn", "frogspawn",
+  "command_block_minecart", "monster_egg", "infested_stone", "infested_cobblestone",
+  "infested_stone_bricks", "infested_mossy_stone_bricks", "infested_cracked_stone_bricks",
+  "infested_chiseled_stone_bricks", "infested_deepslate"
+]);
+
+const YASAK_DESEN = [
+  /^reserved/, /_command_block$/, /^light_block(_\d+)?$/,
+  /_spawn_egg$/,        // dogurma yumurtalari
+  /(^|_)(skull|head)$/  // butun mob kafalari
+];
 
 const bellek = new Map();
 const sarmal = new Set();
@@ -324,7 +347,7 @@ function ad(id) { return String(id).replace(/^minecraft:/, "").replace(/^mk:/, "
 
 export function yasakMi(id) {
   const a = ad(id);
-  if (YASAK_TAM.has(a)) return true;
+  if (YASAK_TAM.has(a) || OYUN_BOZAN.has(a)) return true;
   return YASAK_DESEN.some(r => r.test(a));
 }
 
@@ -477,19 +500,28 @@ function hesapla(a) {
   if (a.endsWith("_stained_glass_pane")) return 3;
 
   // yapi parcalari: kok blogun degerinden turetilir
+  // Carpanlar tas kesicinin verimine gore secildi: bir ana bloktan kac
+  // adet cikiyorsa carpan 1/adet'in altinda kalmali, yoksa "blok al, kes,
+  // parcalari sat" acigi olusur.
+  //   yarim blok 2 adet -> 0.45   |  merdiven/duvar 1 adet -> 0.8
+  //   cam paneli 16/6   -> 0.3    |  hali 3/2 -> 0.5
   const yapi = [
-    ["_stairs", 0.8], ["_slab", 0.5], ["_wall", 0.8], ["_fence_gate", 1.3],
+    ["_stairs", 0.8], ["_slab", 0.45], ["_wall", 0.8], ["_fence_gate", 1.3],
     ["_fence", 0.9], ["_trapdoor", 1.1], ["_door", 1.3], ["_pressure_plate", 0.7],
     ["_button", 0.4], ["_sign", 1.2], ["_bricks", 1.2], ["_brick", 1.2],
-    ["_tiles", 1.2], ["_pane", 0.6], ["_carpet", 0.6]
+    ["_tiles", 1.2], ["_pane", 0.3], ["_carpet", 0.5]
   ];
   for (const [ek, carpan] of yapi) {
     if (!a.endsWith(ek)) continue;
     const kok = a.slice(0, -ek.length);
     if (!kok) break;
     const adaylar = [kok, kok + "_planks", kok + "s", "polished_" + kok];
-    for (const c of adaylar) if (TABAN[ad(c)] !== undefined) return D(c) * carpan + 1;
-    return 3 * carpan + 1;
+    // NOT: eskiden sonuca "+1" ekleniyordu. Ucuz bir blokta bu, turevi
+    // anasindan pahali yapiyordu: tas 1, tas yarim blok 1*0.5+1 = 2. Tas
+    // kesici 1 taştan 2 yarim blok verdigi icin "tas al, kes, sat" para
+    // basiyordu. Artik carpan dogrudan uygulaniyor.
+    for (const c of adaylar) if (TABAN[ad(c)] !== undefined) return D(c) * carpan;
+    return 3 * carpan;
   }
 
   // renkli aile  (yun ve yunden yapilanlar yukarida sabitlendi)
@@ -505,9 +537,15 @@ function hesapla(a) {
   if (a.startsWith("potion") || a.startsWith("splash_potion") || a.startsWith("lingering_potion")) return 25;
   if (a.endsWith("_horse_armor")) return 150;
   if (a.startsWith("smithing_template") || a.endsWith("_smithing_template")) return 200;
+  // Kesilmis bakir: 1 bakir blogundan 4 adet cikar, o yuzden en fazla
+  // blogun dortte biri. (Genel 1.3 carpani burada acik yaratiyordu:
+  // blok 45'e satilirken 4 kesilmis bakir 240 ediyordu.)
+  if (/^cut_copper/.test(a) || /_cut_copper/.test(a))
+    return D("copper_block") * 0.22;
+
   if (a.startsWith("polished_") || a.startsWith("chiseled_") || a.startsWith("cut_") || a.startsWith("smooth_")) {
     const kok = a.replace(/^(polished_|chiseled_|cut_|smooth_)/, "");
-    return D(kok) * 1.3 + 1;
+    return D(kok) * 1.3;
   }
   if (a.startsWith("mossy_") || a.startsWith("cracked_")) return D(a.replace(/^(mossy_|cracked_)/, "")) * 1.2;
   if (a.startsWith("waxed_")) return D(a.slice(6)) * 1.1;
@@ -549,10 +587,20 @@ export function esyaDegeri(item) {
 }
 
 // Oyuncunun gordugu fiyatlar
+// Islenmis (craftlanan) esyalarin ALIS fiyatina ek zam. Ham madde
+// kazmak/toplamak hala en ucuz yol olsun diye: hazir alet/zirh/mekanizma
+// pahali. Sadece ALIS tarafina bindiriliyor; satis fiyati degismiyor,
+// yani "ucuz al -> craftla -> pahali sat" acigi yaratmaz (tersine kapatir).
+export const ISLENMIS_ZAM = 1.8;
+
 export function fiyat(id) {
   if (yasakMi(id)) return null;
   const taban = tabanDeger(id);
-  return { alis: Math.max(1, taban), satis: Math.max(2, Math.ceil(taban * MAKAS)) };
+  const zam = hammaddeMi(id) ? 1 : ISLENMIS_ZAM;
+  return {
+    alis: Math.max(1, taban),
+    satis: Math.max(2, Math.ceil(taban * MAKAS * zam))
+  };
 }
 
 // ============ HAM MADDE SUZGECI ============
@@ -666,7 +714,10 @@ export const HAM_KATEGORILER = HAM_KURAL.map(([ad, ikon]) => ({ ad, ikon }))
 // Hazir Markette SATIN ALINAMAYAN kategoriler. Oyuncu bunlari markete
 // satabilir ama marketten alamaz: madenler kazilarak elde edilmeli,
 // parayla alinmamali.
-export const ALINAMAZ_KATEGORILER = new Set(["Madenler & Cevher"]);
+// Hazir Markette SATIN ALINAMAYAN kategoriler. v3.8'de bosaltildi:
+// madenler yeniden alinabiliyor. Bir kategoriyi tekrar "sadece satilik"
+// yapmak istersen adini buraya ekle, gerisi kendiliginden calisir.
+export const ALINAMAZ_KATEGORILER = new Set([]);
 
 // Bu esya Hazir Marketten SATIN ALINABILIR mi? (satmak her zaman serbest)
 export function marketAlinabilir(id) {
@@ -686,8 +737,6 @@ export function hamKategoriIndex(id) {
 // Sira onemli: ilk uyan kural kazanir. Hicbirine uymayan "Diger"e duser,
 // yani hicbir esya listeden kaybolmaz.
 const KURAL = [
-  ["Doğurma Yumurtaları", "minecraft:egg", a => /_spawn_egg$/.test(a)],
-
   ["Alet, Zırh & Silah", "minecraft:diamond_sword", a =>
     /_(sword|pickaxe|axe|shovel|hoe|helmet|chestplate|leggings|boots|horse_armor)$/.test(a) ||
     /(_smithing_template|_bucket|_spear|_nautilus_armor)$/.test(a) ||
@@ -696,8 +745,9 @@ const KURAL = [
      "compass", "recovery_compass", "clock", "spyglass", "saddle", "lead", "name_tag",
      "book", "writable_book", "written_book", "enchanted_book", "experience_bottle",
      "wolf_armor", "carrot_on_a_stick", "warped_fungus_on_a_stick", "wind_charge",
-     "lodestone_compass", "trapdoor", "shears",
-     "firework_rocket", "firework_star", "goat_horn", "totem_of_undying"].includes(a)],
+     "lodestone_compass", "firework_rocket", "firework_star", "goat_horn",
+     "totem_of_undying", "wolf_armor", "harness"].includes(a) ||
+    /_harness$/.test(a)],
 
   ["Madenler & Cevher", "minecraft:diamond", a =>
     /(_ore$|^raw_|_ingot$|_nugget$)/.test(a) ||
@@ -706,20 +756,20 @@ const KURAL = [
      "clay_ball", "coal_block", "iron_block", "gold_block", "diamond_block",
      "emerald_block", "lapis_block", "redstone_block", "netherite_block", "copper_block",
      "amethyst_block", "raw_iron_block", "raw_gold_block", "raw_copper_block",
-     "budding_amethyst", "amethyst_cluster", "nether_star"].includes(a)],
+     "amethyst_cluster", "nether_star"].includes(a) ||
+    /_amethyst_bud$/.test(a)],
 
   ["Tarım & Yiyecek", "minecraft:wheat", a =>
     /^(cooked_|baked_)/.test(a) || /_(seeds|stew|soup|pie)$/.test(a) ||
     ["wheat", "carrot", "potato", "poisonous_potato", "beetroot", "melon_slice",
-     "melon_block", "pumpkin", "carved_pumpkin", "lit_pumpkin", "sugar_cane", "sugar",
-     "cocoa_beans", "bamboo", "cactus", "kelp", "dried_kelp", "sweet_berries",
-     "glow_berries", "apple", "golden_apple", "enchanted_golden_apple", "golden_carrot",
-     "glistering_melon_slice", "nether_wart", "brown_mushroom", "red_mushroom", "bread",
-     "cake", "cookie", "egg", "brown_egg", "blue_egg", "milk_bucket", "honey_bottle",
+     "melon_block", "pumpkin", "carved_pumpkin", "lit_pumpkin", "jack_o_lantern",
+     "sugar_cane", "sugar", "cocoa_beans", "bamboo", "cactus", "kelp", "dried_kelp",
+     "sweet_berries", "glow_berries", "apple", "golden_apple", "enchanted_golden_apple",
+     "golden_carrot", "glistering_melon_slice", "nether_wart", "bread", "cake",
+     "cookie", "egg", "brown_egg", "blue_egg", "milk_bucket", "honey_bottle",
      "honeycomb", "beef", "porkchop", "chicken", "mutton", "rabbit", "cod", "salmon",
      "tropical_fish", "pufferfish", "chorus_fruit", "popped_chorus_fruit", "hay_block",
-     "bone_meal", "farmland", "composter", "torchflower", "pitcher_plant",
-     "pitcher_pod", "jack_o_lantern"].includes(a)],
+     "bone_meal", "farmland", "composter", "dried_kelp_block"].includes(a)],
 
   ["Kırmızı Taş & Mekanizma", "minecraft:redstone", a =>
     /(_rail$|_minecart$|_piston$|_button$|_pressure_plate$)/.test(a) ||
@@ -728,55 +778,50 @@ const KURAL = [
      "tripwire_hook", "target", "lightning_rod", "note_block", "jukebox", "rail",
      "minecart", "tnt", "iron_door", "iron_trapdoor", "sculk_sensor",
      "calibrated_sculk_sensor", "sculk_shrieker", "crafter", "copper_bulb",
-     "trial_spawner", "vault", "spawner", "mob_spawner", "structure_void",
-     "command_block_minecart"].includes(a)],
+     "redstone_block", "slime_block", "honey_block"].includes(a) ||
+    /^copper_bulb/.test(a)],
 
-  ["Renkli & Dekor", "minecraft:white_wool", a =>
-    /_(wool|carpet|bed|banner|dye|concrete|concrete_powder|terracotta|glazed_terracotta|stained_glass|stained_glass_pane|candle|shulker_box|bundle|harness|banner_pattern|pottery_sherd|head|skull|cushion)$/.test(a) ||
-    ["terracotta", "candle", "shulker_box", "undyed_shulker_box", "bundle", "glass",
-     "glass_pane", "tinted_glass", "item_frame", "glow_item_frame", "painting",
-     "flower_pot", "decorated_pot", "armor_stand", "lectern", "chiseled_bookshelf",
-     "bookshelf", "skull", "end_rod", "lantern", "soul_lantern", "torch", "soul_torch",
-     "campfire", "soul_campfire", "chain", "iron_bars", "ladder", "scaffolding",
-     "bell", "beehive", "bee_nest", "frame", "glow_frame", "fire_charge",
-     "bed", "banner", "sign", "filled_map", "hardened_clay", "noteblock",
-     "copper_lantern", "copper_torch", "copper_golem_statue"].includes(a)],
+  ["Yün", "minecraft:white_wool", a => /_wool$/.test(a)],
 
-  ["Ahşap & Bitki", "minecraft:oak_log", a =>
-    /_(log|wood|stem|hyphae|planks|leaves|sapling|propagule|fungus|roots|mosaic|boat|raft|nylium|shelf|petals|eyeblossom|shrub|dandelion)$/.test(a) ||
-    /^stripped_/.test(a) || a === "boat" || a === "chest_boat" ||
-    /(flower|tulip|orchid|rose|lilac|peony|fern|grass|vine|moss|mushroom_block|coral|azalea|dripleaf|sprouts|bush)/.test(a) ||
-    ["stick", "dandelion", "poppy", "allium", "azure_bluet", "oxeye_daisy", "cornflower",
-     "lily_of_the_valley", "sunflower", "dead_bush", "seagrass", "sea_grass", "lily_pad",
-     "sea_pickle", "bamboo_block", "bamboo_raft", "bamboo_chest_raft", "spore_blossom",
-     "glow_lichen", "hanging_roots", "leaf_litter", "wildflowers", "firefly_bush",
-     "cactus_flower", "resin_clump", "creaking_heart", "chorus_plant",
-     "chorus_flower", "shroomlight", "bowl", "paper", "deadbush", "waterlily",
-     "web", "shelf_mushroom", "frog_spawn", "pink_petals"].includes(a)],
+  ["Boya & Renkli Blok", "minecraft:red_dye", a =>
+    /_(dye|concrete|concrete_powder|terracotta|glazed_terracotta|stained_glass|stained_glass_pane)$/.test(a) ||
+    ["terracotta", "glass", "glass_pane", "tinted_glass", "hardened_clay"].includes(a)],
 
-  ["Taş & Yapı", "minecraft:stone", a =>
-    /_(stairs|slab|wall|fence|fence_gate|door|trapdoor|bricks|brick|tiles|pane|sign|hanging_sign)$/.test(a) ||
-    /^(polished_|chiseled_|cut_|smooth_|mossy_|cracked_|waxed_|exposed_|weathered_|oxidized_|deepslate_|infested_)/.test(a) ||
-    /(copper|sandstone|prismarine|blackstone|purpur|basalt|deepslate|tuff|resin|cinnabar|sulfur)/.test(a) ||
-    ["dirt", "coarse_dirt", "rooted_dirt", "grass_block", "podzol", "mycelium", "mud",
-     "packed_mud", "sand", "red_sand", "gravel", "clay", "stone", "cobblestone",
-     "andesite", "diorite", "granite", "tuff", "calcite", "netherrack", "soul_sand",
-     "soul_soil", "end_stone", "obsidian", "crying_obsidian", "glass", "glowstone",
-     "sea_lantern", "snow", "snow_block", "ice", "packed_ice", "blue_ice", "moss_block",
-     "sponge", "wet_sponge", "magma", "magma_block", "bedrock", "dripstone_block",
-     "pointed_dripstone", "sculk", "sculk_vein", "sculk_catalyst", "reinforced_deepslate",
-     "chest", "trapped_chest", "barrel", "ender_chest", "crafting_table", "furnace",
-     "blast_furnace", "smoker", "anvil", "enchanting_table", "brewing_stand", "cauldron",
-     "beacon", "conduit", "lodestone", "respawn_anchor", "smithing_table", "loom",
-     "stonecutter", "grindstone", "cartography_table", "fletching_table", "cobweb",
-     "turtle_egg", "sniffer_egg", "frogspawn", "suspicious_sand", "suspicious_gravel",
-     "chipped_anvil", "damaged_anvil", "slime", "slime_block", "honey_block",
-     "fence_gate", "brick", "bricks", "brick_block", "netherbrick", "snowball",
-     "iron_chain", "chain", "grass_path", "quartz_pillar", "cinnabar", "sulfur",
-     "potent_sulfur", "sulfur_spike",
-     "snow_layer", "frosted_ice", "powder_snow", "bone_block", "dried_kelp_block",
-     "nether_wart_block", "warped_wart_block", "shroudstone"].includes(a) ||
-    /_block$/.test(a) || /_froglight$/.test(a) || /_amethyst_bud$/.test(a)],
+  ["Dekor & Eşya", "minecraft:painting", a =>
+    /_(carpet|bed|banner|candle|shulker_box|banner_pattern|pottery_sherd|sign|hanging_sign|cushion)$/.test(a) ||
+    ["bed", "banner", "sign", "candle", "shulker_box", "undyed_shulker_box", "bundle",
+     "item_frame", "glow_item_frame", "frame", "glow_frame", "painting", "flower_pot",
+     "decorated_pot", "armor_stand", "lectern", "chiseled_bookshelf", "bookshelf",
+     "end_rod", "lantern", "soul_lantern", "copper_lantern", "torch", "soul_torch",
+     "copper_torch", "campfire", "soul_campfire", "chain", "iron_chain", "iron_bars",
+     "ladder", "scaffolding", "bell", "beehive", "bee_nest", "fire_charge",
+     "filled_map", "map", "empty_map", "copper_golem_statue", "noteblock",
+     "cobweb", "web"].includes(a) ||
+    /^music_disc/.test(a) || /^disc_fragment/.test(a) || /_bundle$/.test(a)],
+
+  ["Yapı Blokları", "minecraft:stone_bricks", a =>
+    /_(stairs|slab|wall|fence|fence_gate|door|trapdoor|bricks|tiles|pane)$/.test(a) ||
+    ["bricks", "brick", "brick_block", "netherbrick", "fence_gate", "quartz_pillar",
+     "iron_bars"].includes(a)],
+
+  ["Ahşap", "minecraft:oak_log", a =>
+    /_(log|wood|stem|hyphae|planks|mosaic|boat|raft|chest_boat|chest_raft|shelf)$/.test(a) ||
+    /^stripped_/.test(a) ||
+    ["stick", "boat", "chest_boat", "bamboo_block", "bamboo_raft", "bamboo_chest_raft",
+     "paper", "bowl"].includes(a)],
+
+  ["Bitki & Çiçek", "minecraft:poppy", a =>
+    /_(leaves|sapling|propagule|fungus|roots|nylium|petals|eyeblossom|shrub|flower|tulip|mushroom|coral|coral_block|coral_fan|bush|sprouts|dripleaf)$/.test(a) ||
+    /(orchid|rose|lilac|peony|fern|seagrass|vine|moss|azalea|lichen)/.test(a) ||
+    ["dandelion", "poppy", "allium", "azure_bluet", "oxeye_daisy", "cornflower",
+     "lily_of_the_valley", "sunflower", "dead_bush", "deadbush", "lily_pad", "waterlily",
+     "sea_pickle", "spore_blossom", "hanging_roots", "leaf_litter", "wildflowers",
+     "firefly_bush", "cactus_flower", "resin_clump", "creaking_heart", "chorus_plant",
+     "chorus_flower", "shroomlight", "torchflower", "pitcher_plant", "pitcher_pod",
+     "brown_mushroom", "red_mushroom", "mushroom_stem", "nether_wart_block",
+     "warped_wart_block", "pink_petals", "grass", "short_grass", "tall_grass",
+     "sugar_cane_block"].includes(a) ||
+    /_mushroom_block$/.test(a)],
 
   ["Mob & Değerli", "minecraft:ender_pearl", a =>
     ["string", "feather", "leather", "rabbit_hide", "bone", "gunpowder", "slime_ball",
@@ -785,10 +830,11 @@ const KURAL = [
      "phantom_membrane", "shulker_shell", "prismarine_shard", "prismarine_crystals",
      "nautilus_shell", "heart_of_the_sea", "ink_sac", "glow_ink_sac", "glowstone_dust",
      "rabbit_foot", "scute", "turtle_scute", "armadillo_scute", "dragon_breath",
-     "dragon_egg", "end_crystal", "heavy_core", "trial_key", "ominous_trial_key",
-     "ominous_bottle", "netherite_ingot", "potion", "splash_potion", "lingering_potion",
-     "glass_bottle", "empty_map", "map", "dried_ghast"].includes(a) ||
-    /^music_disc/.test(a) || /^disc_fragment/.test(a)]
+     "end_crystal", "heavy_core", "trial_key", "ominous_trial_key", "ominous_bottle",
+     "potion", "splash_potion", "lingering_potion", "glass_bottle", "dried_ghast",
+     "bone_block", "conduit", "beacon"].includes(a)],
+
+  ["Taş & Toprak", "minecraft:stone", a => true]   // kalan butun bloklar
 ];
 
 export const KATEGORILER = KURAL.map(([ad, ikon]) => ({ ad, ikon })).concat([{ ad: "Diğer", ikon: "minecraft:paper" }]);
