@@ -61,7 +61,7 @@ const TABAN = {
   copper: 45, netherite_upgrade_smithing_template: 200,
   hardened_clay: 3, web: 5, waterlily: 2, noteblock: 12, grass_path: 1,
   deadbush: 1, brick_block: 5, netherbrick: 2, snowball: 1, frog_spawn: 10,
-  cinnabar: 8, sulfur: 6, potent_sulfur: 20, sulfur_spike: 10, dried_ghast: 60,
+  dye: 3, cinnabar: 8, sulfur: 6, potent_sulfur: 20, sulfur_spike: 10, dried_ghast: 60,
   copper_golem_statue: 60, copper_lantern: 16, copper_torch: 2, copper_bars: 5,
   copper_chest: 12, lodestone_compass: 120, golden_dandelion: 6, red_shrub: 1,
   pink_petals: 2, shelf_mushroom: 3, closed_eyeblossom: 5, open_eyeblossom: 5,
@@ -80,6 +80,26 @@ const TABAN = {
   hanging_roots: 2, azalea: 6, flowering_azalea: 9, moss_carpet: 2,
   goat_horn: 90, armadillo_scute: 20,
   disc_fragment_5: 30, echo_shard_block: 0,
+
+  // Gercek tariflerde girdi olarak gecip motorda karsiligi olmayanlar.
+  // Yoksa "bilinmeyen" sayilip 5'e dusuyor ve turevleri de sacmaliyordu.
+  sandstone: 4, red_sandstone: 4, cut_sandstone: 5, cut_red_sandstone: 5,
+  smooth_sandstone: 5, smooth_red_sandstone: 5, chiseled_sandstone: 5,
+  chiseled_red_sandstone: 5,
+  nether_bricks: 8, red_nether_bricks: 12, resin_bricks: 24,
+  end_bricks: 5, dark_prismarine: 10, prismarine_bricks: 10,
+  snow: 4, mangrove_roots: 3, muddy_mangrove_roots: 3,
+  stripped_bamboo_block: 9, warped_fungus: 3, crimson_fungus: 3,
+  crimson_roots: 2, warped_roots: 2, nether_sprouts: 2,
+  twisting_vines: 2, weeping_vines: 2, chorus_flower: 12, chorus_plant: 8,
+  gilded_blackstone: 30, copper_bulb: 20, copper_grate: 12,
+  small_amethyst_bud: 5, medium_amethyst_bud: 8, large_amethyst_bud: 12,
+  dirt_with_roots: 2, frosted_ice: 3, small_dripleaf_block: 4,
+  short_dry_grass: 1, tall_dry_grass: 1, mushroom_stem: 3,
+  quartz_bricks: 16, purpur_block: 12, purpur_pillar: 12,
+  
+  
+  mud_bricks: 3, packed_mud: 2,
 
   // --- AMETIST ALETLER (mk:) ---
   // 4 saat sonra eriyip yok oluyorlar ama tam buyulu netherite'tan da
@@ -130,7 +150,12 @@ const CEVHER = {
 //   deger(cikti) = toplam(girdi degeri) / cikti adedi * URETIM
 // URETIM her zaman MAKAS'in altinda oldugu icin "ucuz al -> craftla -> pahali
 // sat" acigi olusmaz (test: node arac/arbitraj.mjs).
-const URETIM = 1.15;
+// Her craft adiminin kattigi deger. MAKAS'in (2.2) altinda kalmak
+// zorunda: girdiyi MAKAS katina alip ciktiyi URETIM katina sattigin icin
+// URETIM >= MAKAS olsaydi "ucuz al, craftla, pahali sat" para basardi.
+// v4.3'te 1.15 -> 1.7: katma deger cok dusuktu, islemek anlamsizdi.
+// 529 gercek Mojang tarifine karsi dogrulandi.
+const URETIM = 1.7;
 
 // cikti: { g: [[girdi, adet], ...], n: cikti adedi }
 const TARIF = {
@@ -190,7 +215,8 @@ const TARIF = {
   detector_rail: { g: [["iron_ingot", 6], ["stone_pressure_plate", 1], ["redstone", 1]], n: 6 },
   activator_rail: { g: [["iron_ingot", 6], ["stick", 2], ["redstone_torch", 1]], n: 6 },
   bell: { g: [["gold_ingot", 3], ["oak_planks", 3]], n: 1 },
-  lodestone: { g: [["chiseled_stone_bricks", 8], ["netherite_ingot", 1]], n: 1 },
+  // Bedrock tarifi DEMIR kulce kullaniyor (Java netherite kullanir).
+  lodestone: { g: [["chiseled_stone_bricks", 8], ["iron_ingot", 1]], n: 1 },
   glass_pane: { g: [["glass", 6]], n: 16 },
   glass_bottle: { g: [["glass", 3]], n: 3 },
   spyglass: { g: [["copper_ingot", 2], ["amethyst_shard", 1]], n: 1 },
@@ -238,7 +264,7 @@ const TARIF = {
   book: { g: [["paper", 3], ["leather", 1]], n: 1 },
   writable_book: { g: [["book", 1], ["ink_sac", 1], ["feather", 1]], n: 1 },
   bookshelf_dummy: { g: [["oak_planks", 6], ["book", 3]], n: 1 },
-  map: { g: [["paper", 8], ["compass", 1]], n: 1 },
+  map: { g: [["paper", 9]], n: 1 },                                 // Bedrock: 9 kagit (pusula yok)
   empty_map: { g: [["paper", 9]], n: 1 },
   fishing_rod: { g: [["stick", 3], ["string", 2]], n: 1 },
   bow: { g: [["stick", 3], ["string", 3]], n: 1 },
@@ -258,6 +284,7 @@ const TARIF = {
   honeycomb_block: { g: [["honeycomb", 4]], n: 1 },
   honey_block: { g: [["honey_bottle", 4]], n: 1 },
   slime_block: { g: [["slime_ball", 9]], n: 1 },
+  amethyst_block: { g: [["amethyst_shard", 4]], n: 1 },
   end_crystal: { g: [["glass", 7], ["ender_eye", 1], ["ghast_tear", 1]], n: 1 },
   beacon: { g: [["glass", 5], ["obsidian", 3], ["nether_star", 1]], n: 1 },
   conduit: { g: [["nautilus_shell", 8], ["heart_of_the_sea", 1]], n: 1 },
@@ -290,8 +317,8 @@ const TARIF = {
   dried_kelp_block: { g: [["dried_kelp", 9]], n: 1 },
   sea_lantern: { g: [["prismarine_shard", 4], ["prismarine_crystals", 5]], n: 1 },
   prismarine: { g: [["prismarine_shard", 4]], n: 1 },
-  saddle: { g: [["leather", 5], ["iron_ingot", 2]], n: 1 },
-  lead: { g: [["string", 4], ["slime_ball", 1]], n: 2 },
+  saddle: { g: [["leather", 3], ["iron_ingot", 1]], n: 1 },        // Bedrock: 3 deri + 1 demir
+  lead: { g: [["string", 5]], n: 2 },                               // Bedrock: 5 ip
   name_tag: { g: [["paper", 1], ["iron_ingot", 1]], n: 1 },
   carrot_on_a_stick: { g: [["fishing_rod", 1], ["carrot", 1]], n: 1 },
   warped_fungus_on_a_stick: { g: [["fishing_rod", 1], ["warped_fungus", 1]], n: 1 },
@@ -395,7 +422,36 @@ const ESKI_AD = {
   frame: "item_frame", glow_frame: "glow_item_frame", filled_map: "map", empty_map: "empty_map",
   mob_spawner: "spawner", monster_egg: "stone", web: "cobweb", waterlily: "lily_pad",
   noteblock: "note_block", hardened_clay: "terracotta", brick_block: "bricks",
-  stonecutter_block: "stonecutter", magma: "magma_block", melon_block: "melon_block"
+  stonecutter_block: "stonecutter", magma: "magma_block", melon_block: "melon_block",
+
+  // Bedrock'un kendi tariflerinde gecen ESKI/KISA id'ler. Bunlar motorda
+  // tanimli olmayinca "bilinmeyen" sayilip 5'e dusuyorlardi. En agir sonucu:
+  // beacon tarifindeki "netherstar" 5 degerindeydi, 192'lik girdiyle
+  // 2.955'e satilan beacon craftlanabiliyordu.
+  netherstar: "nether_star",
+  turtle_shell_piece: "scute",
+  carrotonastick: "carrot_on_a_stick",
+  chorus_fruit_popped: "popped_chorus_fruit",
+  emptymap: "empty_map",
+  horsearmorleather: "leather_horse_armor",
+  horsearmoriron: "iron_horse_armor",
+  horsearmorgold: "golden_horse_armor",
+  horsearmordiamond: "diamond_horse_armor",
+  melon: "melon_block",
+  reeds: "sugar_cane",
+  nether_brick: "nether_bricks",
+  red_nether_brick: "red_nether_bricks",
+  resin_brick: "resin_bricks",
+  normal_stone: "stone",
+  normal_stone_slab: "stone_slab",
+  normal_stone_stairs: "stone_stairs",
+  snow_layer: "snow",
+  chorus_fruit_popped_block: "popped_chorus_fruit",
+  appleenchanted: "enchanted_golden_apple",
+  speckled_melon: "glistering_melon_slice",
+  cooked_fish: "cooked_cod",
+  clownfish: "tropical_fish",
+  boat: "oak_boat"
 };
 
 // Butun yun renkleri ayni fiyat. Eskiden white_wool tarifinden (4 ip)
@@ -404,6 +460,14 @@ const ESKI_AD = {
 // Guvenlik: 4 ip'in ALIS fiyati 4 x ceil(3 x 2.2) = 28 > 20, yani
 // "ip al, yun yap, sat" hala zarar. Acik yok.
 export const YUN_FIYATI = 20;
+
+// Motorun GERCEKTEN tanidigi bir esya mi? (keyfi 5'e dusmeyecek mi)
+// yapi son eki cozulurken "kok gercek mi" sorusuna cevap verir.
+function bilinenEsya(a) {
+  if (TABAN[a] !== undefined || TARIF[a] !== undefined) return true;
+  if (ESKI_AD[a] !== undefined) return true;
+  return /_wool$|_bed$|_banner$|_carpet$|cut_copper|_dye$|_concrete$|_concrete_powder$|_terracotta$|_stained_glass$|_stained_glass_pane$|_candle$|_shulker_box$|_planks$|_log$|_wood$|_stem$|_hyphae$/.test(a);
+}
 
 function hesapla(a) {
   if (TABAN[a] !== undefined) return TABAN[a];
@@ -535,11 +599,18 @@ function hesapla(a) {
   // parcalari sat" acigi olusur.
   //   yarim blok 2 adet -> 0.45   |  merdiven/duvar 1 adet -> 0.8
   //   cam paneli 16/6   -> 0.3    |  hali 3/2 -> 0.5
+  // Carpanlar iki kurala birden uyar:
+  //  1) Tas kesici verimi: bir ana bloktan kac adet cikiyorsa carpan
+  //     1/adet'in altinda kalmali (yarim blok 2 adet -> 0.45, cam paneli
+  //     16/6 -> 0.3, hali 3/2 -> 0.5).
+  //  2) 1:1 donusumlerde katma deger URETIM ile ayni olmali. Eskiden 1.2
+  //     idi: 4 tastan 4 tas tuglasi yapmak esyayi neredeyse hic
+  //     degerlendirmiyordu (tas 1 -> tas tuglasi 1).
   const yapi = [
-    ["_stairs", 0.8], ["_slab", 0.45], ["_wall", 0.8], ["_fence_gate", 1.3],
-    ["_fence", 0.9], ["_trapdoor", 1.1], ["_door", 1.3], ["_pressure_plate", 0.7],
-    ["_button", 0.4], ["_sign", 1.2], ["_bricks", 1.2], ["_brick", 1.2],
-    ["_tiles", 1.2], ["_pane", 0.3], ["_carpet", 0.5]
+    ["_stairs", 0.8], ["_slab", 0.45], ["_wall", 0.8], ["_fence_gate", 1.5],
+    ["_fence", 0.9], ["_trapdoor", 1.2], ["_door", 1.5], ["_pressure_plate", 0.7],
+    ["_button", 0.4], ["_sign", 1.4], ["_bricks", 1.7], ["_brick", 1.7],
+    ["_tiles", 1.7], ["_pane", 0.3], ["_carpet", 0.5]
   ];
   for (const [ek, carpan] of yapi) {
     if (!a.endsWith(ek)) continue;
@@ -552,6 +623,11 @@ function hesapla(a) {
       /^(cracked_|mossy_|chiseled_|polished_|smooth_|cut_|infested_|waxed_|exposed_|weathered_|oxidized_|deepslate_)/, "");
     const adaylar = [kok, kok + "_planks", kok + "s", "polished_" + kok,
                      koksuz, koksuz + "_planks", koksuz + "s"];
+    // TABAN'da yoksa bile kok GERCEK bir esya olabilir (yun, tarifi olan
+    // blok, eski isim...). O zaman sabit 3 yerine gercek anasindan
+    // hesaplanir. 170 esya bu yuzden keyfi degerdeydi: yun yarim blogu 1,
+    // nether tuglasi merdiveni 2 gibi.
+    for (const c of adaylar) if (bilinenEsya(ad(c))) return D(c) * carpan;
     // NOT: eskiden sonuca "+1" ekleniyordu. Ucuz bir blokta bu, turevi
     // anasindan pahali yapiyordu: tas 1, tas yarim blok 1*0.5+1 = 2. Tas
     // kesici 1 taştan 2 yarim blok verdigi icin "tas al, kes, sat" para
@@ -575,10 +651,10 @@ function hesapla(a) {
   if (a.startsWith("smithing_template") || a.endsWith("_smithing_template")) return 200;
   if (a.startsWith("polished_") || a.startsWith("chiseled_") || a.startsWith("cut_") || a.startsWith("smooth_")) {
     const kok = a.replace(/^(polished_|chiseled_|cut_|smooth_)/, "");
-    return D(kok) * 1.3;
+    return D(kok) * 1.7;      // 1:1 donusum, URETIM ile ayni katma deger
   }
-  if (a.startsWith("mossy_") || a.startsWith("cracked_")) return D(a.replace(/^(mossy_|cracked_)/, "")) * 1.2;
-  if (a.startsWith("waxed_")) return D(a.slice(6)) * 1.1;
+  if (a.startsWith("mossy_") || a.startsWith("cracked_")) return D(a.replace(/^(mossy_|cracked_)/, "")) * 1.7;
+  if (a.startsWith("waxed_")) return D(a.slice(6)) * 1.3;   // + petek
 
   // bilinmeyen: makul bir varsayilan
   return 5;
@@ -790,6 +866,33 @@ export const HAM_KATEGORILER = HAM_KURAL.map(([ad, ikon]) => ({ ad, ikon }))
 // madenler yeniden alinabiliyor. Bir kategoriyi tekrar "sadece satilik"
 // yapmak istersen adini buraya ekle, gerisi kendiliginden calisir.
 export const ALINAMAZ_KATEGORILER = new Set([]);
+
+// SISTEM MARKETINDE HIC YER ALMAYAN degerli esyalar: ne alinir ne satilir.
+// Sebep: bunlar oyunun odul zinciri. Sinirsiz stoklu market bunlari
+// satarsa End Sehri'ni bulmanin, Wither'i yenmenin anlami kalmaz;
+// market bunlari satin alirsa da tek seferde ekonomiyi bozacak para akar.
+//
+// OYUNCULAR ARASINDA SERBEST: kendi aralarinda ilanla alip satabilirler.
+// Yasak sadece "sinirsiz stoklu sistem marketi" icin.
+export const PIYASA_DISI = new Set([
+  "elytra", "beacon", "conduit", "nether_star", "netherstar",
+  "totem_of_undying", "trident", "mace", "heavy_core",
+  "enchanted_golden_apple", "heart_of_the_sea", "dragon_breath",
+  "end_crystal", "recovery_compass", "echo_shard", "wither_rose",
+  "shulker_shell", "shulker_box", "undyed_shulker_box",
+  "netherite_ingot", "netherite_block", "netherite_scrap", "ancient_debris",
+  "netherite_sword", "netherite_pickaxe", "netherite_axe",
+  "netherite_shovel", "netherite_hoe", "netherite_helmet",
+  "netherite_chestplate", "netherite_leggings", "netherite_boots",
+  "netherite_upgrade_smithing_template"
+]);
+
+// Sistem marketinde yer alir mi? (oyuncu ilanlarini etkilemez)
+export function piyasadaMi(id) {
+  const a = ad(id);
+  if (PIYASA_DISI.has(a)) return false;
+  return !/_shulker_box$/.test(a);
+}
 
 // Bu esya Hazir Marketten SATIN ALINABILIR mi? (satmak her zaman serbest)
 export function marketAlinabilir(id) {

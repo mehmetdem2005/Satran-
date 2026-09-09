@@ -106,5 +106,36 @@ for (const [blk, urun, adet] of [
   }
 }
 
+// ============ MOJANG'IN GERCEK TARIFLERI ============
+// Elle yazilan TARIF tablosu oyunun tarifinin yaklasik halidir; birkac
+// yerde Mojang'dan farkliydi ve bu farklar acik yaratiyordu (lodestone
+// netherite yerine demir kulceyle yapiliyor, saddle 3 deri 1 demir...).
+// Bu bolum Mojang'in kendi tarif dosyalarindan uretilmis listeyi kullanir.
+// Yenilemek icin: arac/vanilla_tarifler.json'u bedrock-samples'tan uret.
+try {
+  const vt = JSON.parse(fs.readFileSync(path.join(kok, "arac/vanilla_tarifler.json"), "utf8"));
+  let atlanan = 0;
+  console.log(`\nMojang'in ${vt.sayi} gercek tarifi denetleniyor (${vt.kaynak})...`);
+  for (const t of vt.tarifler) {
+    const kazanc = alis(t.o) * t.n;
+    if (!kazanc) { atlanan++; continue; }
+    let maliyet = 0, eksik = false;
+    for (const [g, adet] of t.g) {
+      const m = satis(g);
+      if (!m) { eksik = true; break; }
+      maliyet += m * adet;
+    }
+    if (eksik) { atlanan++; continue; }
+    kontrol++;
+    if (kazanc > maliyet) {
+      acik++;
+      console.log(`  ACIK  ${t.t === "f" ? "eritme" : "craft"} ${t.g.map(([g, n]) => n + "x" + g).join(" + ")} (${maliyet}) -> ${t.n}x ${t.o} (${kazanc})  +${kazanc - maliyet}`);
+    }
+  }
+  if (atlanan) console.log(`  (${atlanan} tarif atlandi: fiyati olmayan esya iceriyor)`);
+} catch (e) {
+  console.log("  UYARI: vanilla_tarifler.json okunamadi -> " + e.message);
+}
+
 console.log(`\n${kontrol} kontrol, ${acik} acik.`);
 process.exit(acik ? 1 : 0);

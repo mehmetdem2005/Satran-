@@ -2,7 +2,7 @@ import * as mc from "@minecraft/server";
 import * as ui from "@minecraft/server-ui";
 import { ikon, VARSAYILAN } from "./icons.js";
 import { fiyat, esyaDegeri, KATEGORILER, kategoriIndex, HAM_KATEGORILER, hamKategoriIndex,
-  hammaddeMi, yasakMi, marketAlinabilir, ALINAMAZ_KATEGORILER, ISLENMIS_ZAM,
+  hammaddeMi, yasakMi, marketAlinabilir, piyasadaMi, ALINAMAZ_KATEGORILER, ISLENMIS_ZAM,
   OLCEK, PARA_TAVANI, MAKAS } from "./fiyat.js";
 import { katalog, aramaGruplari } from "./esyalar.js";
 import * as Dovus from "./dovus.js";
@@ -16,7 +16,7 @@ const { ActionFormData, ModalFormData } = ui;
 
 // ==================== AYARLAR ====================
 const CFG = {
-  surum: "4.2",
+  surum: "4.3",
   ad: "m",
   objective: "money",
   simge: "$",
@@ -198,6 +198,7 @@ function itemSay(p, t) {
 // Bir turden `adet` kadar satar. Her yigin KENDI degerinden hesaplanir
 // (hasarli alet ucuz, buyulu esya pahali), duz tur fiyatindan degil.
 function satTip(p, t, adet) {
+  if (!marketteVar(t)) return { satilan: 0, kazanc: 0 };
   const c = kap(p);
   if (!c) return { satilan: 0, kazanc: 0 };
   let kalan = adet, satilan = 0, kazanc = 0;
@@ -1462,6 +1463,7 @@ const katIndex = (id) => (CFG.sadeceHammadde ? hamKategoriIndex(id) : kategoriIn
 // Hazir Market bu esyayi alip satar mi?
 function marketteVar(id) {
   if (yasakMi(id)) return false;
+  if (!piyasadaMi(id)) return false;   // elytra, beacon gibi degerliler: sadece oyuncular arasinda
   return CFG.sadeceHammadde ? hammaddeMi(id) : true;
 }
 // Katalog artik elle yazilmiyor: oyundaki TUM esyalar kategorilere

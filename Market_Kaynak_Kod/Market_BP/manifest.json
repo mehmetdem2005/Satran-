@@ -1,12 +1,12 @@
 {
   "format_version": 2,
   "header": {
-    "name": "Market & Ekonomi BP v4.2",
-    "description": "v4.2 | Fiyatlar eski seviyeye dondu, onemli esyalar 3 kat pahali. Ametist aletler: netherite'tan guclu ama 4 saatte eriyip yok oluyorlar.",
+    "name": "Market & Ekonomi BP v4.3",
+    "description": "v4.3 | Fiyat mantigi elden gecti: Mojang'in 529 gercek tarifine karsi denetlendi, 5 gercek kar acigi kapatildi. Katma deger artti. Elytra/beacon gibi degerliler sistem marketinde yok.",
     "uuid": "bb41fa3d-7901-4559-8e61-d650ac191764",
     "version": [
       4,
-      2,
+      3,
       0
     ],
     "min_engine_version": [
@@ -22,7 +22,7 @@
       "uuid": "b9808c32-f7e3-4a89-93e1-f00313e58099",
       "version": [
         4,
-        2,
+        3,
         0
       ],
       "entry": "scripts/main.js"
@@ -41,7 +41,7 @@
       "uuid": "201cbafc-bcfc-4212-a13f-428a03328b5b",
       "version": [
         4,
-        2,
+        3,
         0
       ]
     }

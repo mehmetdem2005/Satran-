@@ -1,4 +1,4 @@
-# Market & Ekonomi — Kaynak Kod (v4.2)
+# Market & Ekonomi — Kaynak Kod (v4.3)
 
 Bu klasör Minecraft Bedrock için yazılan Market/Ekonomi addon'ının tüm
 kaynak dosyalarını içerir. `.mcaddon` sadece bunların zip'lenmiş hali;
@@ -537,6 +537,90 @@ doğrudan `copper_block × 0.22` oldu.
 `arac/arbitraj.mjs` artık bu sınıfı da denetliyor: 45 ana blok × 3 kesim
 biçimi + bakır/cam/yün çevrimleri. Toplam **350 kontrol, 0 açık**.
 
+## Fiyat mantığı elden geçti (v4.3)
+
+Eski fiyatlarda gerçekten kâr edilebilen açıklar vardı ve katma değer çok
+düşüktü. İkisi de düzeldi — tahminle değil, **Mojang'ın kendi tarif
+dosyalarıyla** karşılaştırarak.
+
+### Mojang'ın 529 gerçek tarifine karşı denetim
+
+`bedrock-samples`ten oyunun **gerçek** tarif dosyaları çekildi ve fiyat
+motoru hepsine karşı denetlendi. Elle yazılmış 158 tariflik tablomuzun
+Mojang'dan farklı olduğu yerler açık üretiyordu:
+
+| Açık | Neden | Kâr |
+|---|---|---|
+| **beacon** | Bedrock'ta nether yıldızının id'si `netherstar`; motor bunu tanımıyor, 5 değerinde sayıyordu. 192'lik girdiyle 2.955'e satılan beacon craftlanıyordu. | **+2.763** |
+| **lodestone** | Bizde tarif netherit külçe ile yazılmıştı; Bedrock'ta **demir külçe**. 59'luk girdiyle 1.480'e satılıyordu. | **+1.421** |
+| **turtle_helmet** | `turtle_shell_piece` (scute'un Bedrock id'si) tanınmıyordu. | +132 |
+| **saddle** | Bizde 5 deri + 2 demir; gerçekte 3 deri + 1 demir. | +23 |
+| **amethyst_block** | Sabit 90 değeri, 4 şardın alış bedelinden (88) yüksekti. | +2 |
+
+Ayrıca `map` (9 kâğıt, pusula yok) ve `lead` (5 ip) tarifleri düzeltildi.
+
+**Kök sebep**: Bedrock'un eski/kısa id'leri (`netherstar`, `reeds`,
+`melon`, `emptymap`, `carrotonastick`, `turtle_shell_piece`,
+`nether_brick`, `normal_stone`...) motorda tanımlı değildi; tanınmayan her
+eşya sessizce **5** değerine düşüyordu. Hepsi `ESKI_AD` tablosuna eklendi.
+
+Bir de 170 eşya (`*_wool_slab`, `nether_brick_stairs`, `deepslate_tile_*`,
+`end_bricks`...) yapı son eki çözülürken kökünü bulamayıp keyfi bir sabite
+düşüyordu. Artık kök gerçek bir eşyaysa ondan hesaplanıyor (`bilinenEsya`).
+
+### Kalıcı denetim
+
+`arac/vanilla_tarifler.json` — Mojang'ın 529 tarifinin sıkıştırılmış hali,
+pakete dahil. `arac/arbitraj.mjs` artık kendi tablosunu **ve** bunu
+denetliyor:
+
+```
+158 tarif denetleniyor...
+Mojang'in 529 gercek tarifi denetleniyor...
+889 kontrol, 0 acik.
+```
+
+### Katma değer artırıldı
+
+`URETIM` **1.15 → 1.7**: her craft adımı artık %70 değer katıyor (eskiden
+%15, işlemek neredeyse anlamsızdı). Aile çarpanları da hizalandı — 1:1
+dönüşümler (`_bricks`, `_tiles`, `polished_`, `chiseled_`, `cut_`,
+`smooth_`, `mossy_`, `cracked_`) 1.2/1.3 yerine **1.7**.
+
+| Zincir | Önce | Sonra |
+|---|---|---|
+| taş → taş tuğlası | 1 → 1 | 1 → **2** |
+| kum → kumtaşı → kesilmiş | 1 → 5 → 5 | 1 → **4** → **5** |
+| buğday → ekmek → pasta | 2 → 7 → 240 | 2 → **10** → **350** |
+| elmas → kılıç → göğüslük | 90 → 209 → 594 | 90 → 209 → **830** |
+
+`URETIM` `MAKAS`ın (2.2) altında kalmak zorunda: girdiyi MAKAS katına alıp
+çıktıyı URETIM katına sattığın için eşitlenirse para basardı. 1.7 güvenli
+tarafta ve 889 kontrolün hepsi temiz.
+
+## Değerli eşyalar sistem marketinde yok (v4.3)
+
+Elytra, beacon ve benzeri değerli eşyalar artık Hazır Market'te **ne
+alınır ne satılır**:
+
+elytra · beacon · conduit · nether yıldızı · totem · trident · mace ·
+heavy core · büyülü altın elma · deniz kalbi · ejderha nefesi · end
+kristali · kurtarma pusulası · echo shard · wither gülü · shulker kabuğu
+ve kutuları · **bütün netherit** (külçe, blok, cevher, takım) · netherit
+şablonu
+
+Sebep: bunlar oyunun ödül zinciri. Sınırsız stoklu market bunları satarsa
+End Şehri'ni bulmanın, Wither'ı yenmenin anlamı kalmaz; satın alırsa da
+tek seferde ekonomiyi bozacak para akar.
+
+**Oyuncular arasında serbest**: kendi aralarında `!sat` ile ilan verip
+istedikleri fiyata alıp satabilirler. Yasak yalnız sınırsız stoklu sistem
+marketi için.
+
+Liste `fiyat.js` içindeki `PIYASA_DISI` kümesinde; `piyasadaMi(id)` karar
+veriyor, `marketteVar` onu kullanıyor (hem listeyi hem toplu satışı
+kapsıyor).
+
 ## Fiyat seviyesi: eski seviyeye dönüldü (v4.2)
 
 v4.0'da her şey 30 katına çıkarılmıştı, fazla geldi. v4.2'de eski (v3.9)
@@ -895,7 +979,7 @@ kaynaktan kaç eşya topladığını yazıyor.
 ## Paketleme
 
 ```bash
-bash paketle.sh          # -> Market_v4.2.mcaddon
+bash paketle.sh          # -> Market_v4.3.mcaddon
 ```
 
 Sürüm numarası hem `manifest.json` dosyalarında hem de `main.js` içindeki
