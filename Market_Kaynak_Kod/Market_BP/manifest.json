@@ -1,12 +1,12 @@
 {
   "format_version": 2,
   "header": {
-    "name": "Market & Ekonomi BP v4.3",
-    "description": "v4.3 | Fiyat mantigi elden gecti: Mojang'in 529 gercek tarifine karsi denetlendi, 5 gercek kar acigi kapatildi. Katma deger artti. Elytra/beacon gibi degerliler sistem marketinde yok.",
+    "name": "Market & Ekonomi BP v4.4",
+    "description": "v4.4 | Canli piyasa: arz-talep fiyatlari oynatiyor (!piyasa). Son aldigin esyalar kategoride en ustte. 640 alim siniri kalkti, binlerce adet alinabiliyor. Recine ailesi ve tugla turevleri dogru fiyatlandi.",
     "uuid": "bb41fa3d-7901-4559-8e61-d650ac191764",
     "version": [
       4,
-      3,
+      4,
       0
     ],
     "min_engine_version": [
@@ -22,7 +22,7 @@
       "uuid": "b9808c32-f7e3-4a89-93e1-f00313e58099",
       "version": [
         4,
-        3,
+        4,
         0
       ],
       "entry": "scripts/main.js"
@@ -41,7 +41,7 @@
       "uuid": "201cbafc-bcfc-4212-a13f-428a03328b5b",
       "version": [
         4,
-        3,
+        4,
         0
       ]
     }

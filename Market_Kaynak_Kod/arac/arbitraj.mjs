@@ -16,7 +16,31 @@ const tarifler = [...blok.matchAll(/^\s{2}([a-z_]+):\s*\{ g: \[(.+?)\], n: (\d+)
 const alis = (id) => F.fiyat("minecraft:" + id)?.alis ?? 0;
 const satis = (id) => F.fiyat("minecraft:" + id)?.satis ?? 0;
 
+// ---- Arz-talep ucu ----
+// piyasa.js fiyatlari kaydiriyor. En tehlikeli an: HER GIRDI en ucuz
+// (satisAlt) ve HER CIKTI en pahali (alisUst) oldugu an. Butun denetimler
+// bir de o anda calistirilir. Sinirlar piyasa.js'ten okunur, elle yazilmaz.
+const pKaynak = fs.readFileSync(path.join(kok, "Market_BP/scripts/piyasa.js"), "utf8");
+const pSayi = (ad) => {
+  const m = new RegExp(ad + ":\\s*([0-9.]+)").exec(pKaynak);
+  if (!m) throw new Error("piyasa.js icinde " + ad + " bulunamadi");
+  return +m[1];
+};
+const P_ALIS_UST = pSayi("alisUst"), P_SATIS_ALT = pSayi("satisAlt");
+
+const SENARYOLAR = [
+  { ad: "normal piyasa (carpan 1.00)", carpan: null },
+  {
+    ad: `arz-talep ucu (alis x${P_ALIS_UST}, satis x${P_SATIS_ALT})`,
+    carpan: () => ({ alis: P_ALIS_UST, satis: P_SATIS_ALT })
+  }
+];
+
 let acik = 0, kontrol = 0;
+for (const senaryo of SENARYOLAR) {
+acik = 0; kontrol = 0;
+F.piyasaBagla(senaryo.carpan);
+console.log(`\n########## ${senaryo.ad} ##########`);
 console.log(`${tarifler.length} tarif denetleniyor...\n`);
 for (const t of tarifler) {
   kontrol++;
@@ -35,7 +59,8 @@ const eritme = [["cooked_beef","beef"],["cooked_porkchop","porkchop"],["cooked_c
   ["netherbrick","netherrack"],["stone","cobblestone"],["smooth_stone","stone"],["terracotta","clay"],
   ["iron_ingot","raw_iron"],["gold_ingot","raw_gold"],["copper_ingot","raw_copper"],
   ["dried_kelp","kelp"],["sponge","wet_sponge"],["cracked_stone_bricks","stone_bricks"],
-  ["popped_chorus_fruit","chorus_fruit"],["lime_dye","cactus"]];
+  ["popped_chorus_fruit","chorus_fruit"],["lime_dye","cactus"],
+  ["resin_brick","resin_clump"]];
 for (const [urun, girdi] of eritme) {
   kontrol++;
   if (alis(urun) > satis(girdi)) {
@@ -137,5 +162,9 @@ try {
   console.log("  UYARI: vanilla_tarifler.json okunamadi -> " + e.message);
 }
 
-console.log(`\n${kontrol} kontrol, ${acik} acik.`);
-process.exit(acik ? 1 : 0);
+console.log(`\n${kontrol} kontrol, ${acik} acik.  [${senaryo.ad}]`);
+if (acik) { F.piyasaBagla(null); process.exit(1); }
+}
+F.piyasaBagla(null);
+console.log("\nTum senaryolar temiz.");
+process.exit(0);

@@ -10,13 +10,14 @@ import * as Veri from "./veri.js";
 import * as Arsa from "./arsa.js";
 import * as Golem from "./golem.js";
 import * as Ametis from "./ametis.js";
+import * as Piyasa from "./piyasa.js";
 
 const { world, system, ItemStack } = mc;
 const { ActionFormData, ModalFormData } = ui;
 
 // ==================== AYARLAR ====================
 const CFG = {
-  surum: "4.3",
+  surum: "4.4",
   ad: "m",
   objective: "money",
   simge: "$",
@@ -26,6 +27,8 @@ const CFG = {
   maxIlanToplam: 300,
   minFiyat: 1,
   maxFiyat: 10000000,
+  maxAlim: 100000,            // tek seferde alinabilecek en fazla adet
+  sonAlinanSayisi: 12,        // kategoride en uste cikan 'son aldiklarim' sayisi
   maxAdet: 2304,
   sayfaBoyu: 25,
   teklifSuresiSn: 300,
@@ -95,6 +98,7 @@ function paraYaz(p, v) {
 }
 function paraEkle(p, v) { paraYaz(p, paraOku(p) + v); }
 function fmt(n) { return CFG.simge + Math.floor(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, "."); }
+function fmtSayi(n) { return Math.floor(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, "."); }
 
 function adminMi(p) {
   try { if (p.hasTag?.("market_admin")) return true; } catch { }
@@ -160,15 +164,23 @@ function ikonGuvenli(t) {
 }
 function kap(p) { return p.getComponent("minecraft:inventory")?.container; }
 // addItem mevcut yigini doldurup ARTANI geri dondurur; artan yok sayilirsa esya kaybolur.
-function envantereVer(p, item) {
+// yereBirak=false: sigmayani yere dokmez, sigmayan ADEDI dondurur.
+// Market alisverisinde bu sart: yere dokup ustune para da iade edersek
+// dolu envanterle alim yapan oyuncu esyayi da parayi da alir (bedava kar).
+function envantereVer(p, item, yereBirak = true) {
   const c = kap(p);
-  if (!c) { try { p.dimension.spawnItem(item, p.location); } catch { } return; }
+  if (!c) {
+    if (!yereBirak) return item.amount ?? 0;
+    try { p.dimension.spawnItem(item, p.location); } catch { }
+    return 0;
+  }
   let artan;
   try { artan = c.addItem(item); } catch { artan = item; }
-  if (artan) {
-    try { p.dimension.spawnItem(artan, p.location); } catch { }
-    p.sendMessage("\u00a7e[Market] \u00a7fEnvanterin doldu, kalan esya yere birakildi.");
-  }
+  if (!artan) return 0;
+  if (!yereBirak) return artan.amount ?? 0;
+  try { p.dimension.spawnItem(artan, p.location); } catch { }
+  p.sendMessage("\u00a7e[Market] \u00a7fEnvanterin doldu, kalan esya yere birakildi.");
+  return 0;
 }
 
 // Istenen adedi yigin yigin verir ve GERCEKTEN kacinin ulastigini olcup dondurur.
@@ -184,7 +196,9 @@ function guvenliVer(p, typeId, adet) {
     let yigin;
     try { yigin = new ItemStack(typeId, par); } catch { break; }
     try { Ametis.damgala(yigin); } catch { }
-    envantereVer(p, yigin);
+    // Envanter dolunca dur: kalani cagiran taraf iade eder.
+    // Ayrica binlerce adetlik alimda bos yere donmeyi de keser.
+    if (envantereVer(p, yigin, false) > 0) break;
     kalan -= par;
   }
   return Math.max(0, itemSay(p, typeId) - oncesi);
@@ -192,7 +206,9 @@ function guvenliVer(p, typeId, adet) {
 function itemSay(p, t) {
   const c = kap(p); if (!c) return 0;
   let n = 0;
-  for (let i = 0; i < c.size; i++) { const it = c.getItem(i); if (it?.typeId === t) n += it.amount; }
+  // t tanimsizken bos yuvalar da "eslesip" cokuyordu (undefined === undefined)
+  if (!t) return 0;
+  for (let i = 0; i < c.size; i++) { const it = c.getItem(i); if (it && it.typeId === t) n += it.amount; }
   return n;
 }
 // Bir turden `adet` kadar satar. Her yigin KENDI degerinden hesaplanir
@@ -227,6 +243,20 @@ function itemCikar(p, t, adet) {
   return kalan === 0;
 }
 function gecerliItem(t) { try { new ItemStack(t, 1); return true; } catch { return false; } }
+
+// ==================== SON ALINANLAR ====================
+// Oyuncunun son satin aldigi esyalar kendi kategorisinde en uste cikar.
+// Bellekte tutulur; dunya kapaninca sifirlanir (kalici olmasi gerekmiyor,
+// amac o oturumdaki alisverisi kolaylastirmak).
+const sonAlinan = new Map();          // oyuncu adi -> [id, ...] (yeni -> eski)
+
+function sonAlinanEkle(p, id) {
+  const liste = (sonAlinan.get(p.name) ?? []).filter(x => x !== id);
+  liste.unshift(id);
+  while (liste.length > CFG.sonAlinanSayisi) liste.pop();
+  sonAlinan.set(p.name, liste);
+}
+function sonAlinanSira(p) { return sonAlinan.get(p.name) ?? []; }
 
 // ==================== OFFLINE TESLIMAT ====================
 function paraTeslim(ad, miktar) {
@@ -1416,6 +1446,7 @@ function calistir(p, komut, arg) {
     case "ametis": case "ametist":
       for (const satir of Ametis.rapor(p)) p.sendMessage(satir);
       return;
+    case "piyasa": case "borsa": return piyasaEkrani(p);
     case "ev": case "home": case "arsalarim2": return void Arsa.eveIsinla(p, API);
     case "topluSat": case "toplusat": return topluSat(p);
     case "ara": return marketEkrani(p, { arama: arg.join(" "), sayfa: 0 });
@@ -1452,7 +1483,7 @@ function calistir(p, komut, arg) {
       return p.sendMessage(it ? `§a[Market] §fElindeki: §e${it.typeId}` : "§c[Market] Elinde bir esya yok.");
     }
     default:
-      p.sendMessage("§7[Market] §f!menu !market !ara !sat !takas !alim !teklif !teklifler !para !arsa !pazar !uye !golem !ametis !hazir !ilanlarim !rehber !bakiye !id !kitap !sopa !ev !dovus !cik !arenasil !yenile !liste");
+      p.sendMessage("§7[Market] §f!menu !market !ara !sat !takas !alim !teklif !teklifler !para !arsa !pazar !uye !golem !ametis !piyasa !hazir !ilanlarim !rehber !bakiye !id !kitap !sopa !ev !dovus !cik !arenasil !yenile !liste");
   }
 }
 
@@ -1461,6 +1492,16 @@ function calistir(p, komut, arg) {
 const katSeti = () => (CFG.sadeceHammadde ? HAM_KATEGORILER : KATEGORILER);
 const katIndex = (id) => (CFG.sadeceHammadde ? hamKategoriIndex(id) : kategoriIndex(id));
 // Hazir Market bu esyayi alip satar mi?
+// Fiyat arz-talebe gore kaymissa satirda gosterilir: "+18%" / "-9%"
+function piyasaEtiket(id) {
+  let y = null;
+  try { y = Piyasa.yuzde(id); } catch { }
+  if (!y) return "";
+  const d = y.satis;
+  if (Math.abs(d) < 3) return "";
+  return d > 0 ? ` \u00a7c+${d}%` : ` \u00a7a${d}%`;
+}
+
 function marketteVar(id) {
   if (yasakMi(id)) return false;
   if (!piyasadaMi(id)) return false;   // elytra, beacon gibi degerliler: sadece oyuncular arasinda
@@ -1494,6 +1535,41 @@ function satisSiniriYazi() {
   return `\u00a78${k.join(", ")}: sadece sat\u0131l\u0131r, sat\u0131n al\u0131namaz.\n`;
 }
 
+// ==================== PIYASA EKRANI ====================
+function piyasaEkrani(p) {
+  let liste = [];
+  try { liste = Piyasa.hareketliler(24); } catch { }
+  const f = new ActionFormData().title("\u00a7lPIYASA HAREKETLERI");
+
+  if (liste.length === 0) {
+    f.body("\u00a77Piyasa sakin. Hen\u00fcz fiyat\u0131 oynatacak kadar al\u0131m sat\u0131m olmad\u0131.\n\n" +
+      "\u00a78Bir e\u015fyay\u0131 \u00e7ok satarsan market ona daha az \u00f6der.\n" +
+      "\u00a78\u00c7ok al\u0131rsan market onu daha pahal\u0131 satar.\n" +
+      "\u00a78Zamanla her \u015fey normale d\u00f6ner.");
+  } else {
+    f.body("\u00a77Oyuncular\u0131n al\u0131m sat\u0131m\u0131 fiyatlar\u0131 oynat\u0131yor.\n" +
+      "\u00a7cK\u0131rm\u0131z\u0131\u00a77: talepli, almas\u0131 pahal\u0131.  \u00a7aYe\u015fil\u00a77: bol, almas\u0131 ucuz.\n" +
+      `\u00a78${liste.length} e\u015fyan\u0131n fiyat\u0131 oynad\u0131.`);
+    for (const h of liste) {
+      const fi = fiyat(h.id);
+      if (!fi) continue;
+      const yon = h.satis > 0 ? `\u00a7c+${h.satis}%` : `\u00a7a${h.satis}%`;
+      const durum = h.akis > 0 ? "talep" : "bol";
+      f.button(raw(adParca(h.id),
+        T(`\n${yon} \u00a78${durum}  \u00a7a${fmt(fi.alis)} \u00a78/ \u00a7c${fmt(fi.satis)}`)), ikonGuvenli(h.id));
+    }
+  }
+  f.button("\u00a77< Geri");
+  f.show(p).then(r => {
+    if (r.canceled) return;
+    if (r.selection < liste.length) {
+      const h = liste[r.selection];
+      return sistemUrun(p, katIndex(h.id), h.id, { sayfa: 0, arama: "" });
+    }
+    kitapMenu(p);
+  });
+}
+
 function sistemKategoriler(p) {
   tumItemler();
   envanterdekileriKat(p);
@@ -1513,6 +1589,7 @@ function sistemKategoriler(p) {
   f.button(`\u00a7f${CFG.sadeceHammadde ? "T\u00fcm Ham Maddeler" : "T\u00fcm E\u015fyalar"}\n\u00a78${toplam} e\u015fya`, ikonGuvenli("minecraft:chest")); islem.push(() => sistemUrunler(p, -1, {}));
   f.button("\u00a7eE\u015fya Ara", ikonGuvenli("minecraft:compass")); islem.push(() => marketArama(p, -1, {}));
   f.button("\u00a7eEnvanterimi Toplu Sat", ikonGuvenli("minecraft:hopper")); islem.push(() => topluSat(p));
+  f.button("\u00a7ePiyasa Hareketleri", ikonGuvenli("minecraft:emerald")); islem.push(() => piyasaEkrani(p));
   f.button("\u00a77< Geri"); islem.push(() => kitapMenu(p));
 
   f.show(p).then(r => { if (!r.canceled) islem[r.selection]?.(); });
@@ -1522,6 +1599,14 @@ function sistemUrunler(p, idx, d = {}) {
   const durum = { sayfa: 0, arama: "", ...d };
   const gruplar = kategoriListeleri();
   let liste = idx >= 0 ? gruplar[idx] : gruplar.flat();
+
+  // Son aldiklarin bu kategorinin en ustunde, en yeniden eskiye.
+  const son = sonAlinanSira(p);
+  if (son.length) {
+    const sonSet = new Set(son);
+    const ustte = son.filter(x => liste.includes(x));
+    if (ustte.length) liste = [...ustte, ...liste.filter(x => !sonSet.has(x))];
+  }
   const baslik = idx >= 0 ? katSeti()[idx].ad : (CFG.sadeceHammadde ? "T\u00fcm Ham Maddeler" : "T\u00fcm E\u015fyalar");
 
   if (durum.arama) liste = aramaSuz(liste, durum.arama);
@@ -1545,13 +1630,15 @@ function sistemUrunler(p, idx, d = {}) {
     .title(`\u00a7l${baslik.toUpperCase()} \u00a77(${sayfa + 1}/${toplamSayfa})`)
     .body(`\u00a77Bakiyen: \u00a7a${fmt(paraOku(p))}  \u00a78|  \u00a77${liste.length} e\u015fya\n\u00a7aSat\u0131\u015f \u00a78/ \u00a7cAl\u0131\u015f \u00a78(adet ba\u015f\u0131)`);
 
+  const sonSet = new Set(sonAlinanSira(p));
   for (const id of dilim) {
     const fi = fiyat(id);
     const elde = itemSay(p, id);
     const fiyatYazi = marketAlinabilir(id)
       ? `\u00a7a${fmt(fi.alis)} \u00a78/ \u00a7c${fmt(fi.satis)}`
       : `\u00a7a${fmt(fi.alis)} \u00a78/ sadece sat\u0131l\u0131r`;
-    f.button(raw(adParca(id), T(`\n${fiyatYazi}${elde ? ` \u00a78(sende ${elde})` : ""}`)), ikonGuvenli(id));
+    const isaret = (sonSet.has(id) ? " \u00a7e*" : "") + piyasaEtiket(id);
+    f.button(raw(adParca(id), T(`\n${fiyatYazi}${elde ? ` \u00a78(sende ${elde})` : ""}${isaret}`)), ikonGuvenli(id));
   }
 
   const ek = [];
@@ -1582,6 +1669,7 @@ function marketArama(p, idx, durum) {
 }
 
 function sistemUrun(p, idx, id, durum) {
+  if (!id) return sistemUrunler(p, idx, durum);
   const fi = fiyat(id);
   if (!fi) return sistemUrunler(p, idx, durum);
   const elde = itemSay(p, id);
@@ -1615,6 +1703,7 @@ function sistemUrun(p, idx, id, durum) {
           const kazanc = sonuc.kazanc;
           paraEkle(p, kazanc);
           gecmiseEkle(id, kazanc, sonuc.satilan);
+          try { Piyasa.satildi(id, sonuc.satilan); } catch { }   // arz: fiyat duser
           ses(p, "random.orb");
           const fark = kazanc !== sonuc.satilan * fi.alis ? " \u00a78(b\u00fcy\u00fc/hasar dahil)" : "";
           msj(p, T("\u00a7a[Market] \u00a7f"), adParca(id), T(` \u00a77x${sonuc.satilan} sat\u0131ld\u0131 \u00a7a+${fmt(kazanc)}${fark}`));
@@ -1627,7 +1716,7 @@ function sistemUrun(p, idx, id, durum) {
         return sistemUrunler(p, idx, durum);
       }
       if (alabilir <= 0) return sistemUrunler(p, idx, durum);
-      sistemMiktar(p, "\u00a7lKA\u00c7 ADET ALACAKSIN?", Math.min(alabilir, 640), adet => {
+      sistemMiktar(p, "\u00a7lKA\u00c7 ADET ALACAKSIN?", Math.min(alabilir, CFG.maxAlim), adet => {
         const tutar = adet * fi.satis;
         if (!marketAlinabilir(id)) { p.sendMessage("\u00a7c[Market] Bu e\u015fya sat\u0131n al\u0131namaz."); return sistemUrunler(p, idx, durum); }
         if (paraOku(p) < tutar) { p.sendMessage("\u00a7c[Market] Yeterli paran yok."); return sistemUrunler(p, idx, durum); }
@@ -1640,6 +1729,8 @@ function sistemUrun(p, idx, id, durum) {
         }
         if (verilen === 0) return sistemUrunler(p, idx, durum);
         ses(p, "random.levelup");
+        try { Piyasa.alindi(id, verilen); } catch { }     // talep: fiyat yukselir
+        sonAlinanEkle(p, id);                              // kategoride en uste cikar
         msj(p, T("\u00a7a[Market] \u00a7f"), adParca(id), T(` \u00a77x${verilen} al\u0131nd\u0131 \u00a7c-${fmt(verilen * fi.satis)}`));
         sistemUrunler(p, idx, durum);
       });
@@ -1648,8 +1739,10 @@ function sistemUrun(p, idx, id, durum) {
 
 function sistemMiktar(p, baslik, enFazla, geriCagir) {
   const f = new ModalFormData().title(baslik);
-  const sliderVar = adetSlider(f, `Adet (en fazla ${enFazla})`, enFazla);
-  if (!sliderVar) f.textField(`Adet (en fazla ${enFazla})`, "sadece rakam", { defaultValue: "1" });
+  // Binlerce adet icin kaydiraç kullanilamaz (tek tek surumek gerekirdi);
+  // 2304 (36 yigin) ustunde dogrudan sayi yazdiriyoruz.
+  const sliderVar = enFazla <= 2304 && adetSlider(f, `Adet (en fazla ${enFazla})`, enFazla);
+  if (!sliderVar) f.textField(`Adet (en fazla ${fmtSayi(enFazla)})`, "sadece rakam", { defaultValue: "64" });
   f.show(p).then(r => {
     if (r.canceled) return;
     const adet = sliderVar ? Math.floor(r.formValues[0]) : sayiOku(r.formValues[0]);
@@ -1789,6 +1882,7 @@ guvenli("slash komutlari", () => {
     kayit("uye", "Arsana uye ekle / cikar", (p) => Arsa.uyeArsaSec(p, API));
     kayit("golem", "Bakir golem durumu", (p) => { for (const s of Golem.rapor(p)) p.sendMessage(s); });
     kayit("ametis", "Ametist aletin kalan omru", (p) => { for (const s of Ametis.rapor(p)) p.sendMessage(s); });
+    kayit("piyasa", "Arz-talep hareketleri", (p) => piyasaEkrani(p));
     kayit("ev", "Kendi arsana isinlan", (p) => { Arsa.eveIsinla(p, API); });
     kayit("dovus", "Duello menusu", (p) => Dovus.dovusMenu(p, API));
     kayit("arenasil", "Stadyumu kaldir (yonetici)", (p) => {
@@ -1840,6 +1934,7 @@ function oyuncuyuHazirla(p, gercekGiris = false) {
 guvenli("arsa korumasi", () => Arsa.arsaKur(API));
 guvenli("bakir golem", () => Golem.kur(API));
 guvenli("ametist aletler", () => Ametis.kur());
+guvenli("arz-talep piyasasi", () => Piyasa.kur(API));
 
 guvenli("duello olum kontrolu", () => {
   world.afterEvents.entityDie.subscribe(ev => {

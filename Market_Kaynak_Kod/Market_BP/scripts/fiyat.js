@@ -70,7 +70,7 @@ const TABAN = {
   carved_pumpkin: 6, azalea_leaves_flowered: 2, brown_mushroom_block: 3, red_mushroom_block: 3,
   breeze_rod: 60, wind_charge: 8, heavy_core: 400,
   trial_key: 90, ominous_trial_key: 180, ominous_bottle: 60,
-  resin_clump: 6, resin_block: 20, creaking_heart: 90,
+  resin_clump: 6,   // resin_block / resin_brick / creaking_heart TARIF'ten hesaplanir
   sculk: 6, sculk_vein: 4, sculk_catalyst: 90, sculk_shrieker: 70,
   sculk_sensor: 40, calibrated_sculk_sensor: 60, reinforced_deepslate: 150,
   dripstone_block: 4, pointed_dripstone: 4, powder_snow: 6,
@@ -86,7 +86,7 @@ const TABAN = {
   sandstone: 4, red_sandstone: 4, cut_sandstone: 5, cut_red_sandstone: 5,
   smooth_sandstone: 5, smooth_red_sandstone: 5, chiseled_sandstone: 5,
   chiseled_red_sandstone: 5,
-  nether_bricks: 8, red_nether_bricks: 12, resin_bricks: 24,
+  nether_bricks: 8, red_nether_bricks: 12,
   end_bricks: 5, dark_prismarine: 10, prismarine_bricks: 10,
   snow: 4, mangrove_roots: 3, muddy_mangrove_roots: 3,
   stripped_bamboo_block: 9, warped_fungus: 3, crimson_fungus: 3,
@@ -161,6 +161,11 @@ const URETIM = 1.7;
 const TARIF = {
   // --- ahsap ---
   stick: { g: [["oak_planks", 2]], n: 4 },
+  // --- recine (pale garden) ---
+  resin_brick: { g: [["resin_clump", 1]], n: 1 },        // firinda
+  resin_bricks: { g: [["resin_brick", 4]], n: 1 },
+  resin_block: { g: [["resin_clump", 9]], n: 1 },
+  creaking_heart: { g: [["pale_oak_log", 2], ["resin_block", 1]], n: 1 },
   crafting_table: { g: [["oak_planks", 4]], n: 1 },
   chest: { g: [["oak_planks", 8]], n: 1 },
   trapped_chest: { g: [["chest", 1], ["tripwire_hook", 1]], n: 1 },
@@ -441,7 +446,6 @@ const ESKI_AD = {
   reeds: "sugar_cane",
   nether_brick: "nether_bricks",
   red_nether_brick: "red_nether_bricks",
-  resin_brick: "resin_bricks",
   normal_stone: "stone",
   normal_stone_slab: "stone_slab",
   normal_stone_stairs: "stone_stairs",
@@ -621,8 +625,14 @@ function hesapla(a) {
     // duz tugla 1). On ekleri soyup gercek anasini da deniyoruz.
     const koksuz = kok.replace(
       /^(cracked_|mossy_|chiseled_|polished_|smooth_|cut_|infested_|waxed_|exposed_|weathered_|oxidized_|deepslate_)/, "");
-    const adaylar = [kok, kok + "_planks", kok + "s", "polished_" + kok,
-                     koksuz, koksuz + "_planks", koksuz + "s"];
+    // Bedrock'ta tugla turevleri TEKIL yazilir ama analari COGULDUR:
+    // resin_brick_slab -> resin_bricks, nether_brick_stairs -> nether_bricks.
+    // "resin_brick" ise ayri bir ESYA (firindan cikan tugla). Tekili once
+    // denersek yarim blok 68'lik blogun degil 10'luk itemin yarisi oluyordu.
+    const tuglaAilesi = kok.endsWith("brick");
+    const adaylar = tuglaAilesi
+      ? [kok + "s", kok, kok + "_planks", "polished_" + kok, koksuz + "s", koksuz, koksuz + "_planks"]
+      : [kok, kok + "_planks", kok + "s", "polished_" + kok, koksuz, koksuz + "_planks", koksuz + "s"];
     // TABAN'da yoksa bile kok GERCEK bir esya olabilir (yun, tarifi olan
     // blok, eski isim...). O zaman sabit 3 yerine gercek anasindan
     // hesaplanir. 170 esya bu yuzden keyfi degerdeydi: yun yarim blogu 1,
@@ -739,12 +749,27 @@ export function onemliMi(id) {
   return ONEMLI.has(a) || /_shulker_box$/.test(a);
 }
 
+// Arz-talep motoru buraya baglanir (piyasa.js). Bagli degilse fiyatlar
+// sabittir; boylece denetim araclari ham fiyatlari da olcebiliyor.
+let piyasaCarpan = null;
+export function piyasaBagla(fn) { piyasaCarpan = fn; }
+
 export function fiyat(id) {
   if (yasakMi(id)) return null;
   const taban = tabanDeger(id);
   const zam = (hammaddeMi(id) ? 1 : ISLENMIS_ZAM) * (onemliMi(id) ? ONEMLI_ZAM : 1);
-  const alis = Math.max(1, Math.round(taban * OLCEK));
-  const satis = Math.max(2, Math.ceil(taban * MAKAS * zam * OLCEK));
+  let alis = Math.max(1, Math.round(taban * OLCEK));
+  let satis = Math.max(2, Math.ceil(taban * MAKAS * zam * OLCEK));
+
+  if (piyasaCarpan) {
+    let c = null;
+    try { c = piyasaCarpan(id); } catch { }
+    if (c) {
+      alis = Math.max(1, Math.round(alis * c.alis));
+      satis = Math.max(2, Math.ceil(satis * c.satis));
+      if (satis <= alis) satis = alis + 1;      // makas hep pozitif kalsin
+    }
+  }
   return {
     alis: Math.min(PARA_TAVANI, alis),
     satis: Math.min(PARA_TAVANI, satis)

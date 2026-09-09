@@ -1,4 +1,4 @@
-# Market & Ekonomi — Kaynak Kod (v4.3)
+# Market & Ekonomi — Kaynak Kod (v4.4)
 
 Bu klasör Minecraft Bedrock için yazılan Market/Ekonomi addon'ının tüm
 kaynak dosyalarını içerir. `.mcaddon` sadece bunların zip'lenmiş hali;
@@ -925,6 +925,9 @@ Market_BP/                 Behavior Pack (mantık, script, tarifler)
     dovus.js                 Düello/PvP arenası (kit, yedekleme, ödül)
     veri.js                  Veri sürümü, göç ve yedek/geri yükleme
     fiyat.js                 Fiyat motoru: ham madde tabanları + türetme kuralları
+    piyasa.js                Arz-talep: alım satım fiyatları oynatır (v4.4)
+    ametis.js                Süreli ametist aletler (4 saat ömür)
+    golem.js                 Bakır golem hızlandırıcı (tek turda 10 yığın)
     arsa.js                  Arsa/bölge koruma sistemi
     icons.js                 Item id -> texture yolu çözücü
 
@@ -939,7 +942,8 @@ Market_RP/                 Resource Pack (görseller, dil)
     languages.json
 
 paketle.sh                 Klasörleri .mcaddon'a paketler
-arac/arbitraj.mjs          Fiyat açığı denetimi (node arac/arbitraj.mjs)
+arac/arbitraj.mjs          Fiyat açığı denetimi, iki senaryoda (node arac/arbitraj.mjs)
+arac/vanilla_tarifler.json Mojang'ın 529 gerçek tarifi (denetimin kaynağı)
 katalog_guncelle.py        Vanilla eşya listesini Mojang metadata'sından tazeler
 ikon_guncelle.py           İkon haritasını resmî resource pack verisinden üretir
 ```
@@ -962,12 +966,13 @@ ikon_guncelle.py           İkon haritasını resmî resource pack verisinden ü
 ## Komutlar
 
 Sohbete yazılır: `!menu !market !ara !sat !takas !alim !teklif !teklifler
-!para !arsa !pazar !uye !golem !ametis !hazir !ilanlarim !rehber !bakiye !id !kitap` ve v2.0
+!para !arsa !pazar !uye !golem !ametis !piyasa !hazir !ilanlarim !rehber !bakiye !id !kitap` ve v2.0
 ile gelen `!yenile` (eşya listesini yeniden kurar), `!liste` (listenin
 durumunu ve hangi kaynaktan kaç eşya geldiğini yazar). v3.2 ile `!pazar`
 satılık/kiralık arsaları açar, `!ev` kendi arsana ışınlar. v3.3 ile
 `!arenasil` (yönetici) yanlış yere kurulmuş stadyumu tek tıkla kaldırır,
-`!temizle` görünmez engelleri siler.
+`!temizle` görünmez engelleri siler. v4.4 ile `!piyasa` arz-talebe göre en
+çok oynayan fiyatları listeler.
 
 Aynı işleri eğik çizgili komutlarla da yapabilirsin:
 `/mk:arsa`, `/mk:pazar`, `/mk:uye`, `/mk:golem`, `/mk:ev`, `/mk:dovus`, `/mk:arenasil`,
@@ -976,10 +981,105 @@ Aynı işleri eğik çizgili komutlarla da yapabilirsin:
 Bir şey ters giderse Content Log'daki `[Market]` satırları listenin hangi
 kaynaktan kaç eşya topladığını yazıyor.
 
+## Canlı piyasa, alım sınırı ve "son aldıklarım" (v4.4)
+
+Üç şey değişti.
+
+### 1. Son aldığın eşyalar kategorinin en üstünde
+
+Bir eşyayı Hazır Market'ten aldığında o eşya **kendi kategorisinin en
+üstüne** çıkıyor, yanında `§e*` işaretiyle. Sıralama yeniden alınana kadar
+korunuyor, en son alınan en üstte. Oyuncu başına son **12** alım
+tutuluyor (`CFG.sonAlinanSayisi`). Kayıt oyuncu adına bağlı, dünya
+kaydına yazılmıyor — oturum boyunca yaşıyor.
+
+Alfabetik listede 400 blok arasında aynı eşyayı tekrar tekrar aramak
+gerekmiyor artık: 50 taş tuğlası aldıysan bir sonraki sefer "Yapı
+Blokları"nı açtığında ilk sırada duruyor.
+
+### 2. 640 sınırı kalktı
+
+Eskiden tek seferde en fazla 640 adet alınabiliyordu. Yeni sınır
+`CFG.maxAlim = 100.000` — pratikte sınır senin paran ve envanterin.
+
+Miktar ekranı buna göre değişiyor:
+
+- **2304 adete kadar** (36 yığın) eskisi gibi **kaydıraç** çıkıyor.
+- Üstünde kaydıraç kullanılamaz (tek tek sürüklemek gerekirdi), o yüzden
+  **sayı yazma alanı** açılıyor: "Adet (en fazla 100.000)".
+
+Envanterine sığmayan kısım için **parası geri veriliyor**. Önemli bir
+düzeltme de burada: eskiden sığmayan eşya yere dökülüyordu **ve** ayrıca
+para iade ediliyordu — yani dolu envanterle alışveriş yapan oyuncu hem
+eşyayı hem parayı alıyordu (bedava kâr). Artık sığmayan hiç verilmiyor,
+sadece iade ediliyor:
+
+```
+[Market] Sadece 2240 adet sığdı, $13.800 iade edildi.
+```
+
+### 3. Piyasa arz-talebe göre oynuyor
+
+`scripts/piyasa.js` her eşya için bir **net akış** tutuyor: oyuncular o
+eşyadan ne kadar aldı, ne kadar sattı.
+
+| Oyuncular ne yaptı | Ne olur |
+|---|---|
+| Çok **aldı** → talep | Market onu **daha pahalıya** satar (en fazla ×1.60) |
+| Çok **sattı** → arz | Market ona **daha az** öder (en az ×0.75) |
+
+Fiyat kayması listede görünüyor: satırın yanında `§c+18%` (talepli) ya da
+`§a-9%` (bol). `!piyasa` komutu en çok oynayan eşyaları tek ekranda
+gösteriyor.
+
+Her şey zamanla normale dönüyor: 5 dakikada bir net akış **%3 eriyor**
+(`sonum: 0.97`). Bir günlük çılgınlık kalıcı fiyat bozmuyor. Akış dünya
+kaydına yazılıyor, sunucu kapanınca kaybolmuyor.
+
+**Çarpanlar keyfi seçilmedi.** Ekonominin güvenlik payı
+`MAKAS (2.2) / URETIM (1.7) = 1.29` kat. En düşük alış çarpanı ile en
+yüksek satış çarpanı arasındaki oran bunun altında kalmalı:
+
+```
+satış en az  0.90 × 2.2 = 1.98   >   alış en fazla  1.10 × 1.7 = 1.87
+```
+
+`arac/arbitraj.mjs` artık **iki senaryoda birden** çalışıyor: normal
+piyasa ve "en kötü durum" (her girdi en ucuz, her çıktı en pahalı). İkisi
+de **894 kontrol, 0 açık**.
+
+### Bu denetimin yakaladığı iki gerçek hata
+
+En kötü durum senaryosu, normal fiyatlarda görünmeyen iki hatayı ortaya
+çıkardı:
+
+1. **`creaking_heart`** elle 90 yazılmıştı, girdisi 98'di — %8 pay.
+   Piyasa uçlarında bu pay eriyor ve craft para basmaya başlıyordu. Artık
+   gerçek tarifinden hesaplanıyor (2 pale_oak_log + 1 resin_block).
+2. **`resin_brick` ile `resin_bricks` aynı sanılıyordu.** Biri fırından
+   çıkan **eşya**, öbürü ondan yapılan **blok**. Takma ad ikisini
+   birleştirince eşya 4 katına fiyatlanıyordu: reçine yumrusunu 22'ye alıp
+   eritip 26'ya satmak kâr ediyordu. Ayrıca türevleri de bozuyordu —
+   `resin_brick_slab` 68'lik bloğun değil 10'luk eşyanın yarısından
+   hesaplanıyordu (31 yerine 5).
+
+İkincisi bütün tuğla ailesini ilgilendiriyor: Bedrock'ta türevler **tekil**
+yazılır (`nether_brick_stairs`) ama anaları **çoğuldur**
+(`nether_bricks`). Artık kök `brick` ile bitiyorsa önce çoğulu deneniyor.
+
+| eşya | önce | sonra |
+|---|---|---|
+| resin_brick | 24 | 10 |
+| resin_bricks | 24 | 68 |
+| resin_block | 20 | 92 |
+| resin_brick_slab | 5 | 31 |
+| creaking_heart | 90 | 170 |
+
+
 ## Paketleme
 
 ```bash
-bash paketle.sh          # -> Market_v4.3.mcaddon
+bash paketle.sh          # -> Market_v4.4.mcaddon
 ```
 
 Sürüm numarası hem `manifest.json` dosyalarında hem de `main.js` içindeki
