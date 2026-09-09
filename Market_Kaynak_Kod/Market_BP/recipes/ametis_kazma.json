@@ -1,0 +1,28 @@
+{
+  "format_version": "1.21.50",
+  "minecraft:recipe_shaped": {
+    "description": {
+      "identifier": "mk:ametis_kazma_tarif"
+    },
+    "tags": [
+      "crafting_table"
+    ],
+    "pattern": [
+      "AAA",
+      " N ",
+      " N "
+    ],
+    "key": {
+      "A": {
+        "item": "minecraft:amethyst_block"
+      },
+      "N": {
+        "item": "minecraft:netherite_ingot"
+      }
+    },
+    "result": {
+      "item": "mk:ametis_kazma",
+      "count": 1
+    }
+  }
+}

@@ -1,2 +1,7 @@
 item.mk:kontrol_kitabi.name=Market Kontrol Kitabi
 item.mk:arsa_sopasi.name=Arsa Sopası
+item.mk:ametis_kazma.name=Ametist Kazma
+item.mk:ametis_kurek.name=Ametist Kürek
+item.mk:ametis_balta.name=Ametist Balta
+item.mk:ametis_kilic.name=Ametist Kılıç
+item.mk:ametis_mizrak.name=Ametist Mızrak

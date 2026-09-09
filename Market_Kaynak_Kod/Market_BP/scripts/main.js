@@ -9,22 +9,23 @@ import * as Dovus from "./dovus.js";
 import * as Veri from "./veri.js";
 import * as Arsa from "./arsa.js";
 import * as Golem from "./golem.js";
+import * as Ametis from "./ametis.js";
 
 const { world, system, ItemStack } = mc;
 const { ActionFormData, ModalFormData } = ui;
 
 // ==================== AYARLAR ====================
 const CFG = {
-  surum: "4.1",
+  surum: "4.2",
   ad: "m",
   objective: "money",
   simge: "$",
-  baslangicParasi: 25000,      // v4.0 olcegi
+  baslangicParasi: 500,
   komisyon: 0,
   maxIlanOyuncu: 15,
   maxIlanToplam: 300,
   minFiyat: 1,
-  maxFiyat: 1000000000,        // oyuncu ilani tavani (milyarin altinda)
+  maxFiyat: 10000000,
   maxAdet: 2304,
   sayfaBoyu: 25,
   teklifSuresiSn: 300,
@@ -172,6 +173,8 @@ function envantereVer(p, item) {
 
 // Istenen adedi yigin yigin verir ve GERCEKTEN kacinin ulastigini olcup dondurur.
 function guvenliVer(p, typeId, adet) {
+  // Ametist alet marketten alindiysa omru hemen baslasin (lore damgasi).
+  // Damgasiz kalirsa da dongu ilk gorusunde damgalar; bu sadece anlik.
   const oncesi = itemSay(p, typeId);
   let enFazlaYigin = 64;
   try { enFazlaYigin = new ItemStack(typeId, 1).maxAmount || 64; } catch { }
@@ -180,6 +183,7 @@ function guvenliVer(p, typeId, adet) {
     const par = Math.min(kalan, enFazlaYigin);
     let yigin;
     try { yigin = new ItemStack(typeId, par); } catch { break; }
+    try { Ametis.damgala(yigin); } catch { }
     envantereVer(p, yigin);
     kalan -= par;
   }
@@ -1408,6 +1412,9 @@ function calistir(p, komut, arg) {
     case "golem": case "bakirgolem":
       for (const satir of Golem.rapor(p)) p.sendMessage(satir);
       return;
+    case "ametis": case "ametist":
+      for (const satir of Ametis.rapor(p)) p.sendMessage(satir);
+      return;
     case "ev": case "home": case "arsalarim2": return void Arsa.eveIsinla(p, API);
     case "topluSat": case "toplusat": return topluSat(p);
     case "ara": return marketEkrani(p, { arama: arg.join(" "), sayfa: 0 });
@@ -1444,7 +1451,7 @@ function calistir(p, komut, arg) {
       return p.sendMessage(it ? `§a[Market] §fElindeki: §e${it.typeId}` : "§c[Market] Elinde bir esya yok.");
     }
     default:
-      p.sendMessage("§7[Market] §f!menu !market !ara !sat !takas !alim !teklif !teklifler !para !arsa !pazar !uye !golem !hazir !ilanlarim !rehber !bakiye !id !kitap !sopa !ev !dovus !cik !arenasil !yenile !liste");
+      p.sendMessage("§7[Market] §f!menu !market !ara !sat !takas !alim !teklif !teklifler !para !arsa !pazar !uye !golem !ametis !hazir !ilanlarim !rehber !bakiye !id !kitap !sopa !ev !dovus !cik !arenasil !yenile !liste");
   }
 }
 
@@ -1779,6 +1786,7 @@ guvenli("slash komutlari", () => {
     kayit("pazar", "Satilik ve kiralik arsalar", (p) => Arsa.pazarMenu(p, API));
     kayit("uye", "Arsana uye ekle / cikar", (p) => Arsa.uyeArsaSec(p, API));
     kayit("golem", "Bakir golem durumu", (p) => { for (const s of Golem.rapor(p)) p.sendMessage(s); });
+    kayit("ametis", "Ametist aletin kalan omru", (p) => { for (const s of Ametis.rapor(p)) p.sendMessage(s); });
     kayit("ev", "Kendi arsana isinlan", (p) => { Arsa.eveIsinla(p, API); });
     kayit("dovus", "Duello menusu", (p) => Dovus.dovusMenu(p, API));
     kayit("arenasil", "Stadyumu kaldir (yonetici)", (p) => {
@@ -1829,6 +1837,7 @@ function oyuncuyuHazirla(p, gercekGiris = false) {
 
 guvenli("arsa korumasi", () => Arsa.arsaKur(API));
 guvenli("bakir golem", () => Golem.kur(API));
+guvenli("ametist aletler", () => Ametis.kur());
 
 guvenli("duello olum kontrolu", () => {
   world.afterEvents.entityDie.subscribe(ev => {

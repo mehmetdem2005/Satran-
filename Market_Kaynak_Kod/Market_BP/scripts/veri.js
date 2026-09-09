@@ -16,10 +16,14 @@
 //     istenildigi an geri yuklenebilir.
 
 import * as mc from "@minecraft/server";
-import { OLCEK, PARA_TAVANI } from "./fiyat.js";
+import { PARA_TAVANI } from "./fiyat.js";
+
+// v4.0 para olcegi. v4.2'de fiyatlar eski seviyeye dondugu icin bu kat
+// sayisi geri alinir; sabit burada duruyor cunku iki goc de ona bagli.
+const OLCEK_V40 = 30;
 const { world } = mc;
 
-export const VERI_SURUMU = 3;          // veri bicimi her degistiginde artir
+export const VERI_SURUMU = 4;          // veri bicimi her degistiginde artir
 const SURUM_ANAHTARI = "mk_veri_surumu";
 const YEDEK_BILGI = "mk_yedek_bilgi";
 
@@ -112,7 +116,7 @@ const GOCLER = {
   // cikti; dunyada birikmis para ve fiyatlar da ayni katsayiyla buyutulur,
   // yoksa eski oyuncularin birikimi bir anda degersizlesirdi.
   3: (api) => {
-    const K = OLCEK;
+    const K = OLCEK_V40;
     const buyut = (n) => Math.max(0, Math.min(PARA_TAVANI, Math.round((Number(n) || 0) * K)));
     const raporlar = [];
 
@@ -173,6 +177,72 @@ const GOCLER = {
     } catch { raporlar.push("arsa hatasi"); }
 
     return `para olcegi x${K}: ` + raporlar.join(", ");
+  },
+
+  // v3 -> v4: v4.0'da butun fiyatlar 30 katina cikarilmisti; v4.2'de eski
+  // seviyeye donuldu. Dunyada birikmis para ve fiyatlar da ayni oranda
+  // kucultulur, yoksa herkes bir anda 30 kat zengin kalirdi.
+  //
+  // NOT: Hic v4.0/v4.1 gormemis bir dunya once 3. gocu (x30), hemen ardindan
+  // bu gocu (/30) calistirir; sonuc degismez. v4.0 gormus dunya ise sadece
+  // bunu calistirir ve dogru yere iner.
+  4: (api) => {
+    const K = OLCEK_V40;
+    const kucult = (n) => Math.max(0, Math.min(PARA_TAVANI, Math.round((Number(n) || 0) / K)));
+    const raporlar = [];
+
+    try {
+      const hedef = world.scoreboard.getObjective("money");
+      let n = 0;
+      for (const katilimci of hedef?.getParticipants?.() ?? []) {
+        const eski = hedef.getScore(katilimci);
+        if (typeof eski !== "number" || eski <= 0) continue;
+        hedef.setScore(katilimci, kucult(eski));
+        n++;
+      }
+      raporlar.push(`${n} bakiye`);
+    } catch { raporlar.push("bakiye okunamadi"); }
+
+    try {
+      const ilan = api.yukle("mk_ilan", []) ?? [];
+      let n = 0;
+      for (const i of ilan) {
+        if (typeof i?.f === "number") { i.f = Math.max(1, kucult(i.f)); n++; }
+        if (typeof i?.bahis === "number") i.bahis = kucult(i.bahis);
+      }
+      if (n) api.kaydet("mk_ilan", ilan);
+      raporlar.push(`${n} ilan`);
+    } catch { raporlar.push("ilan hatasi"); }
+
+    try {
+      const bp = api.yukle("mk_bpara", {}) ?? {};
+      let n = 0;
+      for (const ad of Object.keys(bp)) { bp[ad] = kucult(bp[ad]); n++; }
+      if (n) api.kaydet("mk_bpara", bp);
+      raporlar.push(`${n} bekleyen odeme`);
+    } catch { raporlar.push("bekleyen odeme hatasi"); }
+
+    try {
+      const g = api.yukle("mk_gecmis", []) ?? [];
+      let n = 0;
+      for (const k of g) { if (typeof k?.b === "number") { k.b = Math.max(1, kucult(k.b)); n++; } }
+      if (n) api.kaydet("mk_gecmis", g);
+      raporlar.push(`${n} gecmis kaydi`);
+    } catch { raporlar.push("gecmis hatasi"); }
+
+    try {
+      const arsalar = api.yukle("mk_arsa", []) ?? [];
+      let n = 0;
+      for (const a of arsalar) {
+        if (typeof a?.sat?.fiyat === "number") { a.sat.fiyat = Math.max(1, kucult(a.sat.fiyat)); n++; }
+        if (typeof a?.kira?.fiyat === "number") { a.kira.fiyat = Math.max(1, kucult(a.kira.fiyat)); n++; }
+        if (typeof a?.kiraci?.odenen === "number") a.kiraci.odenen = kucult(a.kiraci.odenen);
+      }
+      if (n) api.kaydet("mk_arsa", arsalar);
+      raporlar.push(`${n} arsa fiyati`);
+    } catch { raporlar.push("arsa hatasi"); }
+
+    return `para olcegi /${K}: ` + raporlar.join(", ");
   }
 };
 

@@ -1,0 +1,28 @@
+{
+  "format_version": "1.21.50",
+  "minecraft:recipe_shaped": {
+    "description": {
+      "identifier": "mk:ametis_balta_tarif"
+    },
+    "tags": [
+      "crafting_table"
+    ],
+    "pattern": [
+      "AA ",
+      "AN ",
+      " N "
+    ],
+    "key": {
+      "A": {
+        "item": "minecraft:amethyst_block"
+      },
+      "N": {
+        "item": "minecraft:netherite_ingot"
+      }
+    },
+    "result": {
+      "item": "mk:ametis_balta",
+      "count": 1
+    }
+  }
+}

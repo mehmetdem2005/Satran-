@@ -16,6 +16,21 @@
     },
     "mk_sopa": {
       "textures": "textures/items/mk_sopa"
+    },
+    "mk_ametis_kazma": {
+      "textures": "textures/items/mk_ametis_kazma"
+    },
+    "mk_ametis_kurek": {
+      "textures": "textures/items/mk_ametis_kurek"
+    },
+    "mk_ametis_balta": {
+      "textures": "textures/items/mk_ametis_balta"
+    },
+    "mk_ametis_kilic": {
+      "textures": "textures/items/mk_ametis_kilic"
+    },
+    "mk_ametis_mizrak": {
+      "textures": "textures/items/mk_ametis_mizrak"
     }
   }
 }

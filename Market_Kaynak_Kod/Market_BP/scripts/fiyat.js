@@ -16,18 +16,18 @@ const TABAN = {
   sand: 1, red_sand: 1, gravel: 1, clay: 4, clay_ball: 1, flint: 2,
   stone: 1, cobblestone: 1, andesite: 1, diorite: 1, granite: 1, tuff: 1,
   deepslate: 1, cobbled_deepslate: 1, calcite: 3, basalt: 2, blackstone: 2,
-  netherrack: 1, soul_sand: 3, soul_soil: 3, end_stone: 3, obsidian: 30,
-  crying_obsidian: 60, magma: 6, glowstone: 12, snowball: 1, snow_block: 4, ice: 2, packed_ice: 8, blue_ice: 60,
-  moss_block: 3, sponge: 250, glass: 2, gravel_block: 1, bedrock: 0,
+  netherrack: 1, soul_sand: 3, soul_soil: 3, end_stone: 3, obsidian: 20,
+  crying_obsidian: 35, magma: 6, glowstone: 12, snowball: 1, snow_block: 4, ice: 2, packed_ice: 8, blue_ice: 30,
+  moss_block: 3, sponge: 40, glass: 2, gravel_block: 1, bedrock: 0,
 
   // madenler
   coal: 4, charcoal: 3,
   raw_copper: 4, copper_ingot: 5,
   raw_iron: 9, iron_ingot: 12, iron_nugget: 2,
   raw_gold: 14, gold_ingot: 18, gold_nugget: 2,
-  diamond: 160, emerald: 110, lapis_lazuli: 8, redstone: 5, quartz: 7,
-  amethyst_shard: 18, ancient_debris: 1400, netherite_scrap: 1400, 
-  echo_shard: 700, nether_star: 30000,
+  diamond: 90, emerald: 55, lapis_lazuli: 8, redstone: 5, quartz: 7,
+  amethyst_shard: 10, ancient_debris: 260, netherite_scrap: 260, 
+  echo_shard: 160, nether_star: 2500,
 
   // tarim
   wheat: 2, wheat_seeds: 1, carrot: 2, potato: 2, beetroot: 2, beetroot_seeds: 1,
@@ -35,21 +35,21 @@ const TABAN = {
   sugar_cane: 2, cocoa_beans: 3, bamboo: 1, cactus: 2,
   kelp: 1, dried_kelp: 2, sweet_berries: 2, glow_berries: 5, apple: 5,
   nether_wart: 5, brown_mushroom: 2, red_mushroom: 2, chorus_fruit: 8,
-  torchflower_seeds: 120, pitcher_pod: 120, egg: 2, // et / balik (cig)
+  torchflower_seeds: 40, pitcher_pod: 40, egg: 2, // et / balik (cig)
   beef: 3, porkchop: 3, chicken: 2, mutton: 2, rabbit: 3,
   cod: 2, salmon: 3, tropical_fish: 6, pufferfish: 6,
 
   // mob dusurmeleri
-  string: 3, feather: 2, leather: 6, bone: 3, gunpowder: 7, slime_ball: 14,
-  rotten_flesh: 1, spider_eye: 4, ender_pearl: 60, blaze_rod: 70,
-  ghast_tear: 200, phantom_membrane: 50, shulker_shell: 900,
-  prismarine_shard: 7, prismarine_crystals: 11, nautilus_shell: 150,
-  heart_of_the_sea: 4000, ink_sac: 3, glow_ink_sac: 18,
-  rabbit_hide: 3, rabbit_foot: 60, scute: 90, turtle_scute: 90,
-  totem_of_undying: 6000, dragon_breath: 900, wither_rose: 300,
+  string: 3, feather: 2, leather: 6, bone: 3, gunpowder: 7, slime_ball: 8,
+  rotten_flesh: 1, spider_eye: 4, ender_pearl: 25, blaze_rod: 30,
+  ghast_tear: 55, phantom_membrane: 22, shulker_shell: 120,
+  prismarine_shard: 7, prismarine_crystals: 11, nautilus_shell: 40,
+  heart_of_the_sea: 300, ink_sac: 3, glow_ink_sac: 10,
+  rabbit_hide: 3, rabbit_foot: 28, scute: 40, turtle_scute: 40,
+  totem_of_undying: 400, dragon_breath: 60, wither_rose: 25,
 
   // esyalar
-  elytra: 20000,
+  elytra: 1500,
   experience_bottle: 25, cobweb: 5, honeycomb: 8, honey_bottle: 10,
   gunpowder_block: 0, lily_pad: 2, vine: 1,
   dandelion: 2, poppy: 2, blue_orchid: 3, allium: 3, azure_bluet: 2,
@@ -61,32 +61,40 @@ const TABAN = {
   copper: 45, netherite_upgrade_smithing_template: 200,
   hardened_clay: 3, web: 5, waterlily: 2, noteblock: 12, grass_path: 1,
   deadbush: 1, brick_block: 5, netherbrick: 2, snowball: 1, frog_spawn: 10,
-  cinnabar: 8, sulfur: 6, potent_sulfur: 20, sulfur_spike: 10, dried_ghast: 400,
+  cinnabar: 8, sulfur: 6, potent_sulfur: 20, sulfur_spike: 10, dried_ghast: 60,
   copper_golem_statue: 60, copper_lantern: 16, copper_torch: 2, copper_bars: 5,
   copper_chest: 12, lodestone_compass: 120, golden_dandelion: 6, red_shrub: 1,
   pink_petals: 2, shelf_mushroom: 3, closed_eyeblossom: 5, open_eyeblossom: 5,
   camel_husk_spawn_egg: 400,
   brick: 2, netherbrick: 2, mob_spawner: 800, nether_brick_item: 2,
   carved_pumpkin: 6, azalea_leaves_flowered: 2, brown_mushroom_block: 3, red_mushroom_block: 3,
-  breeze_rod: 250, wind_charge: 8, heavy_core: 6000,
-  trial_key: 250, ominous_trial_key: 500, ominous_bottle: 200,
-  resin_clump: 6, resin_block: 20, creaking_heart: 400,
-  sculk: 6, sculk_vein: 4, sculk_catalyst: 200, sculk_shrieker: 70,
-  sculk_sensor: 40, calibrated_sculk_sensor: 60, reinforced_deepslate: 900,
+  breeze_rod: 60, wind_charge: 8, heavy_core: 400,
+  trial_key: 90, ominous_trial_key: 180, ominous_bottle: 60,
+  resin_clump: 6, resin_block: 20, creaking_heart: 90,
+  sculk: 6, sculk_vein: 4, sculk_catalyst: 90, sculk_shrieker: 70,
+  sculk_sensor: 40, calibrated_sculk_sensor: 60, reinforced_deepslate: 150,
   dripstone_block: 4, pointed_dripstone: 4, powder_snow: 6,
   spawner: 800, trial_spawner: 800, vault: 800, dragon_egg: 2000,
   budding_amethyst: 200, amethyst_cluster: 30,
   glow_lichen: 4, spore_blossom: 12, big_dripleaf: 4, small_dripleaf: 4,
   hanging_roots: 2, azalea: 6, flowering_azalea: 9, moss_carpet: 2,
-  goat_horn: 500, armadillo_scute: 45,
+  goat_horn: 90, armadillo_scute: 20,
   disc_fragment_5: 30, echo_shard_block: 0,
+
+  // --- AMETIST ALETLER (mk:) ---
+  // 4 saat sonra eriyip yok oluyorlar ama tam buyulu netherite'tan da
+  // degerliler. Degerleri, craft girdilerinin ALIS bedelinin ALTINDA
+  // tutuldu (en ucuz tarif 2 netherit kulce = ~17.240), yoksa "girdiyi
+  // al, craftla, sat" acigi olusurdu.
+  ametis_kurek: 13500, ametis_kazma: 14000, ametis_balta: 14000,
+  ametis_kilic: 15000, ametis_mizrak: 16000,
   glow_frame: 12, decorated_pot: 12,
   crafter: 90, end_rod: 8,
   fermented_spider_eye: 12, suspicious_stew: 15, 
   poisonous_potato: 1, popped_chorus_fruit: 9,
   enchanted_book: 120,
-  trident: 8000, spectral_arrow: 6, tipped_arrow: 8, golden_rail: 12, tinted_glass: 12,
-  turtle_egg: 30, sniffer_egg: 200, frogspawn: 10, wet_sponge: 250,
+  trident: 500, spectral_arrow: 6, tipped_arrow: 8, golden_rail: 12, tinted_glass: 12,
+  turtle_egg: 30, sniffer_egg: 200, frogspawn: 10, wet_sponge: 40,
   suspicious_sand: 6, suspicious_gravel: 6, packed_mud: 3, farmland: 1,
   brown_egg: 2, blue_egg: 2, armadillo: 0, glowstone_dust: 4,
   nether_wart_block: 45, warped_wart_block: 45, shroomlight: 25,
@@ -259,6 +267,14 @@ const TARIF = {
   enchanted_golden_apple: { g: [["gold_block", 8], ["apple", 1]], n: 1 },
   mace: { g: [["heavy_core", 1], ["breeze_rod", 1]], n: 1 },
   recovery_compass: { g: [["echo_shard", 8], ["compass", 1]], n: 1 },
+
+  // Ametist aletler: TABAN'daki degerleri tarifin altinda kalsin diye
+  // tarifleri de burada; arbitraj denetcisi ikisini karsilastiriyor.
+  ametis_kazma: { g: [["amethyst_block", 3], ["netherite_ingot", 2]], n: 1 },
+  ametis_kurek: { g: [["amethyst_block", 1], ["netherite_ingot", 2]], n: 1 },
+  ametis_balta: { g: [["amethyst_block", 3], ["netherite_ingot", 2]], n: 1 },
+  ametis_kilic: { g: [["amethyst_block", 2], ["netherite_ingot", 2]], n: 1 },
+  ametis_mizrak: { g: [["amethyst_block", 1], ["netherite_ingot", 2]], n: 1 },
   respawn_anchor: { g: [["crying_obsidian", 6], ["glowstone", 3]], n: 1 },
   enchanting_table: { g: [["obsidian", 4], ["diamond", 2], ["book", 1]], n: 1 },
   brewing_stand: { g: [["cobblestone", 3], ["blaze_rod", 1]], n: 1 },
@@ -617,17 +633,40 @@ export const ISLENMIS_ZAM = 1.8;
 // buyudugu icin mevcut denge hic bozulmaz; olcegi degistirmek yeni bir
 // arbitraj acigi yaratamaz. Tek tek elle yazilan fiyatlar bunu garanti
 // etmezdi.
-export const OLCEK = 30;
+export const OLCEK = 1;      // v4.2: eski (v3.9) fiyat seviyesi
 
 // Scoreboard 32 bit tam sayi tutar (en fazla ~2.14 milyar). Fiyatlar
 // milyonlara cikinca bir yigin satisi bu tavani zorlayabilir; para yazan
 // yer de ayrica sinirliyor.
 export const PARA_TAVANI = 2000000000;
 
+// Oyunun "onemli" esyalari: elde etmesi zor, gucu degistiren seyler.
+// Bunlarin ALIS fiyatina ek zam biner - satis fiyati degismez, o yuzden
+// arbitraj acigi yaratmaz (girdiyi pahalilastirmak dengeyi hep sikilastirir).
+// Elytra bilerek listede DEGIL: pahali olmasi istenmiyor.
+const ONEMLI = new Set([
+  "netherite_ingot", "netherite_block", "netherite_scrap", "ancient_debris",
+  "netherite_sword", "netherite_pickaxe", "netherite_axe", "netherite_shovel",
+  "netherite_hoe", "netherite_helmet", "netherite_chestplate",
+  "netherite_leggings", "netherite_boots",
+  "nether_star", "beacon", "conduit", "totem_of_undying", "heavy_core", "mace",
+  "trident", "enchanted_golden_apple", "heart_of_the_sea", "dragon_breath",
+  "shulker_shell", "shulker_box", "undyed_shulker_box", "recovery_compass",
+  "echo_shard", "wither_rose", "end_crystal"
+]);
+export const ONEMLI_ZAM = 3;
+
+// Ametis aletler: 4 saatte eriyip yok oluyorlar ama netherite'tan da
+// degerliler. Fiyatlari kendi tablosundan gelir (bkz. ametis.js).
+export function onemliMi(id) {
+  const a = ad(id);
+  return ONEMLI.has(a) || /_shulker_box$/.test(a);
+}
+
 export function fiyat(id) {
   if (yasakMi(id)) return null;
   const taban = tabanDeger(id);
-  const zam = hammaddeMi(id) ? 1 : ISLENMIS_ZAM;
+  const zam = (hammaddeMi(id) ? 1 : ISLENMIS_ZAM) * (onemliMi(id) ? ONEMLI_ZAM : 1);
   const alis = Math.max(1, Math.round(taban * OLCEK));
   const satis = Math.max(2, Math.ceil(taban * MAKAS * zam * OLCEK));
   return {
@@ -771,6 +810,7 @@ export function hamKategoriIndex(id) {
 // yani hicbir esya listeden kaybolmaz.
 const KURAL = [
   ["Alet, Zırh & Silah", "minecraft:diamond_sword", a =>
+    /^ametis_/.test(a) ||                       // ametist aletler (mk:)
     /_(sword|pickaxe|axe|shovel|hoe|helmet|chestplate|leggings|boots|horse_armor)$/.test(a) ||
     /(_smithing_template|_bucket|_spear|_nautilus_armor)$/.test(a) ||
     ["bow", "crossbow", "trident", "mace", "shield", "elytra", "arrow", "spectral_arrow",

@@ -24,8 +24,8 @@ export const DOVUS_CFG = {
   konumAnahtar: "mk_dovus_yedek",   // sadece KONUM yedegi (esya degil)
   arenaAnahtar: "mk_arena",
   arenaSurum: 2,                    // stadyum. Eski kayit gorulurse yeniden kurulur.
-  odul: 7500,                       // bahis yoksa kazanana verilen para
-  maxBahis: 100000000,
+  odul: 250,                        // bahis yoksa kazanana verilen para
+  maxBahis: 100000,
   sureSn: 300,
   geriSayim: 5,
   bitisCani: 6,                     // 3 kalbin altina dusen kaybeder (kendi esyasi riskte)
