@@ -1,0 +1,4 @@
+pack.name=The Skitter [Kaynak]
+pack.description=The Skitter icin model, doku ve animasyonlar.
+entity.skitter:skitter.name=The Skitter
+item.spawn_egg.entity.skitter:skitter.name=The Skitter Yumurtasi

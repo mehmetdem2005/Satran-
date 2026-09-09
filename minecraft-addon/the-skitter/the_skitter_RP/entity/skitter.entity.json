@@ -1,0 +1,44 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "skitter:skitter",
+      "materials": {
+        "default": "entity_emissive_alpha"
+      },
+      "textures": {
+        "default": "textures/entity/skitter_widow",
+        "widow": "textures/entity/skitter_widow",
+        "husk": "textures/entity/skitter_husk"
+      },
+      "geometry": {
+        "default": "geometry.skitter.widow",
+        "widow": "geometry.skitter.widow",
+        "husk": "geometry.skitter.husk"
+      },
+      "animations": {
+        "idle": "animation.skitter.idle",
+        "walk": "animation.skitter.walk",
+        "gallop": "animation.skitter.gallop",
+        "climb": "animation.skitter.climb",
+        "air": "animation.skitter.air",
+        "burrow": "animation.skitter.burrow",
+        "pose": "animation.skitter.pose",
+        "move": "controller.animation.skitter.move"
+      },
+      "scripts": {
+        "animate": [
+          "move",
+          "pose"
+        ]
+      },
+      "render_controllers": [
+        "controller.render.skitter"
+      ],
+      "spawn_egg": {
+        "base_color": "#1b1418",
+        "overlay_color": "#c1121f"
+      }
+    }
+  }
+}

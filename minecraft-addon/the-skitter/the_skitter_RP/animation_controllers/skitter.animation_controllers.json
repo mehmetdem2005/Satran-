@@ -1,0 +1,142 @@
+{
+  "format_version": "1.10.0",
+  "animation_controllers": {
+    "controller.animation.skitter.move": {
+      "initial_state": "idle",
+      "states": {
+        "idle": {
+          "animations": [
+            "idle"
+          ],
+          "blend_transition": 0.2,
+          "transitions": [
+            {
+              "walk": "q.property('skitter:state') == 'walk'"
+            },
+            {
+              "gallop": "q.property('skitter:state') == 'gallop'"
+            },
+            {
+              "climb": "q.property('skitter:state') == 'climb'"
+            },
+            {
+              "air": "q.property('skitter:state') == 'air'"
+            },
+            {
+              "burrow": "q.property('skitter:state') == 'burrow'"
+            }
+          ]
+        },
+        "walk": {
+          "animations": [
+            "walk"
+          ],
+          "blend_transition": 0.15,
+          "transitions": [
+            {
+              "idle": "q.property('skitter:state') == 'idle'"
+            },
+            {
+              "gallop": "q.property('skitter:state') == 'gallop'"
+            },
+            {
+              "climb": "q.property('skitter:state') == 'climb'"
+            },
+            {
+              "air": "q.property('skitter:state') == 'air'"
+            },
+            {
+              "burrow": "q.property('skitter:state') == 'burrow'"
+            }
+          ]
+        },
+        "gallop": {
+          "animations": [
+            "gallop"
+          ],
+          "blend_transition": 0.15,
+          "transitions": [
+            {
+              "idle": "q.property('skitter:state') == 'idle'"
+            },
+            {
+              "walk": "q.property('skitter:state') == 'walk'"
+            },
+            {
+              "climb": "q.property('skitter:state') == 'climb'"
+            },
+            {
+              "air": "q.property('skitter:state') == 'air'"
+            },
+            {
+              "burrow": "q.property('skitter:state') == 'burrow'"
+            }
+          ]
+        },
+        "climb": {
+          "animations": [
+            "climb"
+          ],
+          "blend_transition": 0.25,
+          "transitions": [
+            {
+              "idle": "q.property('skitter:state') == 'idle'"
+            },
+            {
+              "walk": "q.property('skitter:state') == 'walk'"
+            },
+            {
+              "gallop": "q.property('skitter:state') == 'gallop'"
+            },
+            {
+              "air": "q.property('skitter:state') == 'air'"
+            },
+            {
+              "burrow": "q.property('skitter:state') == 'burrow'"
+            }
+          ]
+        },
+        "air": {
+          "animations": [
+            "air"
+          ],
+          "blend_transition": 0.15,
+          "transitions": [
+            {
+              "idle": "q.property('skitter:state') == 'idle'"
+            },
+            {
+              "walk": "q.property('skitter:state') == 'walk'"
+            },
+            {
+              "gallop": "q.property('skitter:state') == 'gallop'"
+            },
+            {
+              "climb": "q.property('skitter:state') == 'climb'"
+            },
+            {
+              "burrow": "q.property('skitter:state') == 'burrow'"
+            }
+          ]
+        },
+        "burrow": {
+          "animations": [
+            "burrow"
+          ],
+          "blend_transition": 0.3,
+          "transitions": [
+            {
+              "idle": "q.property('skitter:state') == 'idle'"
+            },
+            {
+              "walk": "q.property('skitter:state') == 'walk'"
+            },
+            {
+              "gallop": "q.property('skitter:state') == 'gallop'"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

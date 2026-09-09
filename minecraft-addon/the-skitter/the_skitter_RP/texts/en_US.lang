@@ -1,0 +1,4 @@
+pack.name=The Skitter [Resources]
+pack.description=Model, textures and animations for The Skitter.
+entity.skitter:skitter.name=The Skitter
+item.spawn_egg.entity.skitter:skitter.name=Spawn The Skitter

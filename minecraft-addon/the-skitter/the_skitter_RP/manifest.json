@@ -1,0 +1,21 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "pack.name",
+    "description": "pack.description",
+    "uuid": "75a24f2a-77f1-46a6-9fa3-383709aa033b",
+    "version": [1, 0, 0],
+    "min_engine_version": [1, 21, 0]
+  },
+  "modules": [
+    {
+      "type": "resources",
+      "uuid": "c7add009-69c7-4eb0-8fbc-228b559bbd61",
+      "version": [1, 0, 0]
+    }
+  ],
+  "metadata": {
+    "authors": ["Adalances"],
+    "license": "MIT"
+  }
+}

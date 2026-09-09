@@ -1,0 +1,30 @@
+{
+  "format_version": "1.10.0",
+  "render_controllers": {
+    "controller.render.skitter": {
+      "arrays": {
+        "geometries": {
+          "Array.styles": [
+            "Geometry.widow",
+            "Geometry.husk"
+          ]
+        },
+        "textures": {
+          "Array.skins": [
+            "Texture.widow",
+            "Texture.husk"
+          ]
+        }
+      },
+      "geometry": "Array.styles[query.property('skitter:style') == 'husk' ? 1 : 0]",
+      "materials": [
+        {
+          "*": "Material.default"
+        }
+      ],
+      "textures": [
+        "Array.skins[query.property('skitter:style') == 'husk' ? 1 : 0]"
+      ]
+    }
+  }
+}

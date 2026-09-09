@@ -1,0 +1,39 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "pack.name",
+    "description": "pack.description",
+    "uuid": "c7aa974e-8375-4031-ae21-3de9c428157b",
+    "version": [1, 0, 0],
+    "min_engine_version": [1, 21, 0]
+  },
+  "modules": [
+    {
+      "type": "data",
+      "uuid": "b9be3d20-23a2-4882-9f09-c7b25a3308b4",
+      "version": [1, 0, 0]
+    },
+    {
+      "type": "script",
+      "language": "javascript",
+      "uuid": "48032538-7ff6-4025-b5e4-bc8c1b3e1ed4",
+      "version": [1, 0, 0],
+      "entry": "scripts/main.js"
+    }
+  ],
+  "dependencies": [
+    {
+      "uuid": "75a24f2a-77f1-46a6-9fa3-383709aa033b",
+      "version": [1, 0, 0]
+    },
+    {
+      "module_name": "@minecraft/server",
+      "version": "1.11.0"
+    }
+  ],
+  "metadata": {
+    "authors": ["Adalances"],
+    "license": "MIT",
+    "generated_with": { "the_skitter_port": ["1.0.0"] }
+  }
+}

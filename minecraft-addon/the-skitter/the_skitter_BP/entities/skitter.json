@@ -1,0 +1,373 @@
+{
+  "format_version": "1.21.0",
+  "minecraft:entity": {
+    "description": {
+      "identifier": "skitter:skitter",
+      "is_spawnable": true,
+      "is_summonable": true,
+      "is_experimental": false,
+      "properties": {
+        "skitter:phase": {
+          "type": "int",
+          "range": [
+            1,
+            5
+          ],
+          "default": 1,
+          "client_sync": true
+        },
+        "skitter:scale": {
+          "type": "float",
+          "range": [
+            0.05,
+            20.0
+          ],
+          "default": 1.0,
+          "client_sync": true
+        },
+        "skitter:speed": {
+          "type": "float",
+          "range": [
+            0.0,
+            8.0
+          ],
+          "default": 0.0,
+          "client_sync": true
+        },
+        "skitter:pitch": {
+          "type": "float",
+          "range": [
+            -1.6,
+            1.6
+          ],
+          "default": 0.0,
+          "client_sync": true
+        },
+        "skitter:roll": {
+          "type": "float",
+          "range": [
+            -1.6,
+            1.6
+          ],
+          "default": 0.0,
+          "client_sync": true
+        },
+        "skitter:crouch": {
+          "type": "float",
+          "range": [
+            0.0,
+            1.0
+          ],
+          "default": 0.0,
+          "client_sync": true
+        },
+        "skitter:strike": {
+          "type": "float",
+          "range": [
+            0.0,
+            1.0
+          ],
+          "default": 0.0,
+          "client_sync": true
+        },
+        "skitter:state": {
+          "type": "enum",
+          "values": [
+            "idle",
+            "walk",
+            "gallop",
+            "climb",
+            "air",
+            "burrow"
+          ],
+          "default": "idle",
+          "client_sync": true
+        },
+        "skitter:style": {
+          "type": "enum",
+          "values": [
+            "widow",
+            "husk"
+          ],
+          "default": "widow",
+          "client_sync": true
+        }
+      }
+    },
+    "component_groups": {
+      "skitter:phase_1": {
+        "minecraft:health": {
+          "value": 1024,
+          "max": 1024
+        },
+        "minecraft:collision_box": {
+          "width": 1.8,
+          "height": 1.3
+        }
+      },
+      "skitter:phase_2": {
+        "minecraft:health": {
+          "value": 1024,
+          "max": 1024
+        },
+        "minecraft:collision_box": {
+          "width": 2.52,
+          "height": 1.82
+        }
+      },
+      "skitter:phase_3": {
+        "minecraft:health": {
+          "value": 1024,
+          "max": 1024
+        },
+        "minecraft:collision_box": {
+          "width": 3.528,
+          "height": 2.548
+        }
+      },
+      "skitter:phase_4": {
+        "minecraft:health": {
+          "value": 1024,
+          "max": 1024
+        },
+        "minecraft:collision_box": {
+          "width": 4.939,
+          "height": 3.567
+        }
+      },
+      "skitter:phase_5": {
+        "minecraft:health": {
+          "value": 1024,
+          "max": 1024
+        },
+        "minecraft:collision_box": {
+          "width": 6.915,
+          "height": 4.994
+        }
+      },
+      "skitter:is_mini": {
+        "minecraft:health": {
+          "value": 1024,
+          "max": 1024
+        },
+        "minecraft:collision_box": {
+          "width": 0.45,
+          "height": 0.325
+        }
+      }
+    },
+    "components": {
+      "minecraft:type_family": {
+        "family": [
+          "skitter",
+          "monster",
+          "undead",
+          "mob"
+        ]
+      },
+      "minecraft:collision_box": {
+        "width": 1.8,
+        "height": 1.3
+      },
+      "minecraft:health": {
+        "value": 1024,
+        "max": 1024
+      },
+      "minecraft:physics": {
+        "has_collision": false,
+        "has_gravity": false
+      },
+      "minecraft:pushable": {
+        "is_pushable": false,
+        "is_pushable_by_piston": false
+      },
+      "minecraft:knockback_resistance": {
+        "value": 1.0,
+        "max": 1.0
+      },
+      "minecraft:fire_immune": true,
+      "minecraft:breathable": {
+        "total_supply": 15,
+        "suffocate_time": -1,
+        "breathes_air": true,
+        "breathes_water": true,
+        "breathes_solids": true,
+        "breathes_lava": true
+      },
+      "minecraft:damage_sensor": {
+        "triggers": [
+          {
+            "on_damage": {
+              "filters": {
+                "any_of": [
+                  {
+                    "test": "has_damage",
+                    "value": "fall"
+                  },
+                  {
+                    "test": "has_damage",
+                    "value": "drowning"
+                  },
+                  {
+                    "test": "has_damage",
+                    "value": "suffocation"
+                  },
+                  {
+                    "test": "has_damage",
+                    "value": "fire"
+                  },
+                  {
+                    "test": "has_damage",
+                    "value": "fire_tick"
+                  },
+                  {
+                    "test": "has_damage",
+                    "value": "lava"
+                  },
+                  {
+                    "test": "has_damage",
+                    "value": "magma"
+                  },
+                  {
+                    "test": "has_damage",
+                    "value": "freezing"
+                  },
+                  {
+                    "test": "has_damage",
+                    "value": "starve"
+                  },
+                  {
+                    "test": "has_damage",
+                    "value": "wither"
+                  },
+                  {
+                    "test": "has_damage",
+                    "value": "contact"
+                  },
+                  {
+                    "test": "has_damage",
+                    "value": "fly_into_wall"
+                  },
+                  {
+                    "test": "has_damage",
+                    "value": "block_explosion"
+                  },
+                  {
+                    "test": "has_damage",
+                    "value": "void"
+                  }
+                ]
+              }
+            },
+            "deals_damage": false
+          }
+        ]
+      },
+      "minecraft:nameable": {
+        "allow_name_tag_renaming": false
+      },
+      "minecraft:persistent": {},
+      "minecraft:loot": {
+        "table": "loot_tables/empty.json"
+      }
+    },
+    "events": {
+      "skitter:set_phase_1": {
+        "remove": {
+          "component_groups": [
+            "skitter:phase_2",
+            "skitter:phase_3",
+            "skitter:phase_4",
+            "skitter:phase_5",
+            "skitter:is_mini"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "skitter:phase_1"
+          ]
+        }
+      },
+      "skitter:set_phase_2": {
+        "remove": {
+          "component_groups": [
+            "skitter:phase_1",
+            "skitter:phase_3",
+            "skitter:phase_4",
+            "skitter:phase_5",
+            "skitter:is_mini"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "skitter:phase_2"
+          ]
+        }
+      },
+      "skitter:set_phase_3": {
+        "remove": {
+          "component_groups": [
+            "skitter:phase_1",
+            "skitter:phase_2",
+            "skitter:phase_4",
+            "skitter:phase_5",
+            "skitter:is_mini"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "skitter:phase_3"
+          ]
+        }
+      },
+      "skitter:set_phase_4": {
+        "remove": {
+          "component_groups": [
+            "skitter:phase_1",
+            "skitter:phase_2",
+            "skitter:phase_3",
+            "skitter:phase_5",
+            "skitter:is_mini"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "skitter:phase_4"
+          ]
+        }
+      },
+      "skitter:set_phase_5": {
+        "remove": {
+          "component_groups": [
+            "skitter:phase_1",
+            "skitter:phase_2",
+            "skitter:phase_3",
+            "skitter:phase_4",
+            "skitter:is_mini"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "skitter:phase_5"
+          ]
+        }
+      },
+      "skitter:set_mini": {
+        "remove": {
+          "component_groups": [
+            "skitter:phase_1",
+            "skitter:phase_2",
+            "skitter:phase_3",
+            "skitter:phase_4",
+            "skitter:phase_5"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "skitter:is_mini"
+          ]
+        }
+      }
+    }
+  }
+}
