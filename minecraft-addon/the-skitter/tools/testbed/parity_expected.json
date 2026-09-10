@@ -1,0 +1,455 @@
+{
+  "config": {
+    "baseSizeBlocks": 3.0,
+    "growthFactor": 1.4,
+    "killsBase": 10,
+    "killsStep": 5,
+    "damageBase": 6.0,
+    "damageStep": 2.0,
+    "attackRangeBase": 0.9,
+    "attackRangeScale": 1.8,
+    "verticalRangeBase": 1.8,
+    "verticalRangeScale": 1.3,
+    "poisonChance": 0.45,
+    "poisonMinSeconds": 3.0,
+    "poisonMaxSeconds": 5.0,
+    "healthBase": 60.0,
+    "speedBase": 0.5,
+    "speedStep": 0.1,
+    "fleeSpeedMultiplier": 1.5,
+    "climbSpeedFactor": 0.8,
+    "visionPerBlock": 10.0,
+    "jumpCooldownTicks": 200,
+    "webPullCooldownTicks": 200,
+    "grabCooldownTicks": 400,
+    "despawnAfterLostTicks": 200,
+    "respawnCooldownTicks": 600,
+    "stuckDespawnTicks": 300,
+    "blockBreakingPhase": 3,
+    "maxBlockHardness": 25.0,
+    "ticksPerHardness": 5.0,
+    "cosmetic": "widow",
+    "retreatPounceChance": 0.1,
+    "silentPursuitChance": 0.15,
+    "mercyChance": 0.35,
+    "retreatChanceBase": 0.5,
+    "retreatChanceStep": 0.1,
+    "jumpPowerMultiplier": 1.0,
+    "jumpShakeMultiplier": 1.0,
+    "jumpGroundBreakMultiplier": 1.0,
+    "jumpSmashesBlocks": true,
+    "miniCountMin": 3,
+    "miniCountMax": 5,
+    "miniHealth": 12.0,
+    "miniDamage": 3.0,
+    "miniSpeedBoost": 2.8,
+    "miniScale": 0.25
+  },
+  "hunt": {
+    "1": {
+      "scale": 1.0,
+      "sizeBlocks": 3.0,
+      "detectionRadius": 30.0,
+      "killsToAdvance": 10,
+      "attackDamage": 6.0,
+      "attackRange": 2.7,
+      "attackVerticalRange": 3.1,
+      "speedMultiplier": 0.5,
+      "healthForPhase": 60.0
+    },
+    "2": {
+      "scale": 1.4,
+      "sizeBlocks": 4.199999999999999,
+      "detectionRadius": 41.99999999999999,
+      "killsToAdvance": 15,
+      "attackDamage": 8.0,
+      "attackRange": 3.42,
+      "attackVerticalRange": 3.62,
+      "speedMultiplier": 0.6,
+      "healthForPhase": 84.0
+    },
+    "3": {
+      "scale": 1.9599999999999997,
+      "sizeBlocks": 5.879999999999999,
+      "detectionRadius": 58.79999999999999,
+      "killsToAdvance": 20,
+      "attackDamage": 10.0,
+      "attackRange": 4.428,
+      "attackVerticalRange": 4.348,
+      "speedMultiplier": 0.7,
+      "healthForPhase": 117.59999999999998
+    },
+    "4": {
+      "scale": 2.7439999999999993,
+      "sizeBlocks": 8.231999999999998,
+      "detectionRadius": 82.31999999999998,
+      "killsToAdvance": 25,
+      "attackDamage": 12.0,
+      "attackRange": 5.839199999999999,
+      "attackVerticalRange": 5.3671999999999995,
+      "speedMultiplier": 0.8,
+      "healthForPhase": 164.63999999999996
+    },
+    "5": {
+      "scale": 3.8415999999999992,
+      "sizeBlocks": 11.524799999999997,
+      "detectionRadius": 115.24799999999998,
+      "killsToAdvance": 30,
+      "attackDamage": 14.0,
+      "attackRange": 7.814879999999999,
+      "attackVerticalRange": 6.794079999999999,
+      "speedMultiplier": 0.9,
+      "healthForPhase": 230.49599999999995
+    }
+  },
+  "layout": {
+    "main": {
+      "walkSpeed": 0.16,
+      "gallopSpeed": 0.42,
+      "acceleration": 0.022,
+      "walkTurnRate": 0.09,
+      "gallopTurnRate": 0.16,
+      "rideHeight": 1.0,
+      "heightLerp": 0.22,
+      "tiltLerp": 0.15,
+      "gravity": 0.08,
+      "walkStepTrigger": 0.5,
+      "gallopStepTrigger": 1.5,
+      "walkStepTicksMin": 4,
+      "walkStepTicksMax": 9,
+      "gallopStepTicksMin": 4,
+      "gallopStepTicksMax": 7,
+      "walkStepLift": 0.3,
+      "gallopStepLift": 0.7,
+      "maxReach": 2.2325,
+      "limbs": [
+        {
+          "hip": [
+            0.3,
+            0.05,
+            0.5
+          ],
+          "home": [
+            1.05,
+            0.0,
+            1.1
+          ],
+          "segmentLengths": [
+            0.85,
+            0.85,
+            0.65
+          ],
+          "walkGroup": 0,
+          "gallopGroup": 0
+        },
+        {
+          "hip": [
+            -0.3,
+            0.05,
+            0.5
+          ],
+          "home": [
+            -1.05,
+            0.0,
+            1.1
+          ],
+          "segmentLengths": [
+            0.85,
+            0.85,
+            0.65
+          ],
+          "walkGroup": 1,
+          "gallopGroup": 0
+        },
+        {
+          "hip": [
+            0.3,
+            0.05,
+            0.2
+          ],
+          "home": [
+            1.4,
+            0.0,
+            0.4
+          ],
+          "segmentLengths": [
+            0.85,
+            0.85,
+            0.65
+          ],
+          "walkGroup": 1,
+          "gallopGroup": 0
+        },
+        {
+          "hip": [
+            -0.3,
+            0.05,
+            0.2
+          ],
+          "home": [
+            -1.4,
+            0.0,
+            0.4
+          ],
+          "segmentLengths": [
+            0.85,
+            0.85,
+            0.65
+          ],
+          "walkGroup": 0,
+          "gallopGroup": 0
+        },
+        {
+          "hip": [
+            0.3,
+            0.05,
+            -0.15
+          ],
+          "home": [
+            1.4,
+            0.0,
+            -0.45
+          ],
+          "segmentLengths": [
+            0.8925,
+            0.8925,
+            0.6825000000000001
+          ],
+          "walkGroup": 0,
+          "gallopGroup": 1
+        },
+        {
+          "hip": [
+            -0.3,
+            0.05,
+            -0.15
+          ],
+          "home": [
+            -1.4,
+            0.0,
+            -0.45
+          ],
+          "segmentLengths": [
+            0.8925,
+            0.8925,
+            0.6825000000000001
+          ],
+          "walkGroup": 1,
+          "gallopGroup": 1
+        },
+        {
+          "hip": [
+            0.3,
+            0.05,
+            -0.5
+          ],
+          "home": [
+            1.1,
+            0.0,
+            -1.25
+          ],
+          "segmentLengths": [
+            0.9774999999999999,
+            0.9774999999999999,
+            0.7474999999999999
+          ],
+          "walkGroup": 1,
+          "gallopGroup": 1
+        },
+        {
+          "hip": [
+            -0.3,
+            0.05,
+            -0.5
+          ],
+          "home": [
+            -1.1,
+            0.0,
+            -1.25
+          ],
+          "segmentLengths": [
+            0.9774999999999999,
+            0.9774999999999999,
+            0.7474999999999999
+          ],
+          "walkGroup": 0,
+          "gallopGroup": 1
+        }
+      ]
+    },
+    "mini": {
+      "walkSpeed": 0.11199999999999999,
+      "gallopSpeed": 0.294,
+      "acceleration": 0.015399999999999999,
+      "walkTurnRate": 0.09,
+      "gallopTurnRate": 0.16,
+      "rideHeight": 0.25,
+      "heightLerp": 0.22,
+      "tiltLerp": 0.15,
+      "gravity": 0.08,
+      "walkStepTrigger": 0.125,
+      "gallopStepTrigger": 0.375,
+      "walkStepTicksMin": 4,
+      "walkStepTicksMax": 9,
+      "gallopStepTicksMin": 4,
+      "gallopStepTicksMax": 7,
+      "walkStepLift": 0.075,
+      "gallopStepLift": 0.175,
+      "maxReach": 0.558125,
+      "limbs": [
+        {
+          "hip": [
+            0.075,
+            0.0125,
+            0.125
+          ],
+          "home": [
+            0.2625,
+            0.0,
+            0.275
+          ],
+          "segmentLengths": [
+            0.2125,
+            0.2125,
+            0.1625
+          ],
+          "walkGroup": 0,
+          "gallopGroup": 0
+        },
+        {
+          "hip": [
+            -0.075,
+            0.0125,
+            0.125
+          ],
+          "home": [
+            -0.2625,
+            0.0,
+            0.275
+          ],
+          "segmentLengths": [
+            0.2125,
+            0.2125,
+            0.1625
+          ],
+          "walkGroup": 1,
+          "gallopGroup": 0
+        },
+        {
+          "hip": [
+            0.075,
+            0.0125,
+            0.05
+          ],
+          "home": [
+            0.35,
+            0.0,
+            0.1
+          ],
+          "segmentLengths": [
+            0.2125,
+            0.2125,
+            0.1625
+          ],
+          "walkGroup": 1,
+          "gallopGroup": 0
+        },
+        {
+          "hip": [
+            -0.075,
+            0.0125,
+            0.05
+          ],
+          "home": [
+            -0.35,
+            0.0,
+            0.1
+          ],
+          "segmentLengths": [
+            0.2125,
+            0.2125,
+            0.1625
+          ],
+          "walkGroup": 0,
+          "gallopGroup": 0
+        },
+        {
+          "hip": [
+            0.075,
+            0.0125,
+            -0.0375
+          ],
+          "home": [
+            0.35,
+            0.0,
+            -0.1125
+          ],
+          "segmentLengths": [
+            0.223125,
+            0.223125,
+            0.17062500000000003
+          ],
+          "walkGroup": 0,
+          "gallopGroup": 1
+        },
+        {
+          "hip": [
+            -0.075,
+            0.0125,
+            -0.0375
+          ],
+          "home": [
+            -0.35,
+            0.0,
+            -0.1125
+          ],
+          "segmentLengths": [
+            0.223125,
+            0.223125,
+            0.17062500000000003
+          ],
+          "walkGroup": 1,
+          "gallopGroup": 1
+        },
+        {
+          "hip": [
+            0.075,
+            0.0125,
+            -0.125
+          ],
+          "home": [
+            0.275,
+            0.0,
+            -0.3125
+          ],
+          "segmentLengths": [
+            0.24437499999999998,
+            0.24437499999999998,
+            0.18687499999999999
+          ],
+          "walkGroup": 1,
+          "gallopGroup": 1
+        },
+        {
+          "hip": [
+            -0.075,
+            0.0125,
+            -0.125
+          ],
+          "home": [
+            -0.275,
+            0.0,
+            -0.3125
+          ],
+          "segmentLengths": [
+            0.24437499999999998,
+            0.24437499999999998,
+            0.18687499999999999
+          ],
+          "walkGroup": 0,
+          "gallopGroup": 1
+        }
+      ]
+    }
+  }
+}

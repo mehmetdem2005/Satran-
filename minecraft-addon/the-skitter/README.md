@@ -107,6 +107,7 @@ ters kinematiğiyle çözüyor. Bedrock'ta böyle bir entity yok, bu yüzden:
 | `disableShield()` | Bedrock'ta API yok — faz 5'te kalkan kırılma sesi çalınır, itme uygulanır |
 | Demir golemleri decoy'a saldırtan tarama | entity `monster`/`undead` ailesinde olduğu için golemler zaten kendiliğinden saldırır |
 | `BlockState.getDestroySpeed()` | Script API sertlik vermiyor; `world_util.js` içindeki tablo vanilla sertlik değerlerini taşıyor (bilinmeyen blok = 1.5) |
+| `spawnParticle(..., extra)` hız parametresi | Bedrock'un `spawnParticle`'ında karşılığı yok; sayı, dağılım ve konum aynı, partikül hızı yok |
 | Brigadier `/spider` komutu | `/scriptevent skitter:*` (yukarıdaki tablo) |
 | ModMenu + cloth-config ekranı | `/scriptevent skitter:config` |
 | `config/spiderhunt.json` | dünya dynamic property'si |
@@ -134,14 +135,26 @@ karşılığı Bedrock'ta da sürekli ölçekte çalışır.
 ./build.sh                    # üret + doğrula + test et + paketle
 python3 tools/generate_assets.py   # model/animasyon/doku üret
 python3 tools/validate.py          # paket içi tutarlılık denetimi
+node tools/testbed/parity.mjs      # Java ile sayısal denklik testi
 node tools/testbed/run.mjs         # davranış paketini oyunsuz çalıştır
 ```
 
-`tools/testbed/` içinde küçük bir `@minecraft/server` taklidi var; davranış
-paketi orada gerçek bir tick döngüsüyle ~4400 tick boyunca koşturuluyor
-(çağırma, faz değiştirme, hasar, faz-5 ölümü ve yavru sürüsü, duvar kazma,
-tırmanma). Böylece import hataları ve çalışma zamanı hataları oyuna girmeden
-yakalanıyor.
+İki ayrı doğrulama katmanı var:
+
+* **`tools/testbed/parity.mjs`** — Java kaynağındaki sabitlerden bağımsız olarak
+  üretilen `parity_expected.json` ile portun ürettiği değerleri karşılaştırır:
+  44 config alanı, 5 fazın 9 türev değeri (boyut, görüş yarıçapı, hasar, menzil,
+  dikey menzil, hız, can, öldürme eşiği) ve hem ana yaratığın hem yavruların
+  `LimbLayout` sabitleri + 8 bacağın kalça/ev/segment vektörleri ve yürüyüş
+  grupları. Toplam **301 değer**, hepsi birebir tutuyor.
+* **`tools/testbed/run.mjs`** — küçük bir `@minecraft/server` taklidiyle davranış
+  paketini gerçek bir tick döngüsünde ~4400 tick koşturur (çağırma, faz
+  değiştirme, hasar, faz-5 ölümü ve yavru sürüsü, duvar kazma, tırmanma, tüm
+  animasyon durumları). Import ve çalışma zamanı hataları oyuna girmeden burada
+  yakalanır.
+
+`tools/validate.py` de paket içi çapraz referansları denetler (geometri/doku/
+animasyon adları, kemik isimleri, entity property'leri, component group'lar).
 
 ## Dosya haritası
 
@@ -163,6 +176,7 @@ the_skitter_BP/
     entity_info.js               Bedrock'ta olmayan entity boyut bilgileri
     world_util.js                UtilitiesKt (ışın izleme, ses, partikül, sertlik)
     vec.js                       Vector + MathsKt
+    players.js                   oyuncu filtreleri (Java'daki üç ayrı filtre)
     hooks.js                     döngüsel import'ları kırmak için küçük ara katman
 the_skitter_RP/
   entity/, models/, animations/, animation_controllers/,

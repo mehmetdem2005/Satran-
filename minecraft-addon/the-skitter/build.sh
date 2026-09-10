@@ -19,7 +19,13 @@ python3 tools/generate_assets.py
 echo "==> validating"
 python3 tools/validate.py
 
+echo "==> refreshing the Java-side parity table"
+python3 tools/testbed/make_expected.py
+
 if command -v node >/dev/null 2>&1; then
+  echo "==> checking numeric parity with the Java mod"
+  node tools/testbed/parity.mjs
+
   echo "==> running the behaviour pack in the test harness"
   node tools/testbed/run.mjs
 else

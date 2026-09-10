@@ -105,10 +105,11 @@ def build():
             },
             "component_groups": groups,
             "components": {
-                # "monster" is what makes iron golems attack it on their own,
-                # which is how the Java mod's decoy/aggravateGolems pass is
-                # reproduced without a hidden silverfish.
-                "minecraft:type_family": {"family": ["skitter", "monster", "undead", "mob"]},
+                # The Java creature's stand-in is a silverfish, so "arthropod"
+                # keeps Bane of Arthropods working; "monster" is what makes iron
+                # golems attack it on their own, which is how aggravateGolems is
+                # reproduced without a hidden decoy entity.
+                "minecraft:type_family": {"family": ["skitter", "monster", "arthropod", "mob"]},
                 "minecraft:collision_box": collision_box(1.0),
                 "minecraft:health": {"value": HEALTH_POOL, "max": HEALTH_POOL},
                 # The script drives position every tick, so the engine must not
