@@ -13,7 +13,6 @@ import { raycastGround, playSound, SOUNDS } from "./world_util.js";
 import { Hunt, MAX_PHASE } from "./hunt.js";
 import { AppState, WorldState } from "./state.js";
 import { diagnostics } from "./entity_link.js";
-import { Vec as V } from "./vec.js";
 
 const STYLES = ["husk", "widow"];
 
@@ -85,6 +84,7 @@ const USAGE = [
   "  /scriptevent skitter:cosmetic [widow|husk]",
   "  /scriptevent skitter:config <key> <value> | list | reset",
   "  /scriptevent skitter:debug",
+  "  /scriptevent skitter:verbose on|off",
   "  /scriptevent skitter:reload",
 ].join("\n");
 
@@ -196,6 +196,16 @@ export function runCommand(sub, args, player) {
       reply(player, error === null ? `${key} = ${cfg[key]}` : error);
       return;
     }
+    case "verbose": {
+      const mode = (args[0] ?? "").toLowerCase();
+      if (mode !== "on" && mode !== "off") {
+        reply(player, `Verbose is ${Hunt.verbose ? "on" : "off"}. Usage: verbose on|off`);
+        return;
+      }
+      Hunt.verbose = mode === "on";
+      reply(player, `Verbose announcements ${Hunt.verbose ? "on" : "off"}`);
+      return;
+    }
     case "debug": {
       const creature = AppState.creature;
       const lines = [
@@ -229,7 +239,7 @@ export function runCommand(sub, args, player) {
         }
         lines.push(entityState);
         if (player) {
-          const distance = V.from(player.location).distance(creature.position);
+          const distance = Vec.from(player.location).distance(creature.position);
           lines.push(`you are ${distance.toFixed(1)} blocks from the body`);
         }
       }
@@ -261,7 +271,7 @@ export function runCommand(sub, args, player) {
 }
 
 export function registerCommands() {
-  system.afterEvents.scriptEventReceive.subscribe((event) => {
+  const onScriptEvent = (event) => {
     if (!event.id.startsWith("skitter:")) return;
     const sub = event.id.slice("skitter:".length).toLowerCase();
     const args = String(event.message ?? "").trim().split(/\s+/).filter((it) => it.length > 0);
@@ -271,7 +281,13 @@ export function registerCommands() {
     } catch (error) {
       reply(player, `The Skitter command failed: ${error}`);
     }
-  }, { namespaces: ["skitter"] });
+  };
+  try {
+    system.afterEvents.scriptEventReceive.subscribe(onScriptEvent, { namespaces: ["skitter"] });
+  } catch {
+    // Older runtimes have no filter overload; the handler filters by id anyway.
+    system.afterEvents.scriptEventReceive.subscribe(onScriptEvent);
+  }
 
   // Optional chat alias; not every Bedrock build exposes chatSend to scripts.
   try {

@@ -150,22 +150,22 @@ export class BlockBreaker {
     const maxX = Math.floor(creature.position.x + maxForward);
     const minZ = Math.floor(creature.position.z - maxForward);
     const maxZ = Math.floor(creature.position.z + maxForward);
+    // The forward/lateral test only depends on x and z, so it is done once per
+    // column instead of once per block.
     for (let x = minX; x <= maxX; x++) {
-      for (let y = Math.floor(minY); y <= Math.floor(maxY); y++) {
-        for (let z = minZ; z <= maxZ; z++) {
-          const relative = new Vec(x + 0.5 - creature.position.x, 0.0, z + 0.5 - creature.position.z);
-          const forwardDistance = relative.dot(forward);
-          const lateral = relative.dot(right);
-          if (forwardDistance < minForward || forwardDistance > maxForward) continue;
-          if (lateral < -halfWidth || lateral > halfWidth) continue;
+      for (let z = minZ; z <= maxZ; z++) {
+        const relative = new Vec(x + 0.5 - creature.position.x, 0.0, z + 0.5 - creature.position.z);
+        const forwardDistance = relative.dot(forward);
+        if (forwardDistance < minForward || forwardDistance > maxForward) continue;
+        const lateral = relative.dot(right);
+        if (lateral < -halfWidth || lateral > halfWidth) continue;
+        const sort = forwardDistance + Math.abs(lateral) * 0.5;
+        for (let y = Math.floor(minY); y <= Math.floor(maxY); y++) {
           const key = `${x},${y},${z}`;
           if (this.jobs.has(key)) continue;
           const hardness = this.diggableHardness(x, y, z);
           if (hardness === null) continue;
-          candidates.push({
-            key, x, y, z, hardness,
-            sort: forwardDistance + Math.abs(lateral) * 0.5,
-          });
+          candidates.push({ key, x, y, z, hardness, sort });
         }
       }
     }

@@ -365,7 +365,12 @@ def air_animation():
 
 
 def burrow_animation():
-    bones = {"root": {"position": {"0.0": [0, 0, 0], "3.5": [0, -26, 0]}}}
+    """
+    Only the legs fold here. Creature.updateHeight() already drives the body
+    into the ground at 0.055 * scale per tick while burrowing, and the entity
+    position follows it, so animating a second descent would double it.
+    """
+    bones = {}
     for index, meta in enumerate(LEG_META):
         bones[f"leg{index}_a"] = {"rotation": {
             "0.0": [0, 0, 0], "3.5": [round(28, 3), round(20 * meta["side"], 3), 0],
@@ -509,12 +514,11 @@ def build_render_controllers():
                         "Array.skins": ["Texture.widow", "Texture.husk"],
                     },
                 },
-                "geometry":
-                    "Array.styles[query.property('skitter:style') == 'husk' ? 1 : 0]",
+                # A Molang comparison already evaluates to 1.0 / 0.0, so the
+                # array index needs no ternary.
+                "geometry": "Array.styles[query.property('skitter:style') == 'husk']",
                 "materials": [{"*": "Material.default"}],
-                "textures": [
-                    "Array.skins[query.property('skitter:style') == 'husk' ? 1 : 0]",
-                ],
+                "textures": ["Array.skins[query.property('skitter:style') == 'husk']"],
             },
         },
     }
@@ -614,6 +618,82 @@ HUSK_PALETTE = {           # calcite / tuff / bone / soul sand
 }
 
 
+# ------------------------------------------------------------------ particles
+# Four effects the mod leans on have no Bedrock vanilla identifier we can rely
+# on across builds (Java's SNOWFLAKE web strands, ITEM_SNOWBALL venom spray,
+# SQUID_INK despawn cloud and the block-dust puff). Shipping them as our own
+# particle definitions removes every "unknown particle effect" risk.
+PARTICLE_SPECS = [
+    # identifier, uv x offset, size, lifetime, gravity, drag
+    ("skitter:web_strand", 0, 0.055, 0.85, 0.0, 0.0),
+    ("skitter:venom", 4, 0.085, 0.60, 1.6, 0.5),
+    ("skitter:dust", 8, 0.115, 0.75, 3.2, 1.0),
+    ("skitter:ink", 12, 0.170, 1.10, -0.2, 1.4),
+]
+
+
+def particle_effect(identifier, uv_x, size, lifetime, gravity, drag):
+    return {
+        "format_version": "1.10.0",
+        "particle_effect": {
+            "description": {
+                "identifier": identifier,
+                "basic_render_parameters": {
+                    "material": "particles_alpha",
+                    "texture": "textures/particle/skitter_particles",
+                },
+            },
+            "components": {
+                "minecraft:emitter_rate_instant": {"num_particles": 1},
+                "minecraft:emitter_lifetime_once": {"active_time": 0.05},
+                "minecraft:emitter_shape_point": {"offset": [0, 0, 0], "direction": [0, 0, 0]},
+                "minecraft:particle_lifetime_expression": {"max_lifetime": lifetime},
+                "minecraft:particle_initial_speed": 0,
+                "minecraft:particle_motion_dynamic": {
+                    "linear_acceleration": [0, -gravity, 0],
+                    "linear_drag_coefficient": drag,
+                },
+                "minecraft:particle_appearance_billboard": {
+                    "size": [size, size],
+                    "facing_camera_mode": "lookat_xyz",
+                    "uv": {
+                        "texture_width": 16,
+                        "texture_height": 16,
+                        "uv": [uv_x, 0],
+                        "uv_size": [4, 4],
+                    },
+                },
+                "minecraft:particle_appearance_tinting": {"color": [1, 1, 1, 1]},
+            },
+        },
+    }
+
+
+PARTICLE_COLOURS = [
+    (238, 238, 232),   # web strand - pale silk
+    (168, 108, 220),   # venom
+    (104, 96, 96),     # block dust
+    (26, 20, 26),      # ink
+]
+
+
+def build_particle_texture(path):
+    rng = random.Random(99)
+    size = 16
+    pixels = [[(0, 0, 0, 0) for _ in range(size)] for _ in range(size)]
+    for index, colour in enumerate(PARTICLE_COLOURS):
+        ox = index * 4
+        for y in range(4):
+            for x in range(4):
+                # Soft round dot: corners fade out so the speck reads as a mote
+                # rather than a square.
+                dx, dy = x - 1.5, y - 1.5
+                distance = (dx * dx + dy * dy) ** 0.5
+                alpha = 255 if distance < 1.2 else (170 if distance < 1.9 else 70)
+                pixels[y][ox + x] = noisy(colour, rng, 8) + (alpha,)
+    write_png(path, size, size, pixels)
+
+
 def dump(path, data):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as handle:
@@ -632,6 +712,14 @@ def main():
          build_animation_controllers())
     dump(f"{RP}/render_controllers/skitter.render_controllers.json", build_render_controllers())
     dump(f"{RP}/entity/skitter.entity.json", build_client_entity())
+
+    for identifier, uv_x, size, lifetime, gravity, drag in PARTICLE_SPECS:
+        name = identifier.split(":", 1)[1]
+        dump(f"{RP}/particles/{name}.particle.json",
+             particle_effect(identifier, uv_x, size, lifetime, gravity, drag))
+    os.makedirs(f"{RP}/textures/particle", exist_ok=True)
+    build_particle_texture(f"{RP}/textures/particle/skitter_particles.png")
+    print(f"  {RP}/textures/particle/skitter_particles.png")
 
     os.makedirs(f"{RP}/textures/entity", exist_ok=True)
     build_texture(f"{RP}/textures/entity/skitter_widow.png", WIDOW_PALETTE, 1337)

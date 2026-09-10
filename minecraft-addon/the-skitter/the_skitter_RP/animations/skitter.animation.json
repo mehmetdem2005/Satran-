@@ -3299,20 +3299,6 @@
       "loop": "hold_on_last_frame",
       "animation_length": 3.5,
       "bones": {
-        "root": {
-          "position": {
-            "0.0": [
-              0,
-              0,
-              0
-            ],
-            "3.5": [
-              0,
-              -26,
-              0
-            ]
-          }
-        },
         "leg0_a": {
           "rotation": {
             "0.0": [

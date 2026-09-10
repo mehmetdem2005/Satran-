@@ -273,9 +273,24 @@ export function blockHardness(block) {
   return 1.5;
 }
 
+/**
+ * Dropping items needs `setblock ... destroy`, and Bedrock caps how many
+ * commands a script may run in one tick. A landing at phase 5 can want ~50
+ * blocks at once, so the budget keeps the drops for the first blocks of a tick
+ * and silently falls back to a drop-less break after that instead of throwing.
+ */
+const COMMANDS_PER_TICK = 48;
+let commandsThisTick = 0;
+
+export function resetCommandBudget() {
+  commandsThisTick = 0;
+}
+
 /** Breaks a block and drops its items, like `world.breakBlock(pos, true)`. */
 export function breakBlockWithDrops(dimension, x, y, z) {
   try {
+    if (commandsThisTick >= COMMANDS_PER_TICK) throw new Error("command budget");
+    commandsThisTick++;
     dimension.runCommand(`setblock ${x} ${y} ${z} air destroy`);
     return true;
   } catch {
@@ -336,8 +351,10 @@ export const SOUNDS = {
   PLAYER_BURP: ["random.burp"],
   PLAYER_SPLASH: ["random.splash"],
   ENDERMAN_TELEPORT: ["mob.endermen.portal"],
-  NETHERITE_BLOCK_STEP: ["step.netherite", "step.stone"],
-  NETHERITE_BLOCK_FALL: ["step.netherite", "step.stone"],
+  // Heard on every footfall, so certainty beats fidelity here - and a
+  // blackstone-bodied creature clanking on stone is a fair match anyway.
+  NETHERITE_BLOCK_STEP: ["step.stone", "step.netherite"],
+  NETHERITE_BLOCK_FALL: ["step.stone", "step.netherite"],
 };
 
 export function playSound(dimension, position, sound, volume, pitch) {
@@ -370,17 +387,19 @@ export function playSound(dimension, position, sound, volume, pitch) {
  */
 export const PARTICLES = {
   CRIT: ["minecraft:critical_hit_emitter", "minecraft:basic_crit_particle"],
-  SWEEP_ATTACK: ["minecraft:sweep_attack", "minecraft:critical_hit_emitter"],
+  SWEEP_ATTACK: ["minecraft:critical_hit_emitter"],
   EXPLOSION_EMITTER: ["minecraft:huge_explosion_emitter", "minecraft:explosion_manual"],
   EXPLOSION: ["minecraft:explosion_manual", "minecraft:basic_smoke_particle"],
   CLOUD: ["minecraft:basic_smoke_particle"],
   POOF: ["minecraft:basic_smoke_particle"],
-  SNOWFLAKE: ["minecraft:snowflake_particle", "minecraft:basic_smoke_particle"],
-  ITEM_SNOWBALL: ["minecraft:snowball_poof", "minecraft:snowflake_particle"],
-  SQUID_INK: ["minecraft:ink_emitter", "minecraft:basic_smoke_particle"],
+  // Shipped by our own resource pack (see tools/generate_assets.py), so these
+  // can never be "unknown particle" on any build.
+  SNOWFLAKE: ["skitter:web_strand"],
+  ITEM_SNOWBALL: ["skitter:venom"],
+  SQUID_INK: ["skitter:ink"],
   SPLASH: ["minecraft:water_splash_particle", "minecraft:basic_smoke_particle"],
-  SCULK_CHARGE_POP: ["minecraft:sculk_charge_pop_particle", "minecraft:basic_crit_particle"],
-  BLOCK_DUST: ["minecraft:basic_smoke_particle"],
+  SCULK_CHARGE_POP: ["minecraft:basic_crit_particle", "minecraft:sculk_charge_pop_particle"],
+  BLOCK_DUST: ["skitter:dust"],
 };
 
 /** Hard cap so a single effect can never flood the particle budget. */

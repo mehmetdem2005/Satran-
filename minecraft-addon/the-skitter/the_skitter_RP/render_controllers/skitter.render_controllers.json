@@ -16,14 +16,14 @@
           ]
         }
       },
-      "geometry": "Array.styles[query.property('skitter:style') == 'husk' ? 1 : 0]",
+      "geometry": "Array.styles[query.property('skitter:style') == 'husk']",
       "materials": [
         {
           "*": "Material.default"
         }
       ],
       "textures": [
-        "Array.skins[query.property('skitter:style') == 'husk' ? 1 : 0]"
+        "Array.skins[query.property('skitter:style') == 'husk']"
       ]
     }
   }

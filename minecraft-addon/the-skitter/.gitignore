@@ -1,2 +1,3 @@
 .testbed/
+.testbed-parity/
 __pycache__/

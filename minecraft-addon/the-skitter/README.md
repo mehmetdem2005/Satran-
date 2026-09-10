@@ -44,6 +44,7 @@ Operatör yetkisi gerekir — Java'daki `requires(permission level 2)` ile aynı
 | ModMenu / cloth-config ekranı | `/scriptevent skitter:config <anahtar> <değer>` |
 | — | `/scriptevent skitter:resetworld` (avı sıfırdan başlatır) |
 | — | `/scriptevent skitter:debug` (konum, hitbox, can, gelen hasar sayaçları) |
+| — | `/scriptevent skitter:verbose on\|off` (yaratığın olaylarını sohbete yaz) |
 
 Sohbet kısayolu da var: `!spider status`, `!spider summon 3` … (bazı Bedrock
 sürümlerinde sohbet olayı script'e açık değil; o zaman `/scriptevent` kullan.)
@@ -124,6 +125,8 @@ ters kinematiğiyle çözüyor. Bedrock'ta böyle bir entity yok, bu yüzden:
 | Demir golemleri decoy'a saldırtan tarama | entity `monster`/`undead` ailesinde olduğu için golemler zaten kendiliğinden saldırır |
 | `BlockState.getDestroySpeed()` | Script API sertlik vermiyor; `world_util.js` içindeki tablo vanilla sertlik değerlerini taşıyor (bilinmeyen blok = 1.5) |
 | `spawnParticle(..., extra)` hız parametresi | Bedrock'un `spawnParticle`'ında karşılığı yok; sayı, dağılım ve konum aynı, partikül hızı yok |
+| SNOWFLAKE / ITEM_SNOWBALL / SQUID_INK / blok tozu | Bedrock'ta güvenilir vanilla karşılıkları yok, paket kendi partiküllerini getiriyor (`skitter:web_strand`, `skitter:venom`, `skitter:ink`, `skitter:dust`) |
+| Java'da spawn yumurtası yok | Bedrock summonable entity'ye otomatik yumurta veriyor; yumurtayla çıkan boş gövde `/spider summon` gibi ele alınıp gerçek bir ava dönüştürülüyor (zaten yaratık varsa siliniyor) |
 | Brigadier `/spider` komutu | `/scriptevent skitter:*` (yukarıdaki tablo) |
 | ModMenu + cloth-config ekranı | `/scriptevent skitter:config` |
 | `config/spiderhunt.json` | dünya dynamic property'si |
@@ -169,8 +172,21 @@ node tools/testbed/run.mjs         # davranış paketini oyunsuz çalıştır
   animasyon durumları). Import ve çalışma zamanı hataları oyuna girmeden burada
   yakalanır.
 
-`tools/validate.py` de paket içi çapraz referansları denetler (geometri/doku/
-animasyon adları, kemik isimleri, entity property'leri, component group'lar).
+`tools/validate.py` de paket içi çapraz referansları denetler: geometri/doku/
+animasyon adları, kemik isimleri ve ebeveynleri, küp boyutları ve UV'lerin doku
+sınırları içinde kalması, doku boyutunun geometrinin beklediğiyle uyuşması,
+animasyon kanalları ve keyframe zamanları, entity property'leri, component
+group'lar, event adları ve script'lerin ürettiği animasyon durumları, ayrıca
+script'lerin çağırdığı her `skitter:*` partikülünün pakette tanımlı olması.
+
+### Koşum takımının kapsadığı senaryolar
+
+çağırma · faz değiştirme · kozmetik değiştirme · ölçek · hasar alma · faz-5
+ölümü ve yavru sürüsü · duvar kazma · tırmanma · tüm animasyon durumları ·
+oyuncu hasarının simülasyona ulaşması · chunk yüklü değilken donma ·
+dünyanın dışına çıkan gövdenin emekliye ayrılması · spawn yumurtasının gerçek
+ava dönüşmesi · aynı anda ikinci gövdenin silinmesi · faz 5'te 100 blok
+uzaktaki av ile en kötü durum performansı.
 
 ## Dosya haritası
 

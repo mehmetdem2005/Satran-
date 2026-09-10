@@ -172,6 +172,133 @@ def check_geometry_bones():
                 errors.append(f"animation {animation_name} targets unknown bone {bone}")
 
 
+def check_geometry_cubes():
+    """Cube geometry has to be well formed or the model silently disappears."""
+    for name in ("skitter_widow", "skitter_husk"):
+        geo = load(f"{RP}/models/entity/{name}.geo.json")
+        if not geo:
+            continue
+        block = geo["minecraft:geometry"][0]
+        width = block["description"]["texture_width"]
+        height = block["description"]["texture_height"]
+        seen = set()
+        cube_count = 0
+        for bone in block["bones"]:
+            if bone["name"] in seen:
+                errors.append(f"{name}: duplicate bone {bone['name']}")
+            seen.add(bone["name"])
+            for value in bone["pivot"]:
+                if not isinstance(value, (int, float)) or value != value:
+                    errors.append(f"{name}: bone {bone['name']} has a bad pivot")
+            for cube in bone.get("cubes", []):
+                cube_count += 1
+                if len(cube["origin"]) != 3 or len(cube["size"]) != 3:
+                    errors.append(f"{name}: cube in {bone['name']} has a bad origin/size")
+                    continue
+                if any(not isinstance(v, (int, float)) or v != v for v in cube["origin"] + cube["size"]):
+                    errors.append(f"{name}: cube in {bone['name']} has a non-numeric field")
+                if any(v <= 0 for v in cube["size"]):
+                    errors.append(f"{name}: cube in {bone['name']} has a non-positive size {cube['size']}")
+                uv = cube.get("uv")
+                if not isinstance(uv, dict):
+                    errors.append(f"{name}: cube in {bone['name']} is missing per-face UV")
+                    continue
+                for face, mapping in uv.items():
+                    u, v = mapping["uv"]
+                    uw, uh = mapping["uv_size"]
+                    if u < 0 or v < 0 or u + uw > width or v + uh > height:
+                        errors.append(
+                            f"{name}: cube in {bone['name']} face {face} samples "
+                            f"outside the {width}x{height} texture")
+        if cube_count == 0:
+            errors.append(f"{name}: geometry has no cubes")
+        elif cube_count > 400:
+            warnings.append(f"{name}: {cube_count} cubes is a lot for one entity")
+
+
+def check_animation_values():
+    animations = load(f"{RP}/animations/skitter.animation.json")
+    if not animations:
+        return
+    for name, animation in animations["animations"].items():
+        loop = animation.get("loop")
+        if loop is not None and loop not in (True, False, "hold_on_last_frame"):
+            errors.append(f"animation {name} has an invalid loop value {loop!r}")
+        length = animation.get("animation_length")
+        if length is not None and not (isinstance(length, (int, float)) and length > 0):
+            errors.append(f"animation {name} has an invalid animation_length {length!r}")
+        for bone, channels in animation.get("bones", {}).items():
+            for channel, value in channels.items():
+                if channel not in ("rotation", "position", "scale"):
+                    errors.append(f"animation {name}/{bone} has unknown channel {channel}")
+                if isinstance(value, dict):
+                    for key, frame in value.items():
+                        try:
+                            float(key)
+                        except ValueError:
+                            errors.append(f"animation {name}/{bone} keyframe {key!r} is not a time")
+                        if isinstance(frame, list) and len(frame) != 3:
+                            errors.append(f"animation {name}/{bone} keyframe {key} is not xyz")
+                elif isinstance(value, list) and len(value) != 3:
+                    errors.append(f"animation {name}/{bone}.{channel} is not xyz")
+
+
+def custom_particle_ids():
+    result = {}
+    folder = f"{RP}/particles"
+    if not os.path.isdir(folder):
+        return result
+    for filename in sorted(os.listdir(folder)):
+        if not filename.endswith(".json"):
+            continue
+        data = load(f"{folder}/{filename}")
+        if not data:
+            continue
+        description = data["particle_effect"]["description"]
+        result[description["identifier"]] = description["basic_render_parameters"]["texture"]
+    return result
+
+
+def check_custom_particles():
+    """Every skitter:* particle the scripts spawn must ship with the pack."""
+    text = read(f"{BP}/scripts/world_util.js")
+    used = set(re.findall(r'"(skitter:[a-z_]+)"', text))
+    used = {name for name in used if not name.startswith("skitter:set_")}
+
+    defined = custom_particle_ids()
+    for name in sorted(used):
+        if name in ("skitter:skitter", "skitter:state", "skitter:config"):
+            continue
+        if name.startswith("skitter:set_"):
+            continue
+        if name not in defined:
+            errors.append(f"scripts spawn particle {name} but the pack does not define it")
+    for identifier, texture in defined.items():
+        if not os.path.exists(f"{RP}/{texture}.png"):
+            errors.append(f"particle {identifier} points at a missing texture {texture}.png")
+    if defined and not used:
+        warnings.append("the pack ships particles that nothing spawns")
+
+
+def check_texture_size():
+    """The geometry declares a 64x64 atlas; the PNGs must actually be that."""
+    import struct
+    for name in ("skitter_widow", "skitter_husk"):
+        path = f"{RP}/textures/entity/{name}.png"
+        try:
+            with open(path, "rb") as handle:
+                header = handle.read(24)
+        except OSError:
+            errors.append(f"missing texture {path}")
+            continue
+        if header[:8] != b"\x89PNG\r\n\x1a\n":
+            errors.append(f"{path} is not a PNG")
+            continue
+        width, height = struct.unpack(">II", header[16:24])
+        if (width, height) != (64, 64):
+            errors.append(f"{path} is {width}x{height}, geometry expects 64x64")
+
+
 def check_properties():
     properties = entity_properties()
     names = set(properties)
@@ -190,12 +317,12 @@ def check_properties():
 
     entity = load(f"{BP}/entities/skitter.json")
     events = set(entity["minecraft:entity"].get("events", {})) if entity else set()
+    particles = custom_particle_ids()
+    reserved = {"skitter:skitter", "skitter:state", "skitter:config", "skitter:summon"}
     for name in sorted(used):
-        if name in names or name in events:
+        if name in names or name in events or name in particles or name in reserved:
             continue
-        if name.startswith("skitter:set_phase") or name in ("skitter:set_mini", "skitter:skitter",
-                                                            "skitter:state", "skitter:config",
-                                                            "skitter:summon"):
+        if name.startswith("skitter:set_"):
             continue
         errors.append(f"property '{name}' is used but not declared on the entity")
 
@@ -248,6 +375,10 @@ def main():
     check_entity()
     check_client_entity()
     check_geometry_bones()
+    check_geometry_cubes()
+    check_animation_values()
+    check_texture_size()
+    check_custom_particles()
     check_properties()
     check_states()
     check_scripts_parse()

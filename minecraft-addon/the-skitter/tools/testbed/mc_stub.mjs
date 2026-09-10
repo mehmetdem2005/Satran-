@@ -7,7 +7,7 @@ export const GameMode = { creative: "creative", spectator: "spectator", survival
 export const EntityDamageCause = { entityAttack: "entityAttack", fall: "fall" };
 export const EquipmentSlot = { Offhand: "Offhand", Mainhand: "Mainhand" };
 
-export const stats = { particles: 0, sounds: 0, commands: [], spawned: [], messages: [], warnings: [] };
+export const stats = { particles: 0, sounds: 0, commands: [], spawned: [], messages: [], warnings: [], getBlock: 0, entityQueries: 0 };
 
 class Block {
   constructor(id, x, y, z) {
@@ -82,6 +82,9 @@ export class Player extends Entity {
 class Dimension {
   constructor(id) { this.id = id; this._entities = new Set(); }
   getBlock(location) {
+    stats.getBlock++;
+    // Emulates an unloaded chunk: the real API throws there.
+    if (world._unloaded && world._unloaded(location)) throw new Error("chunk not loaded");
     const key = `${location.x},${location.y},${location.z}`;
     const override = world._terrain.get(key);
     if (override) return new Block(override, location.x, location.y, location.z);
@@ -89,6 +92,7 @@ class Dimension {
                      location.x, location.y, location.z);
   }
   getEntities(options = {}) {
+    stats.entityQueries++;
     let list = [...this._entities];
     if (options.type) list = list.filter((e) => e.typeId === options.type);
     if (options.excludeTypes) list = list.filter((e) => !options.excludeTypes.includes(e.typeId));
@@ -102,13 +106,17 @@ class Dimension {
     return list;
   }
   getPlayers() { return [...this._entities].filter((e) => e.typeId === "minecraft:player"); }
-  spawnEntity(typeId, location) {
+  spawnEntity(typeId, location, cause = "Spawned") {
     const entity = new Entity(typeId, location, this);
     this._entities.add(entity);
     stats.spawned.push(typeId);
+    queueMicrotask(() => world.afterEvents.entitySpawn._fire({ entity, cause }));
     return entity;
   }
-  spawnParticle(name) { stats.particles++; if (!name.startsWith("minecraft:")) throw new Error("bad particle"); }
+  spawnParticle(name) {
+    stats.particles++;
+    if (!/^(minecraft|skitter):/.test(name)) throw new Error(`unknown particle ${name}`);
+  }
   playSound() { stats.sounds++; }
   runCommand(command) { stats.commands.push(command); return { successCount: 1 }; }
 }
@@ -126,12 +134,15 @@ const overworld = new Dimension("minecraft:overworld");
 
 export const world = {
   _terrain: new Map(),
+  _unloaded: null,
+  sendMessage(message) { stats.messages.push(message); },
   _dimensions: new Map([["minecraft:overworld", overworld], ["overworld", overworld]]),
   _properties: new Map(),
   afterEvents: {
     entityHurt: makeEvent(),
     entityDie: makeEvent(),
     playerLeave: makeEvent(),
+    entitySpawn: makeEvent(),
     worldLoad: makeEvent(),
   },
   beforeEvents: { chatSend: makeEvent() },

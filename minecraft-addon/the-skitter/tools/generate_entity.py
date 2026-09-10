@@ -129,9 +129,11 @@ def build():
                 # has no living attacker, exactly like Java's ALLOW_DAMAGE
                 # handler, so a sensor here could only ever get in the way of
                 # the player's own hits.
-                "minecraft:nameable": {"allow_name_tag_renaming": False},
+                # No minecraft:loot: without the component Bedrock drops
+                # nothing, which is what the Java creature does. No
+                # minecraft:nameable either - a name tag must not stick to a
+                # body the simulation replaces on every phase change.
                 "minecraft:persistent": {},
-                "minecraft:loot": {"table": "loot_tables/empty.json"},
             },
             "events": events,
         },
@@ -145,10 +147,7 @@ def main():
         json.dump(build(), handle, indent=2)
     print(f"  {path}")
 
-    os.makedirs(f"{BP}/loot_tables", exist_ok=True)
-    with open(f"{BP}/loot_tables/empty.json", "w") as handle:
-        json.dump({"pools": []}, handle, indent=2)
-    print(f"  {BP}/loot_tables/empty.json")
+
 
 
 if __name__ == "__main__":

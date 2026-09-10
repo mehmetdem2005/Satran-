@@ -10,10 +10,36 @@
  */
 import { EntityDamageCause } from "@minecraft/server";
 import { isValidEntity } from "./entity_info.js";
-import { Vec, toDegrees, clamp } from "./vec.js";
+import { toDegrees, clamp } from "./vec.js";
 import { cfg } from "./config.js";
 
 export const SKITTER_ID = "skitter:skitter";
+
+/** Growth factor and phase count, mirrored from Hunt/ConfigData. */
+const GROWTH_FACTOR = 1.4;
+const MAX_PHASE = 5;
+const MINI_SCALE = 0.25;
+
+/**
+ * Bedrock can only change a collision box by swapping component groups, so the
+ * box that best matches the creature's *actual* scale is picked here. That
+ * keeps the hitbox in step with `/spider scale` too, not just with the phase.
+ */
+function collisionGroupFor(creature) {
+  if (creature.isMini) return "skitter:set_mini";
+  const scale = creature.scale;
+  if (scale <= MINI_SCALE * 1.5) return "skitter:set_mini";
+  let best = 1;
+  let bestError = Infinity;
+  for (let phase = 1; phase <= MAX_PHASE; phase++) {
+    const error = Math.abs(Math.pow(GROWTH_FACTOR, phase - 1) - scale);
+    if (error < bestError) {
+      bestError = error;
+      best = phase;
+    }
+  }
+  return `skitter:set_phase_${best}`;
+}
 
 /** Enum member names differ between @minecraft/server 1.x and 2.x. */
 const ATTACK_CAUSE =
@@ -85,11 +111,7 @@ export function attachEntity(creature, phase) {
     byEntityId.set(entity.id, creature);
     entity.addTag(creature.isMini ? MINI_TAG : CREATURE_TAG);
     entity.nameTag = "";
-    if (creature.isMini) {
-      entity.triggerEvent("skitter:set_mini");
-    } else {
-      entity.triggerEvent(`skitter:set_phase_${clamp(phase | 0, 1, 5)}`);
-    }
+    entity.triggerEvent(collisionGroupFor(creature));
     setProperty(entity, "skitter:phase", clamp(phase | 0, 1, 5));
     setProperty(entity, "skitter:style", cfg.cosmetic === "husk" ? "husk" : "widow");
     setProperty(entity, "skitter:scale", clamp(creature.scale, 0.05, 20.0));
@@ -221,7 +243,19 @@ export function hurtEntity(creature, victim, amount) {
   }
 }
 
-/** Removes stray skitter entities that no live simulation owns any more. */
+/** True when this entity is the body of a live simulation. */
+export function isOwnedEntity(entity) {
+  try {
+    return byEntityId.has(entity.id);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Removes stray skitter entities that no live simulation owns any more - the
+ * Bedrock stand-in for Java's ServerEntityEvents.ENTITY_LOAD cleanup.
+ */
 export function cullOrphans(dimension) {
   let entities;
   try {
@@ -230,7 +264,7 @@ export function cullOrphans(dimension) {
     return;
   }
   for (const entity of entities) {
-    if (byEntityId.has(entity.id)) continue;
+    if (isOwnedEntity(entity)) continue;
     try {
       entity.remove();
     } catch {
@@ -239,8 +273,15 @@ export function cullOrphans(dimension) {
   }
 }
 
+/** Drops a dead entity from the lookup so the map cannot grow unbounded. */
+export function forgetEntity(entity) {
+  try {
+    byEntityId.delete(entity.id);
+  } catch {
+    /* handle already invalid */
+  }
+}
+
 export function forgetAll() {
   byEntityId.clear();
 }
-
-export { Vec };

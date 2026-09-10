@@ -1,4 +1,5 @@
 /** Port of com.dogukan.spiderhunt.misc.Hunt. */
+import { world } from "@minecraft/server";
 import { cfg } from "./config.js";
 import { Vec, clamp } from "./vec.js";
 import { playSound, spawnParticle, runLater, SOUNDS, PARTICLES } from "./world_util.js";
@@ -63,10 +64,14 @@ export const Hunt = {
     const dimension = creature.dimension;
     playSound(dimension, creature.position, SOUNDS.GENERIC_EAT, 1.2, 0.8);
 
-    const heard = creature.dimension.getPlayers === undefined
-      ? []
-      : safePlayers(dimension);
-    if (heard.some((p) => Vec.from(p.location).distance(creature.position) < 24.0)) {
+    const heard = safePlayers(dimension).some((player) => {
+      try {
+        return Vec.from(player.location).distance(creature.position) < 24.0;
+      } catch {
+        return false;
+      }
+    });
+    if (heard) {
       playSound(dimension, creature.position, SOUNDS.RAVAGER_ROAR, 1.3, 0.55);
     }
 
@@ -106,17 +111,16 @@ export const Hunt = {
 
   /**
    * The Java mod deliberately ships this as an empty method - the creature
-   * never narrates itself. Kept as a no-op so behaviour matches; flip
-   * `Hunt.verbose` on to surface the messages while debugging.
+   * never narrates itself. Kept silent by default so behaviour matches;
+   * `/scriptevent skitter:verbose on` turns the messages on for debugging.
    */
   verbose: false,
   announce(_creature, message) {
     if (!this.verbose) return;
     try {
-      // eslint-disable-next-line no-undef
-      globalThis.__skitterSay?.(message);
+      world.sendMessage(`§8[Skitter]§r ${message}`);
     } catch {
-      /* ignore */
+      /* chat unavailable */
     }
   },
 };

@@ -3,19 +3,23 @@
  * Adalances. Entry point; mirrors com.dogukan.spiderhunt.SpiderHuntMod.
  */
 import { world, system } from "@minecraft/server";
-import { loadConfig } from "./config.js";
-import { tickScheduler } from "./world_util.js";
+import { loadConfig, cfg } from "./config.js";
+import { tickScheduler, resetCommandBudget } from "./world_util.js";
 import { IdleBrain } from "./creature.js";
 import { Hunt } from "./hunt.js";
-import { AppState, WorldState } from "./state.js";
+import { AppState, WorldState, closeCreature } from "./state.js";
 import { GameMaster } from "./gamemaster.js";
 import { HunterBrain, MiniHunterBrain } from "./brains.js";
 import { damageCreature, die } from "./hunting.js";
 import { refreshPlayerFilters } from "./players.js";
 import {
-  creatureForEntity, syncEntity, cullOrphans, isSkitterEntity, diagnostics,
+  creatureForEntity, syncEntity, cullOrphans, isSkitterEntity, isOwnedEntity,
+  forgetEntity, diagnostics,
 } from "./entity_link.js";
+import { Vec } from "./vec.js";
 import { registerCommands } from "./commands.js";
+
+const DIMENSIONS = ["minecraft:overworld", "minecraft:nether", "minecraft:the_end"];
 
 const SAVE_INTERVAL_TICKS = 200;
 const ORPHAN_SCAN_INTERVAL_TICKS = 100;
@@ -27,6 +31,7 @@ let started = false;
 /* --------------------------------------------------------------- main loop */
 
 function tickAll() {
+  resetCommandBudget();
   refreshPlayerFilters();
 
   // Java order: WorldState.tick(server) -> Scheduler.tick() (which drives the
@@ -42,28 +47,39 @@ function tickAll() {
       creature.setBrain(new IdleBrain());
     }
     creature.update();
-    if (!creature.dead && AppState.creature === creature) syncEntity(creature);
+    if (creature.outOfBounds) {
+      console.warn("[skitter] creature left the world, despawning it");
+      GameMaster.despawn(creature, cfg.respawnCooldownTicks);
+    } else if (!creature.dead && AppState.creature === creature) {
+      syncEntity(creature);
+    }
   }
 
   for (const mini of [...AppState.minis]) {
     if (mini.dead) continue;
     if (!(mini.brain instanceof MiniHunterBrain)) mini.setBrain(new MiniHunterBrain(mini));
     mini.update();
-    if (!mini.dead) syncEntity(mini);
+    if (mini.outOfBounds) {
+      const index = AppState.minis.indexOf(mini);
+      if (index >= 0) AppState.minis.splice(index, 1);
+      closeCreature(mini);
+    } else if (!mini.dead) {
+      syncEntity(mini);
+    }
   }
 
   GameMaster.tick();
 
   if (--orphanTimer <= 0) {
     orphanTimer = ORPHAN_SCAN_INTERVAL_TICKS;
-    for (const creatureEntry of AppState.allCreatures()) {
-      cullOrphans(creatureEntry.dimension);
-    }
-    if (AppState.allCreatures().length === 0) {
+    // Java culls tagged leftovers in ServerEntityEvents.ENTITY_LOAD, which
+    // covers every dimension; do the same rather than only where a creature
+    // happens to live right now.
+    for (const id of DIMENSIONS) {
       try {
-        cullOrphans(world.getDimension("minecraft:overworld"));
+        cullOrphans(world.getDimension(id));
       } catch {
-        /* dimension not ready */
+        /* dimension not loaded on this world */
       }
     }
   }
@@ -131,10 +147,44 @@ function registerEvents() {
   subscribe(() => world.afterEvents.entityDie, (event) => {
     const creature = creatureForEntity(event.deadEntity);
     if (!creature || creature.dead) return;
+    forgetEntity(event.deadEntity);
     creature.entity = null;
     creature.health = 0;
     die(creature);
   }, "entityDie");
+
+  // Java has no spawn egg; Bedrock creates one automatically for a summonable
+  // entity, and a bare body with no simulation behind it would just stand
+  // there. Treat it as `/spider summon` instead so the egg does what a player
+  // expects, and drop the extra body when a creature already exists (Java
+  // only ever runs one).
+  subscribe(() => world.afterEvents.entitySpawn, (event) => {
+    const entity = event.entity;
+    if (!isSkitterEntity(entity) || isOwnedEntity(entity)) return;
+    let cause = "";
+    let location;
+    let dimension;
+    let rotation = 0;
+    try {
+      cause = String(event.cause ?? "");
+      location = new Vec(entity.location.x, entity.location.y, entity.location.z);
+      dimension = entity.dimension;
+      rotation = entity.getRotation().y;
+    } catch {
+      return;
+    }
+    if (cause === "Loaded") return;   // leftovers from a reload: let the cull take them
+    system.run(() => {
+      try {
+        entity.remove();
+      } catch {
+        /* already gone */
+      }
+      if (AppState.creature !== null) return;
+      Hunt.start(Hunt.phase);
+      AppState.createCreature(dimension, location, rotation);
+    });
+  }, "entitySpawn");
 
   subscribe(() => world.afterEvents.playerLeave, () => {
     WorldState.save();

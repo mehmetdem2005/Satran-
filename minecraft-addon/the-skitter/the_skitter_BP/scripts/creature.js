@@ -19,6 +19,15 @@ import {
   SOUNDS, PARTICLES,
 } from "./world_util.js";
 
+/**
+ * Vertical sanity rails. Java's creature lives inside a loaded world at all
+ * times; on Bedrock a script keeps driving an entity whose chunk has unloaded,
+ * where every block query comes back empty and the ground check would conclude
+ * "nothing below me" and drop the creature out of the world forever.
+ */
+const WORLD_FLOOR = -128;
+const WORLD_CEILING = 512;
+
 /* ------------------------------------------------------------- limb layout */
 
 const ROWS = [
@@ -265,7 +274,6 @@ export class Creature {
     this.pitch = 0;
     this.roll = 0;
     this.brain = new IdleBrain();
-    this.limbs = this.layout.limbs.map((plan) => new Limb(this, plan));
 
     this.maxHealth = 60.0;
     this.health = 60.0;
@@ -294,6 +302,12 @@ export class Creature {
     /** The Bedrock entity that renders this creature (see entity_link.js). */
     this.entity = null;
     this.dead = false;
+    /** Set when the body left the world; main.js despawns it next tick. */
+    this.outOfBounds = false;
+
+    // Built last: a Limb reads back climbing/velocity/yaw while it looks for
+    // the ground under its resting foot.
+    this.limbs = this.layout.limbs.map((plan) => new Limb(this, plan));
   }
 
   static create(dimension, position, yawDegrees, layout) {
@@ -452,6 +466,12 @@ export class Creature {
     this.brain.tick(this);
     if (this.dead) return;
 
+    // Chunk not loaded: every block lookup would answer "air", so hold still
+    // this tick instead of falling through a world that is not there.
+    if (getBlockSafe(this.dimension, this.position.x, this.position.y, this.position.z) === undefined) {
+      return;
+    }
+
     if (this.burrowing) {
       this.velocity.x = 0.0;
       this.velocity.z = 0.0;
@@ -484,6 +504,12 @@ export class Creature {
         this.velocity.z = 0.0;
       }
       this.updateHeight();
+    }
+
+    if (!this.position.isFinite() ||
+        this.position.y < WORLD_FLOOR || this.position.y > WORLD_CEILING) {
+      this.outOfBounds = true;
+      return;
     }
 
     this.scheduleSteps();

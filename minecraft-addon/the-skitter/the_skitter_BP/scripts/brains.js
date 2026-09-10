@@ -1001,7 +1001,12 @@ export class HunterBrain {
       return;
     }
 
+    // Everything the rest of this method needs is read BEFORE the hit: a
+    // killing blow can invalidate the entity handle immediately, and Bedrock
+    // throws on `location` for an invalid handle (Java keeps the object alive).
     const name = entityName(victim);
+    const victimPosition = posOf(victim);
+    const victimCentre = victimPosition.clone().add(new Vec(0.0, entityHeight(victim) / 2.0, 0.0));
     hurtEntity(creature, victim, Hunt.attackDamage(Hunt.phase));
 
     if (isEntityAlive(victim) && Math.random() < cfg.poisonChance) {
@@ -1013,10 +1018,10 @@ export class HunterBrain {
       } catch {
         /* immune entity */
       }
-      playSound(creature.dimension, posOf(victim), SOUNDS.SPIDER_STEP, 1.0, 0.5);
+      playSound(creature.dimension, victimPosition, SOUNDS.SPIDER_STEP, 1.0, 0.5);
     }
 
-    const away = posOf(victim).subtract(creature.position).setY(0.0);
+    const away = victimPosition.clone().subtract(creature.position).setY(0.0);
     if (away.lengthSquared() > 1e-8) away.normalize();
     else away.copy(creature.forward());
     const strength = 0.4 + 0.15 * Hunt.phase;
@@ -1024,7 +1029,7 @@ export class HunterBrain {
 
     playSound(creature.dimension, creature.position, SOUNDS.RAVAGER_ATTACK, 1.0, 1.3);
     if (!isEntityAlive(victim)) {
-      Hunt.registerKill(creature, name, centreOf(victim));
+      Hunt.registerKill(creature, name, victimCentre);
     }
   }
 }
@@ -1133,6 +1138,8 @@ export class MiniHunterBrain {
       return;
     }
 
+    // Read before the hit: a kill can invalidate the handle right away.
+    const victimPosition = posOf(victim);
     hurtEntity(creature, victim, this.damage);
     if (isEntityAlive(victim) && Math.random() < 0.2) {
       try {
@@ -1141,7 +1148,7 @@ export class MiniHunterBrain {
         /* immune entity */
       }
     }
-    const away = posOf(victim).subtract(creature.position).setY(0.0);
+    const away = victimPosition.clone().subtract(creature.position).setY(0.0);
     if (away.lengthSquared() > 1e-8) away.normalize();
     pushEntity(victim, away.x * 0.15, 0.15, away.z * 0.15);
     playSound(creature.dimension, creature.position, SOUNDS.SPIDER_AMBIENT, 0.8, 1.6);

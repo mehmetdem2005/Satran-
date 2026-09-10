@@ -194,13 +194,7 @@
         "breathes_solids": true,
         "breathes_lava": true
       },
-      "minecraft:nameable": {
-        "allow_name_tag_renaming": false
-      },
-      "minecraft:persistent": {},
-      "minecraft:loot": {
-        "table": "loot_tables/empty.json"
-      }
+      "minecraft:persistent": {}
     },
     "events": {
       "skitter:set_phase_1": {
