@@ -12,6 +12,8 @@ import { Vec, clamp } from "./vec.js";
 import { raycastGround, playSound, SOUNDS } from "./world_util.js";
 import { Hunt, MAX_PHASE } from "./hunt.js";
 import { AppState, WorldState } from "./state.js";
+import { diagnostics } from "./entity_link.js";
+import { Vec as V } from "./vec.js";
 
 const STYLES = ["husk", "widow"];
 
@@ -65,7 +67,8 @@ function statusMessage() {
   const health = creature !== null
     ? `, health ${creature.health.toFixed(0)}/${creature.maxHealth.toFixed(0)}`
     : "";
-  return `Creature: ${creature !== null ? "alive" : "none"}${health}, minis: ${AppState.minis.length}, ` +
+  const hits = creature !== null ? `, hits taken ${creature.hitCounter}` : "";
+  return `Creature: ${creature !== null ? "alive" : "none"}${health}${hits}, minis: ${AppState.minis.length}, ` +
     `hunting: ${Hunt.enabled ? "on" : "off"}, phase ${Hunt.phase}/${MAX_PHASE} ` +
     `(~${Hunt.sizeBlocks(Hunt.phase).toFixed(1)} blocks), ` +
     `detection radius ${Hunt.detectionRadius(Hunt.phase).toFixed(0)} blocks, ${progress}`;
@@ -81,6 +84,7 @@ const USAGE = [
   "  /scriptevent skitter:scale <0.1-20>",
   "  /scriptevent skitter:cosmetic [widow|husk]",
   "  /scriptevent skitter:config <key> <value> | list | reset",
+  "  /scriptevent skitter:debug",
   "  /scriptevent skitter:reload",
 ].join("\n");
 
@@ -190,6 +194,52 @@ export function runCommand(sub, args, player) {
       }
       const error = setConfigValue(key, args.slice(1).join(" "));
       reply(player, error === null ? `${key} = ${cfg[key]}` : error);
+      return;
+    }
+    case "debug": {
+      const creature = AppState.creature;
+      const lines = [
+        `hunting: ${Hunt.enabled ? "on" : "off"}, phase ${Hunt.phase}, ` +
+          `scale ${AppState.currentScale().toFixed(3)}`,
+      ];
+      if (creature === null) {
+        lines.push("no creature simulated right now");
+      } else {
+        const p = creature.position;
+        lines.push(
+          `body at ${p.x.toFixed(1)} ${p.y.toFixed(1)} ${p.z.toFixed(1)} ` +
+          `(hitbox bottom y ${(p.y - 0.65 * creature.scale).toFixed(1)}, ` +
+          `${(1.8 * creature.scale).toFixed(1)} wide x ${(1.3 * creature.scale).toFixed(1)} tall)`,
+        );
+        lines.push(
+          `health ${creature.health.toFixed(1)}/${creature.maxHealth.toFixed(1)}, ` +
+          `hits ${creature.hitCounter}, hurt cooldown ${creature.hurtCooldown}, ` +
+          `brain ${creature.brain?.constructor?.name ?? "?"}`,
+        );
+        let entityState = "no render entity";
+        try {
+          entityState = creature.entity
+            ? `entity ${creature.entity.id} at ` +
+              `${creature.entity.location.x.toFixed(1)} ` +
+              `${creature.entity.location.y.toFixed(1)} ` +
+              `${creature.entity.location.z.toFixed(1)}`
+            : "no render entity";
+        } catch {
+          entityState = "render entity handle is stale";
+        }
+        lines.push(entityState);
+        if (player) {
+          const distance = V.from(player.location).distance(creature.position);
+          lines.push(`you are ${distance.toFixed(1)} blocks from the body`);
+        }
+      }
+      lines.push(
+        `damage events seen ${diagnostics.hurtEvents} ` +
+        `(applied ${diagnostics.applied}, ` +
+        `ignored: no attacker ${diagnostics.ignoredNoAttacker}, ` +
+        `self ${diagnostics.ignoredSelfInflicted})`,
+      );
+      reply(player, lines.join("\n"));
       return;
     }
     case "reload": {

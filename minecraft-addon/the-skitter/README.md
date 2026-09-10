@@ -43,9 +43,25 @@ Operatör yetkisi gerekir — Java'daki `requires(permission level 2)` ile aynı
 | `/spider reload` | `/scriptevent skitter:reload` |
 | ModMenu / cloth-config ekranı | `/scriptevent skitter:config <anahtar> <değer>` |
 | — | `/scriptevent skitter:resetworld` (avı sıfırdan başlatır) |
+| — | `/scriptevent skitter:debug` (konum, hitbox, can, gelen hasar sayaçları) |
 
 Sohbet kısayolu da var: `!spider status`, `!spider summon 3` … (bazı Bedrock
 sürümlerinde sohbet olayı script'e açık değil; o zaman `/scriptevent` kullan.)
+
+## Yaratığa vuramıyorsan
+
+Vurulacak kutu (`minecraft:collision_box`) Java'daki `Interaction` hitbox'ının
+**aynısı**: `1.8 × scale` genişlik, `1.3 × scale` yükseklik ve gövdenin
+`0.65 × scale` altından başlıyor — yani modelin ortasına oturuyor, zemine
+değil. Faz 1'de bu 1.8 × 1.3 bloklık bir kutu demek; yaratığın görünen eni ise
+~3 blok. **Bacaklara değil, gövdenin ortasına nişan al.** Java'da da durum aynı.
+
+Sorun devam ederse `/scriptevent skitter:debug` çalıştır:
+
+* `damage events seen 0` → vuruş sunucuya hiç ulaşmıyor (nişan/menzil sorunu).
+* `seen > 0` ama `applied 0` → hasarın canlı bir saldırganı yok (Java da bu
+  durumda hasarı yok sayar).
+* `applied > 0` → hasar işliyor; `hits` sayacı ve can değeri artıyor olmalı.
 
 ## Ayarlar
 

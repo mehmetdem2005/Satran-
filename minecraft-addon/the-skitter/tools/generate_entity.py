@@ -27,11 +27,12 @@ HITBOX_HEIGHT = 1.3
 # burst can kill the render entity out from under the simulation.
 HEALTH_POOL = 1024
 
-ENVIRONMENTAL_DAMAGE = [
-    "fall", "drowning", "suffocation", "fire", "fire_tick", "lava", "magma",
-    "freezing", "starve", "wither", "contact", "fly_into_wall",
-    "block_explosion", "void",
-]
+# Java anchors the Interaction hitbox at `position + (0, -0.65 * scale, 0)`,
+# i.e. centred on the body rather than sitting on the ground. Bedrock always
+# anchors a collision box at the entity's own location, so the entity is placed
+# at that same height and the model is drawn 0.35 * scale lower (see
+# tools/generate_assets.py MODEL_Y_OFFSET).
+HITBOX_BOTTOM_BELOW_BODY = 0.65
 
 
 def scale_for_phase(phase):
@@ -123,16 +124,11 @@ def build():
                     "breathes_air": True, "breathes_water": True,
                     "breathes_solids": True, "breathes_lava": True,
                 },
-                # Java only ever lets attackers wound the creature; environment
-                # damage is not part of its damage model.
-                "minecraft:damage_sensor": {
-                    "triggers": [{
-                        "on_damage": {"filters": {"any_of": [
-                            {"test": "has_damage", "value": cause} for cause in ENVIRONMENTAL_DAMAGE
-                        ]}},
-                        "deals_damage": False,
-                    }],
-                },
+                # No minecraft:damage_sensor on purpose. The simulation owns the
+                # real health value and main.js already drops any damage that
+                # has no living attacker, exactly like Java's ALLOW_DAMAGE
+                # handler, so a sensor here could only ever get in the way of
+                # the player's own hits.
                 "minecraft:nameable": {"allow_name_tag_renaming": False},
                 "minecraft:persistent": {},
                 "minecraft:loot": {"table": "loot_tables/empty.json"},

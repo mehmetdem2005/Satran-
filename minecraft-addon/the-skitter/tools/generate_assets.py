@@ -28,6 +28,10 @@ ROWS = [
 ]
 SEGMENTS = [0.85, 0.85, 0.65]
 RIDE_HEIGHT = 1.0
+# The entity's origin sits where Java puts the bottom of the Interaction
+# hitbox (`position - 0.65 * scale`), so the model - whose feet are at the
+# ground, `position - 1.0 * scale` - is drawn this many pixels lower.
+MODEL_Y_OFFSET = -(1.0 - 0.65) * 16.0
 # CreatureModel.legSegmentThickness = [0.16, 0.115, 0.06] * scale
 THICKNESS = [0.16, 0.115, 0.06]
 KNEE_SIZE = 0.15
@@ -177,7 +181,7 @@ def face_uv(u, v, w, h):
 def body_cube(part):
     """One CreatureModel.Part -> one Bedrock cube (Java +Z front -> Bedrock -Z)."""
     material, cx, cy, cz, sx, sy, sz, rx, ry, rz = part
-    centre = [cx * PX, (cy + RIDE_HEIGHT) * PX, -cz * PX]
+    centre = [cx * PX, (cy + RIDE_HEIGHT) * PX + MODEL_Y_OFFSET, -cz * PX]
     size = [sx * PX, sy * PX, sz * PX]
     cube = {
         "origin": [round(centre[0] - size[0] / 2, 4),
@@ -198,15 +202,17 @@ def body_cube(part):
 def build_geometry(style, parts):
     bones = [
         {"name": "root", "pivot": [0, 0, 0]},
-        {"name": "body", "parent": "root", "pivot": [0, RIDE_HEIGHT * PX, 0],
+        {"name": "body", "parent": "root",
+         "pivot": [0, RIDE_HEIGHT * PX + MODEL_Y_OFFSET, 0],
          "cubes": [body_cube(part) for part in parts]},
     ]
 
     leg_index = 0
     for row_index, row in enumerate(ROWS):
         for side in (1.0, -1.0):
-            hip = [0.3 * side * PX, (0.05 + RIDE_HEIGHT) * PX, -row["hipZ"] * PX]
-            foot = [row["out"] * side * PX, 0.0, -row["homeZ"] * PX]
+            hip = [0.3 * side * PX, (0.05 + RIDE_HEIGHT) * PX + MODEL_Y_OFFSET,
+                   -row["hipZ"] * PX]
+            foot = [row["out"] * side * PX, MODEL_Y_OFFSET, -row["homeZ"] * PX]
             lengths = [s * row["reach"] * PX for s in SEGMENTS]
             joints = solve_leg(hip, foot, lengths)
 

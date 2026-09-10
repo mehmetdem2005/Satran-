@@ -12,7 +12,9 @@ import { GameMaster } from "./gamemaster.js";
 import { HunterBrain, MiniHunterBrain } from "./brains.js";
 import { damageCreature, die } from "./hunting.js";
 import { refreshPlayerFilters } from "./players.js";
-import { creatureForEntity, syncEntity, cullOrphans, isSkitterEntity } from "./entity_link.js";
+import {
+  creatureForEntity, syncEntity, cullOrphans, isSkitterEntity, diagnostics,
+} from "./entity_link.js";
 import { registerCommands } from "./commands.js";
 
 const SAVE_INTERVAL_TICKS = 200;
@@ -90,18 +92,26 @@ function registerEvents() {
   subscribe(() => world.afterEvents.entityHurt, (event) => {
     const creature = creatureForEntity(event.hurtEntity);
     if (!creature || creature.dead) return;
+    diagnostics.hurtEvents++;
 
     // Java only routes damage into the creature when the source has a living
     // attacker (ServerLivingEntityEvents.ALLOW_DAMAGE checks
     // `source.getEntity() instanceof LivingEntity`), so anonymous damage -
     // explosions, cacti, the void - is ignored outright.
     const attacker = event.damageSource?.damagingEntity;
-    if (!attacker) return;
+    if (!attacker) {
+      diagnostics.ignoredNoAttacker++;
+      return;
+    }
     // A creature can never wound another creature (Java: the decoy check).
-    if (isSkitterEntity(attacker)) return;
+    if (isSkitterEntity(attacker)) {
+      diagnostics.ignoredSelfInflicted++;
+      return;
+    }
 
     const amount = event.damage;
     if (!(amount > 0)) return;
+    diagnostics.applied++;
     damageCreature(creature, amount);
 
     if (attacker) {

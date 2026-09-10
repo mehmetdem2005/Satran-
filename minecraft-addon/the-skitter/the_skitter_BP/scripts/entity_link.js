@@ -24,6 +24,18 @@ export const MINI_TAG = "skitter.mini";
 /** entity.id -> Creature, so damage events can find the simulation. */
 const byEntityId = new Map();
 
+/**
+ * Counters for `/scriptevent skitter:debug`. They make it possible to tell
+ * "my hits never reach the server" apart from "my hits land but the creature
+ * ignores them" without attaching a debugger.
+ */
+export const diagnostics = {
+  hurtEvents: 0,
+  ignoredNoAttacker: 0,
+  ignoredSelfInflicted: 0,
+  applied: 0,
+};
+
 export function creatureForEntity(entity) {
   if (!entity) return undefined;
   try {
@@ -41,10 +53,19 @@ export function isSkitterEntity(entity) {
   }
 }
 
+/**
+ * Java hangs the Interaction hitbox at `position + (0, -0.65 * scale, 0)` and
+ * an Interaction entity's position IS the bottom of its box, so the box is
+ * centred on the body rather than resting on the ground. Bedrock anchors a
+ * collision box at the entity's location, so the entity goes to that same
+ * height and the model is drawn 0.35 * scale lower to compensate.
+ */
+const HITBOX_BOTTOM_BELOW_BODY = 0.65;
+
 function entityLocation(creature) {
   return {
     x: creature.position.x,
-    y: creature.position.y - creature.layout.rideHeight,
+    y: creature.position.y - HITBOX_BOTTOM_BELOW_BODY * creature.scale,
     z: creature.position.z,
   };
 }

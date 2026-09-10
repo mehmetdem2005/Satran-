@@ -79,6 +79,8 @@ else {
 console.log("status / config / cosmetic / scale / phase…");
 fire("skitter:status");
 console.log(`  ${player.lastMessage}`);
+fire("skitter:debug");
+console.log(`  ${String(player.lastMessage).split("\n").join("\n  ")}`);
 fire("skitter:config", "poisonChance 0.9");
 console.log(`  ${player.lastMessage}`);
 fire("skitter:cosmetic", "husk");
@@ -90,6 +92,8 @@ console.log(`  ${player.lastMessage}`);
 run(200);
 
 console.log("damaging the creature…");
+const { diagnostics } = await import(path.join(sandbox, "scripts/entity_link.js"));
+const healthBefore = overworldDimension.getEntities({ type: "skitter:skitter" }).length;
 const target = overworldDimension.getEntities({ type: "skitter:skitter" })[0];
 if (target) {
   for (let i = 0; i < 40; i++) {
@@ -98,7 +102,11 @@ if (target) {
   }
 }
 run(200);
+console.log(`  damage events: seen ${diagnostics.hurtEvents}, applied ${diagnostics.applied}, ` +
+            `ignored (no attacker) ${diagnostics.ignoredNoAttacker}`);
+if (diagnostics.applied === 0) failures.push("player damage never reached the simulation");
 console.log(`  skitters after the kill: ${overworldDimension.getEntities({ type: "skitter:skitter" }).length}`);
+void healthBefore;
 
 const minis = overworldDimension.getEntities({ type: "skitter:skitter" });
 console.log(`  brood spawned by the phase-5 death: ${minis.length}`);
