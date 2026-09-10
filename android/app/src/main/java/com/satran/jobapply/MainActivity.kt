@@ -71,6 +71,7 @@ private fun AppRoot() {
     val workInfos by viewModel.sendWork.collectAsState()
     val message by viewModel.message.collectAsState()
     val searchHistory by viewModel.searchHistory.collectAsState()
+    val sendQueue by viewModel.sendQueue.collectAsState()
     val memory by viewModel.memory.collectAsState()
 
     var tab by rememberSaveable { mutableIntStateOf(0) }
@@ -210,6 +211,10 @@ private fun AppRoot() {
                     onMarkSent = viewModel::markSentManually,
                     onPickCv = { cvPicker.launch(arrayOf("application/pdf")) },
                     onCancelPrepare = viewModel::cancelPrepare,
+                    queue = sendQueue,
+                    totalMatches = jobsState.total,
+                    onApplyToAll = viewModel::applyToAllMatching,
+                    onCancelQueue = viewModel::cancelQueue,
                     contentPadding = padding,
                 )
 

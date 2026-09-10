@@ -101,6 +101,8 @@ data class PrepareProgress(
 
 data class ApplyUiState(
     val preparing: Boolean = false,
+    /** "Hepsine başvur" kuyruğu kuruluyor. */
+    val buildingAll: Boolean = false,
     val prepared: List<QueuedMail> = emptyList(),
     val progress: PrepareProgress? = null,
     val notes: List<String> = emptyList(),

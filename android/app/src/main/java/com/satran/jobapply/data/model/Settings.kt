@@ -116,6 +116,13 @@ data class AppSettings(
     val ccSelf: Boolean = true,
     val sendMode: SendMode = SendMode.SMTP,
     val sendDelaySeconds: Int = 8,
+    /**
+     * Günde en fazla kaç ileti gönderilecek.
+     *
+     * Gmail ücretsiz hesapta ~500/gün sınırı koyar; aşılırsa hesap geçici
+     * olarak kilitlenir. Varsayılan sınırın altında bırakıldı.
+     */
+    val dailySendLimit: Int = 400,
 
     // CV
     val cvUri: String = "",

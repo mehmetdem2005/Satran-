@@ -131,6 +131,32 @@ Arama sağlayıcıları ve anahtar adresleri (Ayarlar'dan tek dokunuşla açıl�
 > Gmail günlük gönderim sınırı ücretsiz hesaplarda ~500 iletidir. Uygulama
 > iletiler arasına varsayılan 8 saniye koyar; Ayarlar'dan değiştirebilirsin.
 
+### Tek tuşla hepsine başvur
+
+Başvuru sekmesindeki **"Hepsine başvur"** düğmesi, süzgece uyan bütün ilanları
+çeker, her biri için şablon mektubunu doldurur ve kuyruğa alır.
+
+**Gmail'in günlük sınırı (~500 ileti) aşılamaz** — hesap geçici olarak
+kilitlenir. Bu yüzden kuyruk günlere yayılır:
+
+- Günde en fazla `dailySendLimit` ileti (varsayılan 400) gönderilir.
+- Sınır dolunca işçi kendini ertesi sabaha planlar ve kaldığı yerden sürer.
+- Her ileti gönderilir gönderilmez kuyruktan düşer ve diske yazılır; uygulama
+  kapansa, süreç ölse ya da telefon yeniden başlasa da **aynı işverene ikinci
+  kez yazılmaz**.
+- Daha önce başvurulan ilanlar kuyruğa hiç girmez.
+- Bağlantı koparsa 15 dakika sonra yeniden denenir.
+
+7000 ilan, günde 400 iletiyle ~18 günde tamamlanır. Başvuru sekmesindeki kart
+kaç gönderildiğini, kaç beklediğini ve bugünkü kotayı gösterir; "Kuyruğu
+durdur" ile her an kesilebilir.
+
+**Mektuplar şablondan üretilir, yapay zekâdan değil.** Binlerce ilan için model
+çağrısı hem pahalı hem yavaş olurdu; ayrıca şablon her ilanın kendi bilgisiyle
+deterministik doldurulduğu için bilgiler birbirine karışamaz. Bu, ilanların
+birbirine karışmadığını doğrulayan 5 birim testiyle sabitlenmiştir
+(`BulkIntegrityTest`).
+
 ### İki gönderim yolu
 
 **1. Doğrudan gönder (Gmail SMTP)** — uygulama şifresi ister, tek dokunuşla

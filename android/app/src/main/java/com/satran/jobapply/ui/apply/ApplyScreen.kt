@@ -66,6 +66,10 @@ fun ApplyScreen(
     onMarkSent: (QueuedMail) -> Unit,
     onPickCv: () -> Unit,
     onCancelPrepare: () -> Unit,
+    queue: com.satran.jobapply.send.SendQueueState,
+    totalMatches: Int,
+    onApplyToAll: () -> Unit,
+    onCancelQueue: () -> Unit,
     contentPadding: PaddingValues,
 ) {
     val running = workInfos.firstOrNull { it.state == WorkInfo.State.RUNNING }
@@ -74,6 +78,56 @@ fun ApplyScreen(
     // Toplu gönderim geri alınamaz: gerçek işverenlere gerçek e-posta gider.
     // Onay penceresi kime, kaç ileti gideceğini ve ekin adını gösterir.
     var confirmSend by remember { mutableStateOf(false) }
+    var confirmAll by remember { mutableStateOf(false) }
+
+    if (confirmAll) {
+        val days = if (settings.dailySendLimit > 0) {
+            kotlin.math.ceil(totalMatches.toDouble() / settings.dailySendLimit).toInt()
+        } else {
+            0
+        }
+        AlertDialog(
+            onDismissRequest = { confirmAll = false },
+            title = { Text("Süzgece uyan tüm ilanlara başvurulsun mu?") },
+            text = {
+                Column {
+                    Text(
+                        "Şu anki süzgeçle eşleşen yaklaşık $totalMatches ilana, daha önce " +
+                            "başvurmadıkların dahil, şablon mektubun ve PDF CV'n gönderilecek.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Gmail günde ${settings.dailySendLimit} iletiyle sınırlı; kuyruk " +
+                            (if (days > 1) "yaklaşık $days güne yayılacak " else "bugün tamamlanacak ") +
+                            "ve kaldığı yerden kendiliğinden sürecek.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Mektuplar şablondan üretilir, yapay zekâdan değil — her ilan kendi " +
+                            "başlığı ve ilan numarasıyla doldurulur.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Bu geri alınamaz. Alakasız ilanlara toptan başvurmak hem senin hem " +
+                            "gönderdiğin adresin itibarını düşürür; süzgeçlerini daralttığından emin ol.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    confirmAll = false
+                    onApplyToAll()
+                }) { Text("Hepsine başvur") }
+            },
+            dismissButton = { TextButton(onClick = { confirmAll = false }) { Text("Vazgeç") } },
+        )
+    }
     if (confirmSend) {
         AlertDialog(
             onDismissRequest = { confirmSend = false },
@@ -132,6 +186,20 @@ fun ApplyScreen(
         modifier = Modifier.fillMaxSize(),
     ) {
         item { ReadinessCard(settings = settings, selectedCount = selectedJobs.size, onPickCv = onPickCv) }
+
+        // Süren kuyruk varsa asıl bilgi odur; önce o gösterilir.
+        if (queue.isActive) {
+            item { QueueCard(queue = queue, dailyLimit = settings.dailySendLimit, onCancel = onCancelQueue) }
+        } else {
+            item {
+                ApplyToAllCard(
+                    totalMatches = totalMatches,
+                    settings = settings,
+                    building = state.buildingAll,
+                    onApplyToAll = { confirmAll = true },
+                )
+            }
+        }
 
         if (settings.sendMode == SendMode.INTENT && !state.gmailInstalled) {
             item {
@@ -289,6 +357,79 @@ fun ApplyScreen(
                     onMarkSent = { onMarkSent(mail) },
                 )
             }
+        }
+    }
+}
+
+/** Kuyruk boşken: tek dokunuşla hepsine başvurma girişi. */
+@Composable
+private fun ApplyToAllCard(
+    totalMatches: Int,
+    settings: AppSettings,
+    building: Boolean,
+    onApplyToAll: () -> Unit,
+) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+        Column(Modifier.padding(12.dp)) {
+            Text("Tek tuşla hepsine başvur", fontWeight = FontWeight.SemiBold)
+            Text(
+                if (totalMatches > 0) {
+                    "Süzgece uyan ~$totalMatches ilan. Günde ${settings.dailySendLimit} ileti " +
+                        "gönderilir, kuyruk kaldığı yerden sürer."
+                } else {
+                    "Önce İlanlar sekmesinde bir arama yap."
+                },
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Spacer(Modifier.height(8.dp))
+            Button(
+                onClick = onApplyToAll,
+                enabled = !building && totalMatches > 0 && settings.smtpReady,
+            ) {
+                Text(if (building) "Kuyruk kuruluyor…" else "Hepsine başvur")
+            }
+            if (!settings.smtpReady) {
+                Text(
+                    "Önce Ayarlar'dan Gmail'i kur.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+    }
+}
+
+/** Kuyruk çalışırken: nereye kadar gelindiği ve durdurma. */
+@Composable
+private fun QueueCard(
+    queue: com.satran.jobapply.send.SendQueueState,
+    dailyLimit: Int,
+    onCancel: () -> Unit,
+) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+        Column(Modifier.padding(12.dp)) {
+            Text("Toplu başvuru sürüyor", fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(6.dp))
+            LinearProgressIndicator(
+                progress = {
+                    if (queue.totalQueued == 0) 0f else queue.doneCount.toFloat() / queue.totalQueued
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "${queue.sentTotal} gönderildi · ${queue.pending.size} bekliyor" +
+                    if (queue.failedTotal > 0) " · ${queue.failedTotal} başarısız" else "",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                "Bugün: ${queue.sentToday}/$dailyLimit" +
+                    if (queue.sentToday >= dailyLimit) " — sınır doldu, yarın devam edecek" else "",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.outline,
+            )
+            Spacer(Modifier.height(6.dp))
+            TextButton(onClick = onCancel) { Text("Kuyruğu durdur") }
         }
     }
 }

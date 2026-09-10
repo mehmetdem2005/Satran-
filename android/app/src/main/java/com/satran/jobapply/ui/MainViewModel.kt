@@ -13,6 +13,7 @@ import com.satran.jobapply.data.mail.CvFile
 import com.satran.jobapply.data.mail.CvLoader
 import com.satran.jobapply.data.mail.GmailSender
 import com.satran.jobapply.data.mail.MailIntentSender
+import com.satran.jobapply.data.mail.MailTemplate
 import com.satran.jobapply.data.memory.MemoryDoc
 import com.satran.jobapply.data.memory.SearchEntry
 import com.satran.jobapply.data.model.AppSettings
@@ -44,6 +45,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val settings: StateFlow<AppSettings> = container.settingsStore.settings
     val history = container.historyStore.records
     val searchHistory = container.searchHistory.entries
+    val sendQueue = container.sendQueueStore.state
     val memory = container.ragStore.docs
 
     private val _jobs = MutableStateFlow(JobsUiState())
@@ -932,6 +934,104 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         state.copy(prepared = state.prepared.filterNot { it.caseNumber == caseNumber })
     }
 
+    /**
+     * Süzgece uyan **bütün** ilanlara tek dokunuşla başvurur.
+     *
+     * Mektuplar şablondan üretilir, yapay zekâdan değil: binlerce ilan için
+     * model çağrısı hem çok pahalı hem çok yavaş olurdu, ayrıca şablon her
+     * ilanın kendi bilgisiyle deterministik doldurulduğu için bilgiler
+     * birbirine karışamaz.
+     *
+     * Kuyruk Gmail'in günlük sınırına göre günlere yayılır ve kaldığı yerden
+     * kendiliğinden sürer.
+     */
+    fun applyToAllMatching() {
+        val config = settings.value
+        if (!config.smtpReady) {
+            _message.value = "Ayarlar'dan Gmail adresini ve uygulama şifreni gir."
+            return
+        }
+        if (config.fullName.isBlank()) {
+            _message.value = "Ayarlar'dan adını soyadını gir; mektupta imza olarak kullanılıyor."
+            return
+        }
+        if (_apply.value.buildingAll) return
+
+        prepareJob?.cancel()
+        prepareJob = viewModelScope.launch {
+            _apply.update { it.copy(buildingAll = true, notes = emptyList()) }
+            val current = _jobs.value
+
+            runCatching {
+                container.jobsApi.fetchAll(
+                    input = queryInput(current, config),
+                    sort = current.sort,
+                ) { fetched, total ->
+                    _jobs.update { it.copy(bulkFetching = true, bulkFetched = fetched, bulkTotal = total) }
+                }
+            }
+                .onSuccess { page ->
+                    _jobs.update { it.copy(bulkFetching = false) }
+                    val applied = container.historyStore.appliedCaseNumbers
+                    val targets = page.jobs
+                        .filter { it.email != null }
+                        .filterNot { it.caseNumber in applied }
+                        .distinctBy { it.caseNumber }
+
+                    if (targets.isEmpty()) {
+                        _apply.update {
+                            it.copy(buildingAll = false, notes = listOf("Başvurulacak yeni ilan bulunamadı."))
+                        }
+                        return@onSuccess
+                    }
+
+                    // Her ileti kendi ilanından üretilir; ortak değişken yok.
+                    val mails = targets.mapNotNull { job ->
+                        val to = job.email ?: return@mapNotNull null
+                        QueuedMail(
+                            caseNumber = job.caseNumber,
+                            title = job.title,
+                            employer = job.employer,
+                            to = to,
+                            subject = MailTemplate.render(config.subjectTemplate, job, config),
+                            body = MailTemplate.render(config.bodyTemplate, job, config),
+                        )
+                    }
+
+                    container.sendQueueStore.enqueue(mails)
+                    workManager.enqueueUniqueWork(
+                        BulkSendWorker.WORK_NAME,
+                        ExistingWorkPolicy.REPLACE,
+                        OneTimeWorkRequestBuilder<BulkSendWorker>().build(),
+                    )
+                    val days = kotlin.math.ceil(mails.size.toDouble() / config.dailySendLimit).toInt()
+                    _apply.update {
+                        it.copy(
+                            buildingAll = false,
+                            prepared = emptyList(),
+                            notes = listOf(
+                                "${mails.size} başvuru kuyruğa alındı." +
+                                    if (days > 1) " Günlük ${config.dailySendLimit} sınırıyla ~$days günde tamamlanır." else "",
+                            ),
+                        )
+                    }
+                    _message.value = "${mails.size} başvuru kuyruğa alındı."
+                }
+                .onFailure { error ->
+                    _jobs.update { it.copy(bulkFetching = false) }
+                    _apply.update { it.copy(buildingAll = false) }
+                    _message.value = error.friendly()
+                }
+        }
+    }
+
+    /** Süren toplu gönderimi durdurur; gönderilenler geçmişte kalır. */
+    fun cancelQueue() {
+        workManager.cancelUniqueWork(BulkSendWorker.WORK_NAME)
+        container.sendQueueStore.clear()
+        _message.value = "Kuyruk durduruldu."
+    }
+
     fun sendAll() {
         val mails = _apply.value.prepared
         if (mails.isEmpty()) {
@@ -944,7 +1044,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
 
-        container.sendQueueStore.write(mails)
+        container.sendQueueStore.enqueue(mails)
         val request = OneTimeWorkRequestBuilder<BulkSendWorker>().build()
         workManager.enqueueUniqueWork(BulkSendWorker.WORK_NAME, ExistingWorkPolicy.REPLACE, request)
         _message.value = "${mails.size} başvuru kuyruğa alındı."
