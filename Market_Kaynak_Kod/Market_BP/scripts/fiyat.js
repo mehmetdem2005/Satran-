@@ -738,7 +738,11 @@ const ONEMLI = new Set([
   "nether_star", "beacon", "conduit", "totem_of_undying", "heavy_core", "mace",
   "trident", "enchanted_golden_apple", "heart_of_the_sea", "dragon_breath",
   "shulker_shell", "shulker_box", "undyed_shulker_box", "recovery_compass",
-  "echo_shard", "wither_rose", "end_crystal"
+  "echo_shard", "wither_rose", "end_crystal",
+  // Tecrube sisesi parayi dogrudan BUYU SEVIYESINE ceviriyor. Normal
+  // fiyatla (100) 30. seviye 20.000'e mal olurdu; o zaman buyu masasi
+  // icin XP toplamanin anlami kalmazdi. ONEMLI_ZAM ile 297 oluyor.
+  "experience_bottle"
 ]);
 export const ONEMLI_ZAM = 3;
 
@@ -944,7 +948,7 @@ const KURAL = [
     ["bow", "crossbow", "trident", "mace", "shield", "elytra", "arrow", "spectral_arrow",
      "tipped_arrow", "fishing_rod", "shears", "brush", "flint_and_steel", "bucket",
      "compass", "recovery_compass", "clock", "spyglass", "saddle", "lead", "name_tag",
-     "book", "writable_book", "written_book", "enchanted_book", "experience_bottle",
+     "book", "writable_book", "written_book", "enchanted_book",
      "wolf_armor", "carrot_on_a_stick", "warped_fungus_on_a_stick", "wind_charge",
      "lodestone_compass", "firework_rocket", "firework_star", "goat_horn",
      "totem_of_undying", "wolf_armor", "harness"].includes(a) ||
@@ -1033,6 +1037,10 @@ const KURAL = [
      "rabbit_foot", "scute", "turtle_scute", "armadillo_scute", "dragon_breath",
      "end_crystal", "heavy_core", "trial_key", "ominous_trial_key", "ominous_bottle",
      "potion", "splash_potion", "lingering_potion", "glass_bottle", "dried_ghast",
+     // Tecrube sisesi eskiden "Alet, Zirh & Silah" icindeydi (153 esyanin
+     // arasinda, 2. sayfada) ve kimse bulamiyordu. Burasi 38 esyalik tek
+     // sayfa; iksirlerle ayni yerde durmasi da mantikli.
+     "experience_bottle",
      "bone_block", "conduit", "beacon"].includes(a)],
 
   ["Taş & Toprak", "minecraft:stone", a => true]   // kalan butun bloklar

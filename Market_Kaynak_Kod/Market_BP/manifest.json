@@ -1,13 +1,13 @@
 {
   "format_version": 2,
   "header": {
-    "name": "Market & Ekonomi BP v4.4",
-    "description": "v4.4 | Canli piyasa: arz-talep fiyatlari oynatiyor (!piyasa). Son aldigin esyalar kategoride en ustte. 640 alim siniri kalkti, binlerce adet alinabiliyor. Recine ailesi ve tugla turevleri dogru fiyatlandi.",
+    "name": "Market & Ekonomi BP v4.4.1",
+    "description": "v4.4.1 | Tecrube sisesi artik \"Mob & Degerli\" kategorisinde, tek sayfada gorunuyor. Turkce arama: tecrube / xp / deneyim. Fiyati ONEMLI zammiyla 298.",
     "uuid": "bb41fa3d-7901-4559-8e61-d650ac191764",
     "version": [
       4,
       4,
-      0
+      1
     ],
     "min_engine_version": [
       1,
@@ -23,7 +23,7 @@
       "version": [
         4,
         4,
-        0
+        1
       ],
       "entry": "scripts/main.js"
     }
@@ -42,7 +42,7 @@
       "version": [
         4,
         4,
-        0
+        1
       ]
     }
   ]

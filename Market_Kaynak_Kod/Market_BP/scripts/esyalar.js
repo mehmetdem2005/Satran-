@@ -592,6 +592,8 @@ export const ARAMA_SOZLUK = {
   saksı: "flower_pot", zincir: "chain", parmaklik: "iron_bars", parmaklık: "iron_bars",
   merdivenli: "ladder", ip_merdiven: "ladder", agkurdu: "cobweb", ag: "cobweb",
   koltuk: "chest", varil: "barrel", kazan: "cauldron", sise: "bottle", şişe: "bottle",
+  tecrube: "experience_bottle", tecrübe: "experience_bottle", xp: "experience_bottle",
+  deneyim: "experience_bottle", buyusisesi: "experience_bottle",
   bal: "honey", petek: "honeycomb", ari: "bee", arı: "bee", kovan: "beehive",
 
   // agac turleri

@@ -1,4 +1,4 @@
-# Market & Ekonomi — Kaynak Kod (v4.4)
+# Market & Ekonomi — Kaynak Kod (v4.4.1)
 
 Bu klasör Minecraft Bedrock için yazılan Market/Ekonomi addon'ının tüm
 kaynak dosyalarını içerir. `.mcaddon` sadece bunların zip'lenmiş hali;
@@ -1076,10 +1076,39 @@ yazılır (`nether_brick_stairs`) ama anaları **çoğuldur**
 | creaking_heart | 90 | 170 |
 
 
+## Tecrübe şişesi neden görünmüyordu (v4.4.1)
+
+Markette **vardı** — ama iki sebepten kimse bulamıyordu:
+
+1. **Yanlış kategorideydi.** `experience_bottle`, kitaplarla birlikte
+   elle "Alet, Zırh & Silah" listesine yazılmıştı. O kategoride **153
+   eşya** var ve alfabetik sırada `e...` ikinci sayfaya düşüyor. Kimse
+   tecrübe şişesini kılıçların arasında aramaz.
+2. **Türkçe araması çalışmıyordu.** `tecrübe` yazınca **0 sonuç**
+   dönüyordu; sözlükte karşılığı yoktu. Sadece `şişe` yazan bulabiliyordu.
+
+Düzeltme:
+
+- Tecrübe şişesi artık **"Mob & Değerli"** kategorisinde — iksirlerle
+  aynı yerde ve o kategori **tek sayfa** (38 eşya), açar açmaz görünüyor.
+- Sözlüğe `tecrübe`, `tecrube`, `xp`, `deneyim`, `buyusisesi` eklendi.
+
+Diğer şişelere dokunulmadı; iksir, cam şişe, bal şişesi ve uğursuz şişe
+zaten aynı kategoride duruyorlardı.
+
+### Fiyatı neden 298?
+
+Tecrübe şişesi parayı **doğrudan büyü seviyesine** çeviren tek eşya. Eski
+fiyatıyla (100) 30. seviyeye çıkmak ~200 şişe × 100 = **20.000** olurdu;
+o zaman büyü masası için XP toplamanın anlamı kalmazdı. `ONEMLI` listesine
+alındı (netherit, beacon, totem ile aynı raf), `ONEMLI_ZAM ×3` ile alış
+fiyatı **298** oldu — 30. seviye ~59.400. Satış fiyatı 25'te kaldı, yani
+rahipten aldığın şişeleri hâlâ paraya çevirebiliyorsun.
+
 ## Paketleme
 
 ```bash
-bash paketle.sh          # -> Market_v4.4.mcaddon
+bash paketle.sh          # -> Market_v4.4.1.mcaddon
 ```
 
 Sürüm numarası hem `manifest.json` dosyalarında hem de `main.js` içindeki
