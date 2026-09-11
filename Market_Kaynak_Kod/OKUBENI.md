@@ -1,4 +1,4 @@
-# Market & Ekonomi — Kaynak Kod (v4.6)
+# Market & Ekonomi — Kaynak Kod (v4.7)
 
 Bu klasör Minecraft Bedrock için yazılan Market/Ekonomi addon'ının tüm
 kaynak dosyalarını içerir. `.mcaddon` sadece bunların zip'lenmiş hali;
@@ -928,6 +928,8 @@ Market_BP/                 Behavior Pack (mantık, script, tarifler)
     piyasa.js                Arz-talep: alım satım fiyatları oynatır (v4.4)
     yon.js                   Yön Anahtarı: blok yönü çevirme (v4.6)
     adlar.js                 Mojang lang'inden doğrulanmış eşya adı haritası (v4.6)
+    vip.js                   VIP / mağaza seviyesi, alış indirimi, günlük ödül (v4.7)
+    gorev.js                 Haftalık macera görevleri, ödül algoritması (v4.7)
     ametis.js                Süreli ametist aletler + Ametist Atölyesi
     golem.js                 Bakır golem hızlandırıcı (tek turda 10 yığın)
     arsa.js                  Arsa/bölge koruma sistemi
@@ -969,7 +971,7 @@ ikon_guncelle.py           İkon haritasını resmî resource pack verisinden ü
 ## Komutlar
 
 Sohbete yazılır: `!menu !market !ara !sat !takas !alim !teklif !teklifler
-!para !arsa !pazar !uye !golem !ametis !atolye !piyasa !hazir !ilanlarim !rehber !bakiye !id !kitap` ve v2.0
+!para !arsa !pazar !uye !golem !ametis !atolye !vip !gorev !piyasa !hazir !ilanlarim !rehber !bakiye !id !kitap` ve v2.0
 ile gelen `!yenile` (eşya listesini yeniden kurar), `!liste` (listenin
 durumunu ve hangi kaynaktan kaç eşya geldiğini yazar). v3.2 ile `!pazar`
 satılık/kiralık arsaları açar, `!ev` kendi arsana ışınlar. v3.3 ile
@@ -1384,10 +1386,161 @@ okuyor (eskiden sadece eşya listesine bakıyordu), böylece yatak, sancak,
 kayık ve yeni ağaç aileleri de ikon alıyor. İkon kapsamı: **1607 eşyanın
 1606'sı** geçerli dokuya işaret ediyor.
 
+## Tasarım dokümanı uygulandı (v4.7)
+
+`SMP_Ekonomi_VIP_ve_Macera_Gorevleri_Sistemi.pdf` içindeki üç sistem koda
+döküldü. Doküman zaten bizim v4.4-v4.6'da kurduğumuz arz-talep motorunu
+tarif ediyordu; eksik olan iki şey **VIP seviyesi** ve **macera
+görevleri**ydi.
+
+### 1. VIP / Mağaza Seviyesi (`scripts/vip.js`, `!vip`)
+
+Dokümanın kuralı: *"VIP para ile doğrudan satın alınmasın; mağazayı aktif
+kullandıkça gelişsin."*
+
+Her **$100'lık alış VE satış = 1 VIP XP**. Tablo dokümandan birebir:
+
+| Seviye | VIP XP | İndirim | XP çarpanı | Günlük ödül |
+|---|---|---|---|---|
+| VIP-0 | 0 | – | ×1.00 | – |
+| VIP-1 | 5.000 | %1 | ×1.00 | – |
+| VIP-2 | 15.000 | %1 | ×1.02 | 1 paket |
+| VIP-3 | 35.000 | %2 | ×1.03 | 1 paket |
+| VIP-4 | 75.000 | %3 | ×1.04 | 1 paket |
+| VIP-5 | 150.000 | %4 | ×1.05 | 1 paket |
+| VIP-6 | 300.000 | %5 | ×1.06 | 2 paket |
+| VIP-7 | 600.000 | %6 | ×1.07 | 2 paket |
+| VIP-8 | 1.000.000 | %7 | ×1.08 | 3 paket |
+| VIP-9 | 2.000.000 | %8 | ×1.09 | 3 paket |
+| VIP-10 | 5.000.000 | %10 | ×1.10 | 3 paket |
+
+Günlük ödül dağılımı dokümandaki gibi: **%70 yaygın blok, %20 orta, %8
+değerli kaynak, %2 nadir.**
+
+**İndirim sadece marketin SANA SATTIĞI fiyatta.** Marketin senden alış
+fiyatı VIP nedeniyle yükselmez — yükselseydi VIP-10 ucuza alıp pahalıya
+satarak para basardı. Dokümanın kendi uyarısı da bu.
+
+Kötüye kullanımı kesen üç kural: **günlük XP tavanı** (3.000), **büyük
+işlemlerde kademeli azaltma** ($50.000 üstü yarım sayılır — aynı parayı
+parça parça harcayanla tek seferde harcayan eşitlenir), ve **30 oyun günü
+işlem yoksa %2 XP erimesi** (seviye asla düşmez).
+
+#### İndirimin ikinci tabanı — ve neden zorunlu
+
+İlk denemede VIP-10 indirimi arz-talep indirimiyle üst üste bindi ve
+**denetçi 23 açık buldu**. Matematik şöyle:
+
+```
+güvenlik payı      = MAKAS / URETIM = 2.2 / 1.7 = 1.294
+arz-talep ucu      = 1.10 / 0.90            = 1.222   ✔ paydan küçük
++ %10 VIP indirimi = 1.10 / (0.90 × 0.90)   = 1.358   ✘ payı aştı
+```
+
+Çözüm: **VIP indirimi arz-talep dibinin altına inemez.** Zaten dip fiyattaki
+mala ayrıca VIP indirimi yok; normal ya da yüksek fiyattaki mala tam
+indirim var. `arac/arbitraj.mjs` artık **üçüncü bir senaryo** olarak bunu
+da denetliyor.
+
+### 2. Haftalık Macera Görevleri (`scripts/gorev.js`, `!gorev`)
+
+Dokümanın özü: *"Oyuncuya para kazanması için görev vermiyoruz; Minecraft
+oynaması için bahane veriyoruz."*
+
+Her oyun haftası **8 görev** teklif edilir, oyuncu **en fazla 3** tanesini
+seçer. Herkesin listesi farklı. Dağılım: 2 kolay, 2 orta, 2 zor, 1 keşif,
+1 **gizemli görev** (ne olduğu seçtikten sonra açılır).
+
+**Ödül = Taban × Zorluk × Süre × Risk × Seyahat** — çarpanlar dokümandan
+birebir:
+
+| | çarpanlar |
+|---|---|
+| Zorluk | çok kolay ×0.5 · kolay ×0.8 · orta ×1.0 · zor ×1.5 · çok zor ×2.2 · efsanevi ×3.5 |
+| Süre | 1-3dk ×0.5 · 3-10 ×0.75 · 10-20 ×1.0 · 20-40 ×1.4 · 40-90 ×2.0 · 90+ ×2.5 |
+| Risk | yok ×1.0 · düşük ×1.1 · orta ×1.3 · yüksek ×1.6 · ölümcül ×2.0 |
+| Seyahat | yerinde ×1.0 · 500 blok ×1.15 · 1000 ×1.3 · 2500 ×1.6 · başka boyut ×1.8 |
+
+Taban $260, çıkan sayılar dokümanın hedef aralıklarına oturuyor:
+
+| görev | hesap | ödül | doküman |
+|---|---|---|---|
+| 12 karahindiba | 0.5×0.75×1.0×1.0 | **$100** | $75–150 ✔ |
+| 32 demir cevheri | 1.0×1.4×1.3×1.0 | **$475** | $300–600 ✔ |
+| Nether'a git | 0.8×1.0×1.3×1.8 | **$475** | $400–700 ✔ |
+| 10 elmas bul | 1.5×2.0×1.6×1.0 | **$1.250** | $1.000–2.000 ✔ |
+| Wither'ı yen | 3.5×2.5×2.0×1.3 | **$5.925** | $4.000–7.000 ✔ |
+| Ejderha'yı yen | 3.5×2.5×2.0×1.8 | **$8.200** | $5.000–10.000 ✔ |
+
+**Haftalık tavan $45.000** — görevler ekonominin merkezine geçmesin diye.
+Tavana yaklaşınca ödül kırpılır ve oyuncuya söylenir.
+
+**Kategori yorgunluğu:** aynı türü üst üste yaparsan o türün ödülü %10,
+%20, en fazla %30 düşer **ve** sistem sana başka türden görev göstermeye
+başlar (ağırlıklı seçim). Doküman bunu "ceza gibi görünmesin" diye
+istemişti; ödül düşüşü küçük, asıl etki teklif çeşitliliğinde.
+
+**Yenileme:** 3 görevi de bitirdiysen ücret ödeyip yeni 8'lik liste
+alırsın. Ücret ×1 → ×1.5 → ×2.5 → ×4 → ×6 ($200 → $300 → $500 → $800 →
+$1.200), haftada en fazla 3 yenileme. **Bir tam oyun haftası hiç yenileme
+yapmazsan katsayı sıfırlanır** — kullanıcının son isteği buydu.
+
+**Macera Puanı** VIP'den ayrı tutuluyor (VIP = ekonomiye katılım, Macera =
+dünyayı oynama): 100 → 🏕️ Gezgin, 500 → 🧭 Kaşif, 1.500 → ⚔️ Macera
+Ustası, 4.000 → 👑 Efsane.
+
+**Biyom görevi yok.** Doküman "3 farklı biyom keşfet" öneriyordu ama
+Bedrock script API'sinde güvenilir biyom sorgusu yok — sayamadığımız şeyi
+görev yapmıyoruz. Yerine ölçülebilir keşif hedefleri var: Y=200 üstü,
+Y=-50 altı, haftanın başladığı yerden 2000/5000 blok uzaklaşma.
+
+### 3. Beton kendi kategorisinde, 10 / 40
+
+Beton 3/12'ydi. Kullanıcı "çok ucuz olmasın, alış en az 10 satış 40" dedi;
+**tam olarak 10 / 40** oldu ve **16 renk beton + 16 renk toz** artık
+kendi **"Beton"** kategorisinde (önce 118 eşyalık "Boya & Renkli Blok"
+içinde kayboluyordu).
+
+Ama bu tek başına bir para basma makinesi açıyordu:
+
+```
+1 boya + 4 kum + 4 çakıl  →  8 beton tozu  →(su, bedava)→  8 beton
+girdi  12 + 12 + 12 = 36        çıktı 8 × 10 = 80        →  +44 kâr
+```
+
+Betonun girdileri de yükseltildi: **kum ve çakıl 1 → 5** (satış 3 → 11),
+**boya 3 → 4** (satış 12 → 16). Yeni hesap: 4×11 + 4×11 + 16 = **104 >
+80**. Arz-talep uçlarında bile pay kalıyor.
+
+`arac/arbitraj.mjs`'e **"bedava dönüşümler"** bölümü eklendi: su ile
+toz→beton dönüşümü hiçbir tarif dosyasında geçmiyor, o yüzden tarif
+denetimi göremiyordu. Artık 16 rengin hepsi hem tozdan hem ham girdilerden
+ayrı ayrı denetleniyor.
+
+### 4. Çok düşen madenler artık sadece satılır
+
+Denetçiye **"maden kırma"** bölümü eklenince dört gerçek açık çıktı:
+madeni marketten alıp, koyup, kırıp düşenleri satmak kâr ediyordu.
+
+| maden | alış | kırınca düşen | değeri |
+|---|---|---|---|
+| lapis madeni | 22 | 4–9 lapis | **32–72** |
+| bakır madeni | 11 | 2–5 ham bakır | **8–20** |
+| kızıl taş madeni | 16 | 4–5 kızıl taş | — |
+| nether altın madeni | 7 | 2–6 külçe parçası | **4–12** |
+
+Çözüm dokümanın kendi kuralı: *"Oyuncu Nether'a gitmek, madeni bulmak,
+kazmak zorunda — emek karşılığı arbitraj olur. Ama marketten alıp işleyip
+tekrar satarak sonsuz para basamamalı."* Bu dört maden artık **sadece
+satılır**: kazarak elde edersen kârı senin, marketten alarak edemezsin.
+Dokümanın istediği "Easter egg fiyat açığı" böylece emek karşılığı kalıyor.
+
+**Denetim durumu: 936 kontrol × 3 senaryo, 0 açık.**
+
 ## Paketleme
 
 ```bash
-bash paketle.sh          # -> Market_v4.6.mcaddon
+bash paketle.sh          # -> Market_v4.7.mcaddon
 ```
 
 Sürüm numarası hem `manifest.json` dosyalarında hem de `main.js` içindeki

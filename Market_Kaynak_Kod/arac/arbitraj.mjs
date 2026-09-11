@@ -28,11 +28,24 @@ const pSayi = (ad) => {
 };
 const P_ALIS_UST = pSayi("alisUst"), P_SATIS_ALT = pSayi("satisAlt");
 
+// VIP-10 oyuncusu marketten %10 indirimli aliyor. Girdiler o kadar
+// ucuzken cikti da arz-talep ucundaysa en kotu durum bu.
+const vipKaynak = fs.readFileSync(path.join(kok, "Market_BP/scripts/vip.js"), "utf8");
+const EN_COK_INDIRIM = Math.max(...[...vipKaynak.matchAll(/indirim:\s*([0-9.]+)/g)].map(m => +m[1]));
+
 const SENARYOLAR = [
   { ad: "normal piyasa (carpan 1.00)", carpan: null },
   {
     ad: `arz-talep ucu (alis x${P_ALIS_UST}, satis x${P_SATIS_ALT})`,
     carpan: () => ({ alis: P_ALIS_UST, satis: P_SATIS_ALT })
+  },
+  {
+    // VIP indirimi arz-talep DIBININ altina inemez (vip.js `dip` tabani).
+    // O yuzden en kotu alis carpani yine satisAlt. Bu senaryo o kurali
+    // belgeler: kural kaldirilirsa carpan satisAlt x 0.90'a duser ve
+    // asagidaki 923 kontrolden 23'u acik verir.
+    ad: `arz-talep ucu + VIP-10 (%${Math.round(EN_COK_INDIRIM * 100)}, dip tabani ile)`,
+    carpan: () => ({ alis: P_ALIS_UST, satis: Math.max(P_SATIS_ALT, P_SATIS_ALT * (1 - EN_COK_INDIRIM)) })
   }
 ];
 
@@ -128,6 +141,58 @@ for (const [blk, urun, adet] of [
   if (alis(urun) * adet >= satis(blk)) {
     acik++;
     console.log(`  ACIK  ${blk} (${satis(blk)}) -> ${adet}x ${urun} (${alis(urun) * adet})`);
+  }
+}
+
+// ============ MADEN KIRMA ============
+// Bir madeni marketten alip, koyup, kirip dusenleri satmak kar etmemeli.
+// [maden, dusen esya, EN COK kac tane duser]  (Fortune haric taban degerler)
+const MADEN_DUSUS = [
+  ["coal_ore", "coal", 1], ["deepslate_coal_ore", "coal", 1],
+  ["iron_ore", "raw_iron", 1], ["deepslate_iron_ore", "raw_iron", 1],
+  ["gold_ore", "raw_gold", 1], ["deepslate_gold_ore", "raw_gold", 1],
+  ["copper_ore", "raw_copper", 5], ["deepslate_copper_ore", "raw_copper", 5],
+  ["diamond_ore", "diamond", 1], ["deepslate_diamond_ore", "diamond", 1],
+  ["emerald_ore", "emerald", 1], ["deepslate_emerald_ore", "emerald", 1],
+  ["lapis_ore", "lapis_lazuli", 9], ["deepslate_lapis_ore", "lapis_lazuli", 9],
+  ["redstone_ore", "redstone", 5], ["deepslate_redstone_ore", "redstone", 5],
+  ["nether_quartz_ore", "quartz", 1], ["nether_gold_ore", "gold_nugget", 6],
+  ["ancient_debris", "netherite_scrap", 1], ["amethyst_cluster", "amethyst_shard", 4],
+  ["gilded_blackstone", "gold_nugget", 5]
+];
+for (const [maden, dusen, adet] of MADEN_DUSUS) {
+  if (!F.fiyat("minecraft:" + maden) || !F.fiyat("minecraft:" + dusen)) continue;
+  // Alinamayan maden sorun degil: kazmaktan baska yolu yok, emek karsiligi.
+  if (!F.marketAlinabilir("minecraft:" + maden)) continue;
+  kontrol++;
+  const kazanc = alis(dusen) * adet;
+  if (kazanc > satis(maden)) {
+    acik++;
+    console.log(`  ACIK  maden kirma ${maden} (${satis(maden)}) -> ${adet}x ${dusen} (${kazanc})  +${kazanc - satis(maden)}`);
+  }
+}
+
+// ============ BEDAVA DONUSUMLER ============
+// Beton tozu + SU -> beton. Bunun tarif dosyasi yok (su bedava), ama
+// gercekte bir uretim adimi. Tarif denetimi goremedigi icin ayrica
+// bakiyoruz - hem tozdan betona, hem de HAM GIRDILERDEN betona.
+const RENKLER = ["white", "orange", "magenta", "light_blue", "yellow", "lime", "pink",
+  "gray", "light_gray", "cyan", "purple", "blue", "brown", "green", "red", "black"];
+for (const r of RENKLER) {
+  const toz = `${r}_concrete_powder`, beton = `${r}_concrete`, boya = `${r}_dye`;
+  if (!F.fiyat("minecraft:" + beton)) continue;
+  kontrol++;
+  if (alis(beton) > satis(toz)) {
+    acik++;
+    console.log(`  ACIK  su ile ${toz} (${satis(toz)}) -> ${beton} (${alis(beton)})  +${alis(beton) - satis(toz)}`);
+  }
+  // 1 boya + 4 kum + 4 cakil -> 8 toz -> (su) -> 8 beton
+  kontrol++;
+  const girdi = satis(boya) + 4 * satis("sand") + 4 * satis("gravel");
+  const cikti = 8 * alis(beton);
+  if (cikti > girdi) {
+    acik++;
+    console.log(`  ACIK  boya+kum+cakil (${girdi}) -> 8x ${beton} (${cikti})  +${cikti - girdi}`);
   }
 }
 

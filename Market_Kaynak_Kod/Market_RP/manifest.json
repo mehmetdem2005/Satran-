@@ -1,12 +1,12 @@
 {
   "format_version": 2,
   "header": {
-    "name": "Market & Ekonomi RP v4.6",
-    "description": "v4.6 | Yon Anahtari (9 cubuk): sag tik blogun yonunu cevirir, egilip tiklayinca ters. Ametist balta ve kilic cok daha guclu. Market isimleri duzeldi: 1350 esya ham 'item.x.name' yerine gercek adiyla, ikonsuz hayalet esyalar listeden kalkti.",
+    "name": "Market & Ekonomi RP v4.7",
+    "description": "v4.7 | Tasarim dokumani uygulandi: VIP magaza seviyesi (10 kademe, alista %1-%10 indirim, gunluk odul), haftalik macera gorevleri (8 teklif / 3 secim, zorluk-sure-risk-seyahat carpanlari), beton kendi kategorisinde 10/40. Cok dusen madenler artik sadece satilir.",
     "uuid": "201cbafc-bcfc-4212-a13f-428a03328b5b",
     "version": [
       4,
-      6,
+      7,
       0
     ],
     "min_engine_version": [
@@ -21,7 +21,7 @@
       "uuid": "551a0d01-3e84-4438-88a3-87bf7d3263c5",
       "version": [
         4,
-        6,
+        7,
         0
       ]
     }

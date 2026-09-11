@@ -13,7 +13,10 @@ export const MAKAS = 2.2;
 const TABAN = {
   // toprak / tas
   dirt: 1, coarse_dirt: 1, rooted_dirt: 1, grass_block: 2, podzol: 2, mycelium: 4, mud: 1,
-  sand: 1, red_sand: 1, gravel: 1, clay: 4, clay_ball: 1, flint: 2,
+  // Kum ve cakil BETONUN girdisi. Beton alis 10 olunca (8 beton = 80)
+  // girdilerin satis bedeli 80'i gecmek zorunda, yoksa "kum+cakil+boya al,
+  // betona cevir, sat" para basardi. 4 -> satis 9: 4x9 + 4x9 + 12 = 84 > 80.
+  sand: 5, red_sand: 5, gravel: 5, clay: 4, clay_ball: 1, flint: 2,
   stone: 1, cobblestone: 1, andesite: 1, diorite: 1, granite: 1, tuff: 1,
   deepslate: 1, cobbled_deepslate: 1, calcite: 3, basalt: 2, blackstone: 2,
   netherrack: 1, soul_sand: 3, soul_soil: 3, end_stone: 3, obsidian: 20,
@@ -461,6 +464,9 @@ const ESKI_AD = {
 // "ip al, yun yap, sat" hala zarar. Acik yok.
 export const YUN_FIYATI = 20;
 
+// Her beton rengi ayni fiyat (yun gibi). Alis 10, satis 10 x 2.2 x 1.8 = 40.
+export const BETON_FIYATI = 10;
+
 // Motorun GERCEKTEN tanidigi bir esya mi? (keyfi 5'e dusmeyecek mi)
 // yapi son eki cozulurken "kok gercek mi" sorusuna cevap verir.
 function bilinenEsya(a) {
@@ -643,8 +649,15 @@ function hesapla(a) {
   }
 
   // renkli aile  (yun ve yunden yapilanlar yukarida sabitlendi)
-  if (a.endsWith("_dye")) return 3;
-  if (a.endsWith("_concrete") || a.endsWith("_concrete_powder")) return 3;
+  if (a.endsWith("_dye")) return 4;   // betonun ucuncu girdisi
+  // BETON: kullanici "cok ucuz olmasin, alis 10 satis 40" dedi.
+  // Tarif 1 boya + 4 kum + 4 cakil -> 8 toz, toz + su -> beton (bedava).
+  // Yani 8 betonun ALIS bedeli, girdilerin SATIS bedelini gecerse para
+  // basma makinesi olur. Kum ve cakil 4'e cikarildi: 4x9 + 4x9 + 12 = 84,
+  // 8 x 10 = 80 < 84. Acik yok, denetci de dogruluyor.
+  if (a.endsWith("_concrete")) return BETON_FIYATI;
+  // Toz ucuz kaliyor: kendisi de tariften cikiyor, 8 x 3 = 24 < 84.
+  if (a.endsWith("_concrete_powder")) return 3;
   if (a.endsWith("_terracotta") || a === "terracotta") return 3;
   if (a.endsWith("_stained_glass") || a.endsWith("_stained_glass_pane")) return 3;
   if (a.endsWith("_glazed_terracotta")) return 8;
@@ -754,14 +767,15 @@ export function onemliMi(id) {
 let piyasaCarpan = null;
 export function piyasaBagla(fn) { piyasaCarpan = fn; }
 
-export function fiyat(id) {
+// piyasasiz=true: arz-talep carpani UYGULANMAZ (liste/taban fiyati).
+export function fiyat(id, piyasasiz = false) {
   if (yasakMi(id)) return null;
   const taban = tabanDeger(id);
   const zam = (hammaddeMi(id) ? 1 : ISLENMIS_ZAM) * (onemliMi(id) ? ONEMLI_ZAM : 1);
   let alis = Math.max(1, Math.round(taban * OLCEK));
   let satis = Math.max(2, Math.ceil(taban * MAKAS * zam * OLCEK));
 
-  if (piyasaCarpan) {
+  if (piyasaCarpan && !piyasasiz) {
     let c = null;
     try { c = piyasaCarpan(id); } catch { }
     if (c) {
@@ -920,8 +934,27 @@ export function piyasadaMi(id) {
 }
 
 // Bu esya Hazir Marketten SATIN ALINABILIR mi? (satmak her zaman serbest)
+// COK DUSEN MADENLER: bir tanesini kirinca birden fazla esya dusuyor ve
+// dusenlerin toplam degeri madenin kendi fiyatini geciyor.
+//   lapis madeni 22'ye alinip 4-9 lapis (32-72) cikiyordu
+//   nether altin madeni 7'ye alinip 2-6 kulce parcasi (4-12)
+//   bakir madeni 11'e alinip 2-5 ham bakir (8-20)
+//   kizil tas madeni 16'ya alinip 4-5 kizil tas
+// Marketten alinabilseler sonsuz para basardi. Cozum tasarim dokumanindaki
+// kural: "Oyuncu Nether'a gitmek, madeni bulmak, kazmak zorunda -
+// emek karsiligi arbitraj olur. Ama marketten alip isleyip tekrar satarak
+// sonsuz para basamamali." Yani SADECE SATILIR: kazarak elde edersen kar
+// edersin, marketten alarak edemezsin.
+const COK_DUSEN = new Set([
+  "lapis_ore", "deepslate_lapis_ore",
+  "redstone_ore", "deepslate_redstone_ore", "lit_redstone_ore", "lit_deepslate_redstone_ore",
+  "copper_ore", "deepslate_copper_ore",
+  "nether_gold_ore", "gilded_blackstone"
+]);
+
 export function marketAlinabilir(id) {
   try {
+    if (COK_DUSEN.has(ad(id))) return false;
     const k = HAM_KATEGORILER[hamKategoriIndex(id)]?.ad;
     return !ALINAMAZ_KATEGORILER.has(k);
   } catch { return true; }
@@ -984,8 +1017,12 @@ const KURAL = [
 
   ["Yün", "minecraft:white_wool", a => /_wool$/.test(a)],
 
+  // Beton kendi kategorisinde: 32 esya (16 renk beton + 16 renk toz)
+  // "Boya & Renkli Blok" icinde 118 esyanin arasinda kayboluyordu.
+  ["Beton", "minecraft:white_concrete", a => /_concrete$|_concrete_powder$/.test(a)],
+
   ["Boya & Renkli Blok", "minecraft:red_dye", a =>
-    /_(dye|concrete|concrete_powder|terracotta|glazed_terracotta|stained_glass|stained_glass_pane)$/.test(a) ||
+    /_(dye|terracotta|glazed_terracotta|stained_glass|stained_glass_pane)$/.test(a) ||
     ["terracotta", "glass", "glass_pane", "tinted_glass", "hardened_clay"].includes(a)],
 
   ["Dekor & Eşya", "minecraft:painting", a =>
