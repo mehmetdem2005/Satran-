@@ -24,6 +24,10 @@ DOSYALAR = {
     "item_tx": "resource_pack/textures/item_texture.json",
     "tas_tx":  "resource_pack/textures/terrain_texture.json",
     "bloklar": "resource_pack/blocks.json",
+    # Blok-only id'ler (white_bed, white_banner, poplar_log...) burada.
+    # Eskiden sadece mojang-items.json'a bakiliyordu; yatak, sancak, kayik
+    # ve yeni agac aileleri "esya kaydinda yok" diye ikonsuz kaliyordu.
+    "blok_ad":  "metadata/vanilladata_modules/mojang-blocks.json",
 }
 HEDEF = pathlib.Path(__file__).parent / "Market_BP" / "scripts" / "ikonlar.js"
 
@@ -87,7 +91,12 @@ def coz_hepsi(ref):
         print(f"  {ref}: indirilemedi ({e})")
         return None, [], []
 
-    esyalar = sorted({x["name"].replace("minecraft:", "") for x in veri["esya"]["data_items"]})
+    kimlik = {x["name"].replace("minecraft:", "") for x in veri["esya"]["data_items"]}
+    for x in veri.get("blok_ad", {}).get("data_items", []) or veri.get("blok_ad", {}).get("data_blocks", []) or []:
+        ad = x.get("name") if isinstance(x, dict) else x
+        if isinstance(ad, str):
+            kimlik.add(ad.replace("minecraft:", ""))
+    esyalar = sorted(kimlik)
     it, tt, bl = veri["item_tx"]["texture_data"], veri["tas_tx"]["texture_data"], veri["bloklar"]
 
     def tek(v):

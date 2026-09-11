@@ -22,6 +22,9 @@
     },
     "mk_ametis_kilic": {
       "textures": "textures/items/mk_ametis_kilic"
+    },
+    "mk_yon_anahtari": {
+      "textures": "textures/items/mk_yon_anahtari"
     }
   }
 }

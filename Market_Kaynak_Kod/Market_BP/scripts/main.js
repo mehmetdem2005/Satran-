@@ -5,6 +5,7 @@ import { fiyat, esyaDegeri, KATEGORILER, kategoriIndex, HAM_KATEGORILER, hamKate
   hammaddeMi, yasakMi, marketAlinabilir, piyasadaMi, ALINAMAZ_KATEGORILER, ISLENMIS_ZAM,
   OLCEK, PARA_TAVANI, MAKAS } from "./fiyat.js";
 import { katalog, aramaGruplari } from "./esyalar.js";
+import { adAnahtari } from "./adlar.js";
 import * as Dovus from "./dovus.js";
 import * as Veri from "./veri.js";
 import * as Arsa from "./arsa.js";
@@ -18,7 +19,7 @@ const { ActionFormData, ModalFormData } = ui;
 
 // ==================== AYARLAR ====================
 const CFG = {
-  surum: "4.5",
+  surum: "4.6",
   ad: "m",
   objective: "money",
   simge: "$",
@@ -113,18 +114,26 @@ function adminMi(p) {
 
 // ============ ISIM: tamamen oyunun kendi dil paketinden ============
 const anahtarBellek = new Map();
+// Bedrock'ta esya id'si ile dil anahtari cogu zaman TUTMUYOR:
+//   acacia_planks -> tile.planks.acacia.name   (item.acacia_planks.name YOK)
+//   white_wool    -> tile.wool.white.name  |  cod -> item.fish.name
+// Anahtar yoksa Minecraft anahtarin KENDISINI basiyor; markette
+// "item.acacia_planks.name" gibi okunamaz satirlar cikiyordu (1350 esyada).
+// Sira: dogrulanmis harita -> oyunun kendi cevabi -> ham anahtar YOK, duz metin.
 function ceviriAnahtari(typeId) {
   if (anahtarBellek.has(typeId)) return anahtarBellek.get(typeId);
-  let k;
-  try { k = new ItemStack(typeId, 1).localizationKey; } catch { k = undefined; }
-  if (typeof k !== "string" || k.length === 0) {
-    // localizationKey yoksa vanilla .lang bicimini uret: item.X.name / tile.X.name
-    const tam = String(typeId).includes(":") ? String(typeId) : `minecraft:${typeId}`;
-    const ad = tam.replace(/^minecraft:/, "");
-    let blokMu = false;
-    try { blokMu = !!mc.BlockTypes.get(tam); } catch { }
-    k = `${blokMu ? "tile" : "item"}.${ad}.name`;
+  // 1) ad_guncelle.py'nin Mojang lang'inda DOGRULADIGI anahtar
+  let k = null;
+  try { k = adAnahtari(typeId) ?? null; } catch { }
+  // 2) Vanilla esya haritada yoksa TAHMIN ETME. Yanlis anahtar ekrana
+  //    ham haliyle basiliyor ("item.oak_button.name"); okunakli duz metin
+  //    her zaman daha iyi. localizationKey'e sadece BASKA paketlerin
+  //    esyalarinda (mk:, diger addon'lar) guveniyoruz - onlarin dil
+  //    kaydi kendi paketlerinde duruyor.
+  if (!k && !String(typeId).startsWith("minecraft:")) {
+    try { k = new ItemStack(typeId, 1).localizationKey ?? null; } catch { }
   }
+  if (typeof k !== "string" || k.length === 0) k = null;
   anahtarBellek.set(typeId, k);
   return k;
 }
@@ -132,7 +141,12 @@ function okunur(t) {
   const s = String(t).replace(/^minecraft:/, "").replace(/^mk:/, "").replace(/_/g, " ");
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
-function adParca(typeId, nameTag) { return nameTag ? { text: nameTag } : { translate: ceviriAnahtari(typeId) }; }
+// Ceviri anahtari dogrulanamadiysa ham anahtar yerine okunakli metin.
+function adParca(typeId, nameTag) {
+  if (nameTag) return { text: nameTag };
+  const k = ceviriAnahtari(typeId);
+  return k ? { translate: k } : { text: okunur(typeId) };
+}
 function adParcaD(d) { return adParca(d.t, d.n); }
 function adDuz(d) { return d.n ?? okunur(d.t); }
 function raw(...p) { return { rawtext: p.flat() }; }
@@ -161,6 +175,7 @@ function ac(d) {
 }
 function ikonGuvenli(t) {
   if (t === KITAP_ID) return "textures/items/mk_kitap";
+  if (t === Yon.ANAHTAR_ID) return "textures/items/mk_yon_anahtari";
   try { return ikon(t) || VARSAYILAN; } catch { return VARSAYILAN; }
 }
 function kap(p) { return p.getComponent("minecraft:inventory")?.container; }
@@ -303,7 +318,7 @@ function kitapMi(it) {
   return it.typeId === "minecraft:book" && it.nameTag === KITAP_AD;
 }
 // Kontrol kitabi ve arsa sopasi markete konamaz, satilamaz.
-function ozelEsya(it) { return kitapMi(it) || Arsa.sopaMi(it); }
+function ozelEsya(it) { return kitapMi(it) || Arsa.sopaMi(it) || Yon.aletMi(it); }
 
 function sopasiVarMi(p) {
   const c = kap(p); if (!c) return false;
@@ -413,6 +428,7 @@ function yardim(p) {
       `§e§lCHAT KOMUTLARI\n` +
       `§f!menu !market !ara <kelime> !sat <adet> <fiyat>\n§f!takas <adet> !alim !teklif !teklifler\n` +
       `§f!para !ilanlarim !rehber !bakiye !id !kitap !sopa !dovus !cik\n`+
+      `§f!atolye !piyasa !ametis !golem !arsa !pazar !uye !ev\n`+
       `§f!yenile§7 (esya listesini tazeler) §f!liste§7 (liste durumu)\n\n` +
       `§e§lSLASH\n§f/${CFG.ad}:menu  /${CFG.ad}:market  /${CFG.ad}:sat  /${CFG.ad}:takas  /${CFG.ad}:para\n\n` +
       `§e§lARSA / BÖLGE\n§7Köşe 1'i koy, karşı köşeye yürü, satın al.\n` +
@@ -422,6 +438,13 @@ function yardim(p) {
       `§7Başkasının arsasına ışınlanamazsın.\n` +
       `§7Sopayla §fsol tık§7 = 1. köşe, §fsağ tık§7 = 2. köşe + satın alma,\n§7havaya sağ tık = arsa menüsü.\n` +
       `§7Bir şey çalışmıyorsa: §fArsa menüsü > Koruma Durumu§7.\n\n` +
+      `§e§lYÖN ANAHTARI\n§7Crafting Table'da §f9 çubuk§7 (3x3 dolu) ile yapılır;\n§7tariflerde görünür.\n` +
+      `§7Elindeyken bir bloğa §fsağ tık§7 = yönü bir adım döner.\n` +
+      `§7§fEğilip sağ tık§7 = ters yöne döner.\n` +
+      `§7Gözlemci, huni, fırın, piston, merdiven, kütük, meşale,\n§7kaldıraç, ray, tekrarlayıcı... yönü olan her blok.\n` +
+      `§7Başkasının arsasında çalışmaz.\n\n` +
+      `§e§lAMETİST ATÖLYESİ\n§7§f!atolye§7 - istediğin büyüyle ametist balta/kılıç.\n` +
+      `§7Netherit'ten çok daha güçlü ama §c${Ametis.AMETIS_CFG.omurSaat} saat§7 sonra erir.\n\n` +
       `§e§lKITAP KAYBOLURSA\n§f!kitap§7 , §f/give @s mk:kontrol_kitabi§7 ya da\n§7Crafting Table'da §f1 Kitap + 1 Gold Ingot§7.`
     )
     .button("§7< Geri")
@@ -504,6 +527,7 @@ function adayIdler() {
 
   kume.delete(KITAP_ID);
   kume.delete(Arsa.SOPA_ID);
+  kume.delete(Yon.ANAHTAR_ID);       // Yon Anahtari: craft edilir, satilmaz
   RAPOR.aday = kume.size;
   return [...kume];
 }
@@ -1510,6 +1534,15 @@ function marketteVar(id) {
   if (!piyasadaMi(id)) return false;   // elytra, beacon gibi degerliler: sadece oyuncular arasinda
   return CFG.sadeceHammadde ? hammaddeMi(id) : true;
 }
+// Menude GOSTERILIR mi? Ikonu cozulemeyen esya listede soru isareti ve
+// okunmayan bir adla cikiyordu; bunlar cogunlukla bu oyun surumunde
+// gercekte olmayan id'ler (white_bed, crimson_boat gibi sablondan uretilmis
+// adaylar). Listeden gizliyoruz ama SATILABILIR kaliyorlar: envanterinde
+// varsa yine satarsin, oyuncu marketinde yine ilan verirsin.
+function listedeGoster(id) {
+  if (!marketteVar(id)) return false;
+  try { return ikon(id) !== VARSAYILAN; } catch { return false; }
+}
 // Katalog artik elle yazilmiyor: oyundaki TUM esyalar kategorilere
 // otomatik dagitiliyor, fiyatlari fiyat.js motoru hesapliyor.
 let KAT_LISTE = null;
@@ -1518,7 +1551,7 @@ function kategoriListeleri() {
   const kats = katSeti();
   const gruplar = kats.map(() => []);
   for (const id of tumItemler()) {
-    if (!marketteVar(id)) continue;
+    if (!listedeGoster(id)) continue;
     let i = 0;
     try { i = katIndex(id); } catch { i = kats.length - 1; }
     (gruplar[i] ?? gruplar[gruplar.length - 1]).push(id);

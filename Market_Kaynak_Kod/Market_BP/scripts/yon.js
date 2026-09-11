@@ -1,14 +1,14 @@
-// ============ BLOK YONU CEVIRME (v4.5) ============
-// EGIL (sneak) + herhangi bir ALETLE bloga SAG TIK -> blok bir adim doner.
+// ============ BLOK YONU CEVIRME - YON ANAHTARI (v4.6) ============
+// YON ANAHTARI (9 cubuk, craft masasi) elindeyken bloga SAG TIK ->
+// blok bir adim doner. EGILIP tiklarsan TERS yone doner.
 // Gozlemci, huni, firin, piston, merdiven, kutuk, meshale, kaldirac...
 // "Yonu olan" her blok dahil; liste elle yazilmiyor, blogun KENDI durum
 // (state) tablosuna bakiliyor. Yani oyuna yeni bir yonlu blok gelse bile
 // kod degistirmeden calisir.
 //
-// Neden sag tik + egilme: egilmeden sag tik blogun kendi islevini calistirir
-// (firin acilir, kaldirac iner). Egilince Minecraft zaten "elimdekini
-// kullan" moduna geciyor; aletle o modda yapilacak bir sey olmadigi icin
-// tikin bos gitmesi yerine yonu ceviriyoruz.
+// v4.5'te her aletle calisiyordu; baltayla kabuk soymak, kurekle patika
+// acmak gibi normal isler egilipken calismaz olmustu. Artik sadece bu
+// ozel alet ceviriyor, baska hicbir esyanin davranisi degismiyor.
 
 import * as mc from "@minecraft/server";
 const { world, system } = mc;
@@ -21,14 +21,21 @@ export const YON_CFG = {
   bildir: true         // action bar'da yeni yonu yaz
 };
 
-// ---- Hangi esya "alet" sayilir ----
-// Tas, tahta, demir, altin, elmas, netherit, ametist... malzeme farketmez.
-const ALET_SON = /_(pickaxe|shovel|axe|hoe|sword)$/;
-export function aletMi(item) {
-  const t = item?.typeId;
-  if (!t) return false;
-  if (t.startsWith("mk:ametis_")) return true;     // ametist balta / kilic
-  return ALET_SON.test(t);
+// ---- Yon Anahtari ----
+export const ANAHTAR_ID = "mk:yon_anahtari";
+export function aletMi(item) { return item?.typeId === ANAHTAR_ID; }
+
+// Envantere bir tane koymak icin (komut / admin).
+export function anahtarYap(mcRef) {
+  const it = new mcRef.ItemStack(ANAHTAR_ID, 1);
+  try {
+    it.setLore([
+      "\u00a77Sa\u011f t\u0131k: blo\u011fun y\u00f6n\u00fcn\u00fc bir ad\u0131m \u00e7evirir",
+      "\u00a77E\u011filip sa\u011f t\u0131k: ters y\u00f6ne \u00e7evirir",
+      "\u00a78G\u00f6zlemci, huni, f\u0131r\u0131n, merdiven, k\u00fct\u00fck..."
+    ]);
+  } catch { }
+  return it;
 }
 
 // ---- Donus eksenleri ----
@@ -105,17 +112,21 @@ export function eksenBul(durumlar, typeId) {
 }
 
 // Bir adim sonraki durum haritasini hesaplar (blogu DEGISTIRMEZ).
-export function sonrakiDurum(durumlar, typeId) {
+// adim = +1 ileri, -1 geri (egilerek tiklaninca).
+export function sonrakiDurum(durumlar, typeId, adim = 1) {
   const e = eksenBul(durumlar, typeId);
   if (!e || e.degerler.length < 2) return null;
+  const n = e.degerler.length;
   const i = e.degerler.indexOf(durumlar[e.ad]);
-  const sonraki = e.degerler[(i + 1) % e.degerler.length];
-  const yeni = { [e.ad]: sonraki };
-  // Ana eksen basa sardiysa ikincil ekseni bir ilerlet.
-  if (i >= 0 && (i + 1) % e.degerler.length === 0 && e.ikincil.length) {
+  const j = ((i + adim) % n + n) % n;
+  const yeni = { [e.ad]: e.degerler[j] };
+  // Ana eksen basa sardiysa ikincil ekseni de bir adim kaydir.
+  const sardi = adim > 0 ? (i >= 0 && j === 0) : (i === 0);
+  if (sardi && e.ikincil.length) {
     const [ad2, degerler2] = e.ikincil[0];
-    const j = degerler2.indexOf(durumlar[ad2]);
-    yeni[ad2] = degerler2[(j + 1) % degerler2.length];
+    const m = degerler2.length;
+    const k = degerler2.indexOf(durumlar[ad2]);
+    yeni[ad2] = degerler2[((k + adim) % m + m) % m];
   }
   return yeni;
 }
@@ -144,11 +155,11 @@ function yonYazi(ad, deger, toplam) {
 
 // ---- Cevirme ----
 // Doner: yeni yonun yazisi, ya da null (cevrilemedi).
-export function cevir(blok) {
+export function cevir(blok, adim = 1) {
   if (!blok) return null;
   let durumlar;
   try { durumlar = blok.permutation.getAllStates(); } catch { return null; }
-  const yeni = sonrakiDurum(durumlar, kisaAd(blok.typeId));
+  const yeni = sonrakiDurum(durumlar, kisaAd(blok.typeId), adim);
   if (!yeni) return null;
 
   const uygula = (b) => {
@@ -192,16 +203,16 @@ export function kur(izinVar) {
   world.beforeEvents.playerInteractWithBlock.subscribe(ev => {
     const p = ev.player, b = ev.block;
     if (!p || !b) return;
-    if (!p.isSneaking) return;
-    if (!aletMi(ev.itemStack)) return;
+    if (!aletMi(ev.itemStack)) return;   // sadece Yon Anahtari
     if (!cevrilebilirMi(b)) return;          // yonu yoksa olaya hic karisma
 
     const simdi = Date.now();
     if (simdi - (sonTik.get(p.id) ?? 0) < YON_CFG.bekleme) { ev.cancel = true; return; }
     sonTik.set(p.id, simdi);
 
-    // Aletin normal islevini (baltayla kabuk soyma, kurekle patika) durdur.
+    // Anahtarin bloga yapacagi baska bir sey yok; olayi biz alalim.
     ev.cancel = true;
+    const adim = p.isSneaking ? -1 : 1;      // egilip tiklarsan ters yon
     const konum = { x: b.location.x, y: b.location.y, z: b.location.z };
     const boyut = b.dimension;
     const tip = b.typeId;
@@ -211,7 +222,7 @@ export function kur(izinVar) {
         if (izinVar && !izinVar(p, boyut.id, konum)) { DURUM.engellenen++; return; }
         const taze = boyut.getBlock(konum);
         if (!taze || taze.typeId !== tip) return;
-        const yazi = cevir(taze);
+        const yazi = cevir(taze, adim);
         if (!yazi) return;
         DURUM.cevrilen++;
         if (YON_CFG.ses) { try { p.playSound(YON_CFG.sesAdi); } catch { } }
@@ -226,5 +237,5 @@ export function kur(izinVar) {
       } catch (e) { console.warn("[Yon] " + e); }
     });
   });
-  console.warn("[Yon] Egil + aletle sag tik: blok yonu cevirme aktif.");
+  console.warn("[Yon] Yon Anahtari aktif (sag tik cevirir, egilip tiklayinca ters).");
 }

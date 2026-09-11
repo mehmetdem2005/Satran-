@@ -1,0 +1,16 @@
+{
+  "format_version": "1.21.50",
+  "minecraft:recipe_shaped": {
+    "description": { "identifier": "mk:yon_anahtari_tarif" },
+    "tags": ["crafting_table"],
+    "pattern": [
+      "SSS",
+      "SSS",
+      "SSS"
+    ],
+    "key": {
+      "S": { "item": "minecraft:stick" }
+    },
+    "result": { "item": "mk:yon_anahtari", "count": 1 }
+  }
+}

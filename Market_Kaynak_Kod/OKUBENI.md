@@ -1,4 +1,4 @@
-# Market & Ekonomi — Kaynak Kod (v4.5)
+# Market & Ekonomi — Kaynak Kod (v4.6)
 
 Bu klasör Minecraft Bedrock için yazılan Market/Ekonomi addon'ının tüm
 kaynak dosyalarını içerir. `.mcaddon` sadece bunların zip'lenmiş hali;
@@ -926,7 +926,8 @@ Market_BP/                 Behavior Pack (mantık, script, tarifler)
     veri.js                  Veri sürümü, göç ve yedek/geri yükleme
     fiyat.js                 Fiyat motoru: ham madde tabanları + türetme kuralları
     piyasa.js                Arz-talep: alım satım fiyatları oynatır (v4.4)
-    yon.js                   Eğil + aletle sağ tık: blok yönü çevirme (v4.5)
+    yon.js                   Yön Anahtarı: blok yönü çevirme (v4.6)
+    adlar.js                 Mojang lang'inden doğrulanmış eşya adı haritası (v4.6)
     ametis.js                Süreli ametist aletler + Ametist Atölyesi
     golem.js                 Bakır golem hızlandırıcı (tek turda 10 yığın)
     arsa.js                  Arsa/bölge koruma sistemi
@@ -946,6 +947,7 @@ paketle.sh                 Klasörleri .mcaddon'a paketler
 arac/arbitraj.mjs          Fiyat açığı denetimi, iki senaryoda (node arac/arbitraj.mjs)
 arac/vanilla_tarifler.json Mojang'ın 529 gerçek tarifi (denetimin kaynağı)
 katalog_guncelle.py        Vanilla eşya listesini Mojang metadata'sından tazeler
+ad_guncelle.py             Eşya adlarını Mojang'ın en_US.lang dosyasından üretir
 ikon_guncelle.py           İkon haritasını resmî resource pack verisinden üretir
 ```
 
@@ -1253,10 +1255,139 @@ satış fiyatı ×0.75'te duruyor.
 Güvenlik payı değişmedi: `arac/arbitraj.mjs` hâlâ iki senaryoda birden
 (normal piyasa + en kötü durum) çalışıyor — **891 kontrol, 0 açık**.
 
+## Yön Anahtarı: 9 çubukla yapılan çevirme aleti (v4.6)
+
+v4.5'te yön çevirme **her aletle** çalışıyordu. Bunun yan etkisi vardı:
+eğilipken baltayla kabuk soymak, kürekle patika açmak, çapayla toprak
+sürmek iptal oluyordu. Artık **tek bir özel alet** çeviriyor, başka
+hiçbir eşyanın davranışı değişmiyor.
+
+### Tarif
+
+Crafting Table'da **9 çubuk** (3x3'ün tamamı). Tarif defterinde görünür —
+çubuk elinde varken tariflerde çıkar.
+
+```
+S S S
+S S S      S = Çubuk        ->  Yön Anahtarı
+S S S
+```
+
+### Kullanım
+
+| hareket | sonuç |
+|---|---|
+| Bloğa **sağ tık** | yön bir adım **ileri** |
+| **Eğilip** sağ tık | yön bir adım **geri** |
+
+```
+↻ Gözlemci → doğu
+```
+
+Gözlemci, huni, fırın, piston, varil, merdiven, kütük, meşale, kaldıraç,
+ray, tekrarlayıcı, karşılaştırıcı, zil, crafter... **listesi elle
+yazılmıyor**, bloğun kendi durum tablosuna bakılıyor. Oyuna yeni bir yönlü
+blok gelse bile kod değişmeden çalışır.
+
+Ana eksen bir tam tur atınca ikincil eksen ilerliyor: merdivenin 4 yönü
+bitince ters/düz değişiyor, 8 konumun hepsine tek tuşla ulaşılıyor.
+
+Huni yukarı bakamaz (o değer atlanıyor), kapı iki yarısıyla birlikte
+dönüyor, yatak/çift sandık/kafa/tabela/sancak dışarıda (ikinci parçaları
+**yan** blokta durduğu için döndürmek yerini de taşımayı gerektirirdi).
+Başkasının arsasında çalışmıyor. 180 ms bekleme var.
+
+Anahtar markette satılmıyor ve toplu satışta gitmiyor — kontrol kitabı ve
+arsa sopası gibi özel eşya sayılıyor.
+
+## Ametist aletler aşırı güçlendi (v4.6)
+
+| | Ametist Kılıç | Ametist Balta | (karşılaştırma) Netherit |
+|---|---|---|---|
+| Hasar | **22** | **20** | kılıç 8 / balta 10 |
+| Dayanıklılık | **8.000** | **8.000** | 2.031 |
+| Kazma hızı | 6 | **30** | 9 |
+| Büyülenebilirlik | **30** | **30** | 15 |
+| Onarım (ametist parçası başına) | 1.500 | 1.500 | — |
+
+Dengeyi bozmuyor çünkü **4 saat sonra eriyip yok oluyorlar**. Kalıcı
+olsalardı netherit'i tamamen anlamsız kılarlardı; süreli olunca "en güçlü
+alet" değil "doğru anda kullanılan pahalı kaynak" oluyorlar.
+
+Fiyatları değişmedi (kılıç 15.000 sat / 59.400 al). Sebep: değerleri craft
+girdilerinin alış bedelinin **altında** tutulmak zorunda, yoksa "girdiyi
+al, craftla, sat" açığı oluşurdu.
+
+## Market isimleri ve soru işaretleri düzeldi (v4.6)
+
+Kullanıcı iki şey bildirdi: çoğu blokta **soru işareti** görseli ve
+**okunamayan isimler**. İkisi de gerçekti.
+
+### 1. İsimler: 1350 eşya ham anahtar gösteriyordu
+
+Bedrock'ta eşya id'si ile dil anahtarı **çoğu zaman tutmuyor**:
+
+| eşya id | beklenen anahtar | **gerçek anahtar** |
+|---|---|---|
+| `acacia_planks` | ~~item.acacia_planks.name~~ | `tile.planks.acacia.name` |
+| `white_wool` | ~~item.white_wool.name~~ | `tile.wool.white.name` |
+| `acacia_boat` | ~~item.acacia_boat.name~~ | `item.boat.acacia.name` |
+| `mutton` | ~~item.mutton.name~~ | `item.muttonRaw.name` |
+| `cod` | ~~item.cod.name~~ | `item.fish.name` |
+| `note_block` | ~~item.note_block.name~~ | `tile.noteblock.name` |
+| `golden_horse_armor` | ~~item...~~ | `item.horsearmorgold.name` |
+
+Anahtar yoksa Minecraft **anahtarın kendisini** basıyor — markette
+`item.acacia_planks.name` gibi noktalı, okunamaz satırlar. Markette
+gösterilen 1668 eşyanın **1350'si** böyleydi.
+
+Çözüm: `ad_guncelle.py`, Mojang'ın kendi `en_US.lang` dosyasını indirip
+her eşya için **doğrulanmış** anahtarı buluyor ve `scripts/adlar.js`
+dosyasını üretiyor. Altı strateji sırayla deneniyor:
+
+1. `item.<id>.name` / `tile.<id>.name` doğrudan var mı
+2. elle bilinen karşılıklar (kova ailesi, at zırhı, balık...)
+3. `aile.varyant` biçimi — `acacia_chest_boat` → `item.chest_boat.acacia.name`
+4. **İngilizce adından geri bulma** — "acacia planks" → `tile.planks.acacia.name`
+5. camelCase / bitişik anahtar — `note_block` → `tile.noteblock.name`
+6. "Raw X" biçimi — `mutton` → `item.muttonRaw.name`
+
+**1678 eşya çözüldü.** Kaynak listesi sadece Mojang metadata'sı değil,
+`esyalar.js`'in kendi katalogu da (Node ile çalıştırılıp okunuyor) — çünkü
+`note_block`, `oak_button`, `nether_quartz_ore` gibi Bedrock'un kabul
+ettiği takma adlar metadata'da geçmiyor.
+
+**Kritik kural: tahmin yok.** Vanilla bir eşya haritada yoksa artık
+`localizationKey`'e de güvenmiyoruz — id'den okunaklı düz metin
+üretiyoruz ("Black bundle"). Yanlış ya da ham anahtar bir daha ekrana
+gelmiyor. Ölçüm: menüde **0 ham anahtar**, 528 çevrilmiş, 25 düz metin.
+
+`mutton`u bir ara "Cooked Mutton"a bağlamıştı — kelime alt-küme eşleşmesi
+fazla gevşekti. Sadece "Raw" fazlalığına izin verecek şekilde daraltıldı;
+**yanlış ad, okunmayan addan beterdir.**
+
+### 2. Soru işaretleri: hayalet eşyalar
+
+Katalogdaki 1902 id'nin **292'si** Mojang'ın hiçbir sürümünde yok. Bunlar
+aile şablonlarından üretilmiş adaylar: `white_bed` (gerçek id `bed`),
+`white_banner` (`banner`), `crimson_boat`, `mangrove_sapling`,
+`stone_block`... Oyunun kabul ettiği sürümlerde listeye giriyor ve
+**soru işareti + okunamaz ad** olarak duruyorlardı.
+
+Yeni kural: **ikonu çözülemeyen eşya menüde gösterilmiyor.** Ama
+**satılabilir kalıyor** — envanterinde varsa yine satarsın, oyuncu
+marketinde yine ilan verirsin. Market listesi 1673'ten **1492**'ye indi;
+inen 181 eşyanın hepsi görseli olmayanlardı.
+
+Ayrıca `ikon_guncelle.py` artık Mojang'ın **blok** metadata'sını da
+okuyor (eskiden sadece eşya listesine bakıyordu), böylece yatak, sancak,
+kayık ve yeni ağaç aileleri de ikon alıyor. İkon kapsamı: **1607 eşyanın
+1606'sı** geçerli dokuya işaret ediyor.
+
 ## Paketleme
 
 ```bash
-bash paketle.sh          # -> Market_v4.5.mcaddon
+bash paketle.sh          # -> Market_v4.6.mcaddon
 ```
 
 Sürüm numarası hem `manifest.json` dosyalarında hem de `main.js` içindeki

@@ -1,12 +1,12 @@
 {
   "format_version": 2,
   "header": {
-    "name": "Market & Ekonomi BP v4.5",
-    "description": "v4.5 | Egil + herhangi bir aletle sag tik: blok yonu doner (gozlemci, huni, firin, merdiven...). Ametist alet sadece balta ve kilic; istedigin buyuyle dovdurulen Ametist Atolyesi. Arz-talep artik adet degil DEGER olcuyor: ucuz yigin mallar fiyati sarsmiyor.",
+    "name": "Market & Ekonomi BP v4.6",
+    "description": "v4.6 | Yon Anahtari (9 cubuk): sag tik blogun yonunu cevirir, egilip tiklayinca ters. Ametist balta ve kilic cok daha guclu. Market isimleri duzeldi: 1350 esya ham 'item.x.name' yerine gercek adiyla, ikonsuz hayalet esyalar listeden kalkti.",
     "uuid": "bb41fa3d-7901-4559-8e61-d650ac191764",
     "version": [
       4,
-      5,
+      6,
       0
     ],
     "min_engine_version": [
@@ -22,7 +22,7 @@
       "uuid": "b9808c32-f7e3-4a89-93e1-f00313e58099",
       "version": [
         4,
-        5,
+        6,
         0
       ],
       "entry": "scripts/main.js"
@@ -41,7 +41,7 @@
       "uuid": "201cbafc-bcfc-4212-a13f-428a03328b5b",
       "version": [
         4,
-        5,
+        6,
         0
       ]
     }
