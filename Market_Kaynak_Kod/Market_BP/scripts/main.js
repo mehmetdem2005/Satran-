@@ -13,15 +13,15 @@ import * as Golem from "./golem.js";
 import * as Ametis from "./ametis.js";
 import * as Piyasa from "./piyasa.js";
 import * as Yon from "./yon.js";
-import * as Vip from "./vip.js";
 import * as Gorev from "./gorev.js";
+import * as Uretim from "./uretim.js";
 
 const { world, system, ItemStack } = mc;
 const { ActionFormData, ModalFormData } = ui;
 
 // ==================== AYARLAR ====================
 const CFG = {
-  surum: "4.7",
+  surum: "4.8",
   ad: "m",
   objective: "money",
   simge: "$",
@@ -404,8 +404,8 @@ function kitapMenu(p) {
   ekle("\u00a7lArsa / B\u00f6lge\n\u00a7r\u00a77Yerini koru, \u00fcye ekle", "minecraft:grass_block", () => Arsa.arsaMenu(p, API));
   ekle("\u00a7lPara / E\u015fya G\u00f6nder", "minecraft:ender_pearl", () => paraMenu(p));
   ekle(`\u00a7lD\u00fcello / PvP${Dovus.gelenIstekler(p).length ? ` \u00a7c(${Dovus.gelenIstekler(p).length})` : ""}\n\u00a7r\u00a77Stadyumda, kendi e\u015fyanla`, "minecraft:iron_sword", () => Dovus.dovusMenu(p, API));
+  ekle("\u00a7lToplu \u00dcretim\n\u00a7r\u00a77Tek t\u0131kla 64 tane craft", "minecraft:crafting_table", () => Uretim.ekran(p, API));
   ekle(`\u00a7lMacera G\u00f6revleri\n\u00a7r\u00a77${Gorev.rapor(p.name).length > 2 ? "devam eden g\u00f6revin var" : "haftal\u0131k g\u00f6rev se\u00e7"}`, "minecraft:filled_map", () => Gorev.ekran(p, API));
-  ekle(`\u00a7lVIP / Ma\u011faza Seviyesi\n\u00a7r\u00a77${Vip.seviye(p.name).ad}${Vip.odulHazirMi(p.name) ? " \u00a7a- \u00f6d\u00fcl\u00fcn haz\u0131r!" : ""}`, "minecraft:gold_block", () => Vip.ekran(p, API));
   ekle("\u00a7lAmetist At\u00f6lyesi\n\u00a7r\u00a77\u0130stedi\u011fin b\u00fcy\u00fcyle, s\u00fcreli alet", "minecraft:amethyst_shard", () => Ametis.atolye(p, API));
   ekle("\u00a7lFiyat Rehberi\n\u00a7r\u00a77Piyasa ortalamalar\u0131", "minecraft:clock", () => rehberSec(p));
   ekle("\u00a7lBilgi ve Komutlar", "minecraft:writable_book", () => yardim(p));
@@ -447,9 +447,9 @@ function yardim(p) {
       `§7§fEğilip sağ tık§7 = ters yöne döner.\n` +
       `§7Gözlemci, huni, fırın, piston, merdiven, kütük, meşale,\n§7kaldıraç, ray, tekrarlayıcı... yönü olan her blok.\n` +
       `§7Başkasının arsasında çalışmaz.\n\n` +
-      `§e§lVIP / MAĞAZA SEVİYESİ\n§7Her §f$100§7'lık alış VE satış = 1 VIP XP.\n` +
-      `§7VIP-1'den VIP-10'a kadar 10 seviye; alışlarda\n§7%1'den %10'a indirim + VIP-2'den sonra günlük ödül.\n` +
-      `§7İndirim §fsadece marketten alırken§7 geçerli —\n§7marketin senden alış fiyatı değişmez.\n§7§f!vip\n\n` +
+      `§e§lTOPLU ÜRETİM\n§7Craft masasına §fEĞİLİP sağ tık§7 = miktar seçme ekranı.\n` +
+      `§7Normal sağ tık eskisi gibi craft masasını açar —\n§7oyunun kendi arayüzüne dokunulmadı.\n` +
+      `§7Tek tıkla 64 tane üret, ya da istediğin sayıyı yaz.\n§7§f!uret\n\n` +
       `§e§lMACERA GÖREVLERİ\n§7Her oyun haftası §f8 görev§7 teklif edilir,\n§7en fazla §f3§7 tanesini seçersin.\n` +
       `§7Ödül = Taban × Zorluk × Süre × Risk × Seyahat\n` +
       `§7Hepsini bitirdiysen ücret ödeyip yeni liste alırsın;\n§7ücret her seferinde artar, bir hafta yenilemezsen sıfırlanır.\n§7§f!gorev\n\n` +
@@ -1483,8 +1483,8 @@ function calistir(p, komut, arg) {
       for (const satir of Ametis.rapor(p)) p.sendMessage(satir);
       return;
     case "atolye": case "atölye": return Ametis.atolye(p, API);
-    case "vip": case "seviye": return Vip.ekran(p, API);
     case "gorev": case "görev": case "macera": return Gorev.ekran(p, API);
+    case "uret": case "üret": case "craft": return Uretim.ekran(p, API);
     case "piyasa": case "borsa": return piyasaEkrani(p);
     case "ev": case "home": case "arsalarim2": return void Arsa.eveIsinla(p, API);
     case "topluSat": case "toplusat": return topluSat(p);
@@ -1530,24 +1530,6 @@ function calistir(p, komut, arg) {
 // Ham madde modunda hem liste hem kategoriler daralir.
 const katSeti = () => (CFG.sadeceHammadde ? HAM_KATEGORILER : KATEGORILER);
 const katIndex = (id) => (CFG.sadeceHammadde ? hamKategoriIndex(id) : kategoriIndex(id));
-// Oyuncunun ODEYECEGI fiyat: liste fiyati eksi VIP indirimi.
-// Indirim ASLA alis fiyatinin altina inemez (vip.js sinirliyor), yoksa
-// "indirimli al, hemen geri sat" kari olusurdu.
-// Islem hacminden VIP XP yazar ve seviye atlarsa haber verir.
-function vipXp(p, hacim) { try { Vip.islemXp(p.name, hacim, true); } catch { } }
-
-function alisFiyati(p, id, fi) {
-  const f = fi ?? fiyat(id);
-  if (!f) return 0;
-  try {
-    // Arz-talebin inebilecegi en dusuk fiyat: VIP indirimi bunun altina inemez.
-    let dip;
-    const ham = fiyat(id, true);
-    if (ham) dip = Math.ceil(ham.satis * (Piyasa.PIYASA_CFG?.satisAlt ?? 1));
-    return Vip.indirimliFiyat(p.name, f.satis, f.alis, dip);
-  } catch { return f.satis; }
-}
-
 // Hazir Market bu esyayi alip satar mi?
 // Fiyat arz-talebe gore kaymissa satirda gosterilir: "+18%" / "-9%"
 function piyasaEtiket(id) {
@@ -1700,9 +1682,8 @@ function sistemUrunler(p, idx, d = {}) {
   for (const id of dilim) {
     const fi = fiyat(id);
     const elde = itemSay(p, id);
-    const oder = alisFiyati(p, id, fi);
     const fiyatYazi = marketAlinabilir(id)
-      ? `\u00a7a${fmt(fi.alis)} \u00a78/ \u00a7c${fmt(oder)}${oder < fi.satis ? " \u00a76\u2605" : ""}`
+      ? `\u00a7a${fmt(fi.alis)} \u00a78/ \u00a7c${fmt(fi.satis)}`
       : `\u00a7a${fmt(fi.alis)} \u00a78/ sadece sat\u0131l\u0131r`;
     const isaret = (sonSet.has(id) ? " \u00a7e*" : "") + piyasaEtiket(id);
     f.button(raw(adParca(id), T(`\n${fiyatYazi}${elde ? ` \u00a78(sende ${elde})` : ""}${isaret}`)), ikonGuvenli(id));
@@ -1742,9 +1723,7 @@ function sistemUrun(p, idx, id, durum) {
   const elde = itemSay(p, id);
   const bakiye = paraOku(p);
   const acik = marketAlinabilir(id);
-  const oder = alisFiyati(p, id, fi);          // VIP indirimi dahil
-  const indirimVar = oder < fi.satis;
-  const alabilir = acik ? Math.floor(bakiye / oder) : 0;
+  const alabilir = acik ? Math.floor(bakiye / fi.satis) : 0;
   const reh = fiyatRehberi(id);
 
   new ActionFormData()
@@ -1773,7 +1752,6 @@ function sistemUrun(p, idx, id, durum) {
           paraEkle(p, kazanc);
           gecmiseEkle(id, kazanc, sonuc.satilan);
           try { Piyasa.satildi(id, sonuc.satilan); } catch { }   // arz: fiyat duser
-          vipXp(p, kazanc);
           ses(p, "random.orb");
           const fark = kazanc !== sonuc.satilan * fi.alis ? " \u00a78(b\u00fcy\u00fc/hasar dahil)" : "";
           msj(p, T("\u00a7a[Market] \u00a7f"), adParca(id), T(` \u00a77x${sonuc.satilan} sat\u0131ld\u0131 \u00a7a+${fmt(kazanc)}${fark}`));
@@ -1787,13 +1765,13 @@ function sistemUrun(p, idx, id, durum) {
       }
       if (alabilir <= 0) return sistemUrunler(p, idx, durum);
       sistemMiktar(p, "\u00a7lKA\u00c7 ADET ALACAKSIN?", Math.min(alabilir, CFG.maxAlim), adet => {
-        const tutar = adet * oder;
+        const tutar = adet * fi.satis;
         if (!marketAlinabilir(id)) { p.sendMessage("\u00a7c[Market] Bu e\u015fya sat\u0131n al\u0131namaz."); return sistemUrunler(p, idx, durum); }
         if (paraOku(p) < tutar) { p.sendMessage("\u00a7c[Market] Yeterli paran yok."); return sistemUrunler(p, idx, durum); }
         paraEkle(p, -tutar);
         const verilen = guvenliVer(p, id, adet);
         if (verilen < adet) {
-          const iade = (adet - verilen) * oder;
+          const iade = (adet - verilen) * fi.satis;
           paraEkle(p, iade);
           p.sendMessage(`\u00a7e[Market] Sadece \u00a7f${verilen}\u00a7e adet s\u0131\u011fd\u0131, \u00a7a${fmt(iade)} \u00a7eiade edildi.`);
         }
@@ -1801,8 +1779,7 @@ function sistemUrun(p, idx, id, durum) {
         ses(p, "random.levelup");
         try { Piyasa.alindi(id, verilen); } catch { }     // talep: fiyat yukselir
         sonAlinanEkle(p, id);                              // kategoride en uste cikar
-        vipXp(p, verilen * oder);
-        msj(p, T("\u00a7a[Market] \u00a7f"), adParca(id), T(` \u00a77x${verilen} al\u0131nd\u0131 \u00a7c-${fmt(verilen * oder)}`));
+        msj(p, T("\u00a7a[Market] \u00a7f"), adParca(id), T(` \u00a77x${verilen} al\u0131nd\u0131 \u00a7c-${fmt(verilen * fi.satis)}`));
         sistemUrunler(p, idx, durum);
       });
     });
@@ -1870,7 +1847,6 @@ function topluSat(p) {
         gecmiseEkle(id, sonuc.kazanc, sonuc.satilan);
       }
       paraEkle(p, kazanilan);
-      vipXp(p, kazanilan);
       ses(p, "random.levelup");
       p.sendMessage(`\u00a7a[Market] \u00a7fToplu sat\u0131\u015f tamam: \u00a7a+${fmt(kazanilan)}`);
       sistemKategoriler(p);
@@ -1886,6 +1862,8 @@ const API = {
   esyaVer: envantereVer,
   dovustaMi: (ad) => Dovus.dovustaMi(ad),
   simge: CFG.simge,
+  adParca: (id) => adParca(id),      // uretim.js esya adlarini boyle yaziyor
+  ikon: (id) => ikonGuvenli(id),
   anaMenu: (p) => kitapMenu(p)
 };
 
@@ -1955,8 +1933,8 @@ guvenli("slash komutlari", () => {
     kayit("golem", "Bakir golem durumu", (p) => { for (const s of Golem.rapor(p)) p.sendMessage(s); });
     kayit("ametis", "Ametist aletin kalan omru", (p) => { for (const s of Ametis.rapor(p)) p.sendMessage(s); });
     kayit("atolye", "Buyulu ametist alet dovdur", (p) => Ametis.atolye(p, API));
-    kayit("vip", "VIP / magaza seviyesi", (p) => Vip.ekran(p, API));
     kayit("gorev", "Haftalik macera gorevleri", (p) => Gorev.ekran(p, API));
+    kayit("uret", "Toplu uretim (miktar secerek craft)", (p) => Uretim.ekran(p, API));
     kayit("piyasa", "Arz-talep hareketleri", (p) => piyasaEkrani(p));
     kayit("ev", "Kendi arsana isinlan", (p) => { Arsa.eveIsinla(p, API); });
     kayit("dovus", "Duello menusu", (p) => Dovus.dovusMenu(p, API));
@@ -2010,10 +1988,10 @@ guvenli("arsa korumasi", () => Arsa.arsaKur(API));
 guvenli("bakir golem", () => Golem.kur(API));
 guvenli("ametist aletler", () => Ametis.kur());
 // Egil + aletle sag tik -> blok yonu doner. Arsa korumasi da sorulur.
-guvenli("VIP seviyesi", () => Vip.kur(API));
 guvenli("blok yonu", () => Yon.kur((p, d, k) => Arsa.insaEdebilirMi(API, p, d, k.x, k.z)));
 guvenli("arz-talep piyasasi", () => Piyasa.kur(API));
 guvenli("macera gorevleri", () => Gorev.kur(API));
+guvenli("toplu uretim", () => Uretim.kur(API));
 
 // Gorev sayaclari: blok kirma / koyma, varlik oldurme, boyut degisimi.
 guvenli("gorev olaylari", () => {

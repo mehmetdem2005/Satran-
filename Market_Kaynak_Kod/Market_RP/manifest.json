@@ -1,12 +1,12 @@
 {
   "format_version": 2,
   "header": {
-    "name": "Market & Ekonomi RP v4.7",
-    "description": "v4.7 | Tasarim dokumani uygulandi: VIP magaza seviyesi (10 kademe, alista %1-%10 indirim, gunluk odul), haftalik macera gorevleri (8 teklif / 3 secim, zorluk-sure-risk-seyahat carpanlari), beton kendi kategorisinde 10/40. Cok dusen madenler artik sadece satilir.",
+    "name": "Market & Ekonomi RP v4.8",
+    "description": "v4.8 | Toplu Uretim: craft masasina EGILIP sag tik, miktari sec, tek tikla 64 tane uret (oyunun kendi craft arayuzune dokunulmadi). VIP seviye sistemi kaldirildi.",
     "uuid": "201cbafc-bcfc-4212-a13f-428a03328b5b",
     "version": [
       4,
-      7,
+      8,
       0
     ],
     "min_engine_version": [
@@ -21,7 +21,7 @@
       "uuid": "551a0d01-3e84-4438-88a3-87bf7d3263c5",
       "version": [
         4,
-        7,
+        8,
         0
       ]
     }

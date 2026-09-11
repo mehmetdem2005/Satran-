@@ -1,4 +1,4 @@
-# Market & Ekonomi — Kaynak Kod (v4.7)
+# Market & Ekonomi — Kaynak Kod (v4.8)
 
 Bu klasör Minecraft Bedrock için yazılan Market/Ekonomi addon'ının tüm
 kaynak dosyalarını içerir. `.mcaddon` sadece bunların zip'lenmiş hali;
@@ -928,8 +928,9 @@ Market_BP/                 Behavior Pack (mantık, script, tarifler)
     piyasa.js                Arz-talep: alım satım fiyatları oynatır (v4.4)
     yon.js                   Yön Anahtarı: blok yönü çevirme (v4.6)
     adlar.js                 Mojang lang'inden doğrulanmış eşya adı haritası (v4.6)
-    vip.js                   VIP / mağaza seviyesi, alış indirimi, günlük ödül (v4.7)
     gorev.js                 Haftalık macera görevleri, ödül algoritması (v4.7)
+    uretim.js                Toplu üretim: miktar seçerek craft (v4.8)
+    tarifler.js              Mojang tariflerinden derlenmiş üretim tablosu (v4.8)
     ametis.js                Süreli ametist aletler + Ametist Atölyesi
     golem.js                 Bakır golem hızlandırıcı (tek turda 10 yığın)
     arsa.js                  Arsa/bölge koruma sistemi
@@ -950,6 +951,7 @@ arac/arbitraj.mjs          Fiyat açığı denetimi, iki senaryoda (node arac/ar
 arac/vanilla_tarifler.json Mojang'ın 529 gerçek tarifi (denetimin kaynağı)
 katalog_guncelle.py        Vanilla eşya listesini Mojang metadata'sından tazeler
 ad_guncelle.py             Eşya adlarını Mojang'ın en_US.lang dosyasından üretir
+arac/tarif_guncelle.py     Üretim tariflerini tarifler.js'e derler
 ikon_guncelle.py           İkon haritasını resmî resource pack verisinden üretir
 ```
 
@@ -971,7 +973,7 @@ ikon_guncelle.py           İkon haritasını resmî resource pack verisinden ü
 ## Komutlar
 
 Sohbete yazılır: `!menu !market !ara !sat !takas !alim !teklif !teklifler
-!para !arsa !pazar !uye !golem !ametis !atolye !vip !gorev !piyasa !hazir !ilanlarim !rehber !bakiye !id !kitap` ve v2.0
+!para !arsa !pazar !uye !golem !ametis !atolye !uret !gorev !piyasa !hazir !ilanlarim !rehber !bakiye !id !kitap` ve v2.0
 ile gelen `!yenile` (eşya listesini yeniden kurar), `!liste` (listenin
 durumunu ve hangi kaynaktan kaç eşya geldiğini yazar). v3.2 ile `!pazar`
 satılık/kiralık arsaları açar, `!ev` kendi arsana ışınlar. v3.3 ile
@@ -1393,54 +1395,16 @@ döküldü. Doküman zaten bizim v4.4-v4.6'da kurduğumuz arz-talep motorunu
 tarif ediyordu; eksik olan iki şey **VIP seviyesi** ve **macera
 görevleri**ydi.
 
-### 1. VIP / Mağaza Seviyesi (`scripts/vip.js`, `!vip`)
+### 1. VIP / Mağaza Seviyesi — v4.8'de kaldırıldı
 
-Dokümanın kuralı: *"VIP para ile doğrudan satın alınmasın; mağazayı aktif
-kullandıkça gelişsin."*
+Doküman bir VIP seviye sistemi öneriyordu ve v4.7'de kuruldu, ama kullanıcı
+seviye sistemi istemediğini söyleyince **v4.8'de tamamen kaldırıldı**.
+`scripts/vip.js` silindi, market fiyatları herkes için aynı.
 
-Her **$100'lık alış VE satış = 1 VIP XP**. Tablo dokümandan birebir:
-
-| Seviye | VIP XP | İndirim | XP çarpanı | Günlük ödül |
-|---|---|---|---|---|
-| VIP-0 | 0 | – | ×1.00 | – |
-| VIP-1 | 5.000 | %1 | ×1.00 | – |
-| VIP-2 | 15.000 | %1 | ×1.02 | 1 paket |
-| VIP-3 | 35.000 | %2 | ×1.03 | 1 paket |
-| VIP-4 | 75.000 | %3 | ×1.04 | 1 paket |
-| VIP-5 | 150.000 | %4 | ×1.05 | 1 paket |
-| VIP-6 | 300.000 | %5 | ×1.06 | 2 paket |
-| VIP-7 | 600.000 | %6 | ×1.07 | 2 paket |
-| VIP-8 | 1.000.000 | %7 | ×1.08 | 3 paket |
-| VIP-9 | 2.000.000 | %8 | ×1.09 | 3 paket |
-| VIP-10 | 5.000.000 | %10 | ×1.10 | 3 paket |
-
-Günlük ödül dağılımı dokümandaki gibi: **%70 yaygın blok, %20 orta, %8
-değerli kaynak, %2 nadir.**
-
-**İndirim sadece marketin SANA SATTIĞI fiyatta.** Marketin senden alış
-fiyatı VIP nedeniyle yükselmez — yükselseydi VIP-10 ucuza alıp pahalıya
-satarak para basardı. Dokümanın kendi uyarısı da bu.
-
-Kötüye kullanımı kesen üç kural: **günlük XP tavanı** (3.000), **büyük
-işlemlerde kademeli azaltma** ($50.000 üstü yarım sayılır — aynı parayı
-parça parça harcayanla tek seferde harcayan eşitlenir), ve **30 oyun günü
-işlem yoksa %2 XP erimesi** (seviye asla düşmez).
-
-#### İndirimin ikinci tabanı — ve neden zorunlu
-
-İlk denemede VIP-10 indirimi arz-talep indirimiyle üst üste bindi ve
-**denetçi 23 açık buldu**. Matematik şöyle:
-
-```
-güvenlik payı      = MAKAS / URETIM = 2.2 / 1.7 = 1.294
-arz-talep ucu      = 1.10 / 0.90            = 1.222   ✔ paydan küçük
-+ %10 VIP indirimi = 1.10 / (0.90 × 0.90)   = 1.358   ✘ payı aştı
-```
-
-Çözüm: **VIP indirimi arz-talep dibinin altına inemez.** Zaten dip fiyattaki
-mala ayrıca VIP indirimi yok; normal ya da yüksek fiyattaki mala tam
-indirim var. `arac/arbitraj.mjs` artık **üçüncü bir senaryo** olarak bunu
-da denetliyor.
+Kaldırılmadan önce bulunan bir şey kayda değer: VIP indirimi arz-talep
+indirimiyle üst üste binince denetçi **23 açık** bulmuştu. Güvenlik payı
+`MAKAS/URETIM = 1.294` iken `1.10/(0.90×0.90) = 1.358` oluyordu. Ders:
+**birbirinden bağımsız görünen iki indirim çarpılır**, toplanmaz.
 
 ### 2. Haftalık Macera Görevleri (`scripts/gorev.js`, `!gorev`)
 
@@ -1537,10 +1501,106 @@ Dokümanın istediği "Easter egg fiyat açığı" böylece emek karşılığı 
 
 **Denetim durumu: 936 kontrol × 3 senaryo, 0 açık.**
 
+## Toplu Üretim: tek tıkla 64 tane (v4.8)
+
+Minecraft'ta 64 tane bir şey craftlamak için sonuç yuvasına **basılı tutup
+beklemek** gerekiyor. Artık tek tıkla istediğin adedi üretiyorsun — teker
+teker üretmek de duruyor, seçim senin.
+
+### Craft masası arayüzüne dokunulmadı
+
+Kullanıcı "crafting table arayüzü yerine menü menü yeni arayüz yapma, aynı
+kalsın, ama küçük bir tuş ekle ki miktar seçebilelim" dedi.
+
+**Vanilla craft masası ekranına bir behavior pack düğme ekleyemez** — o
+ekran oyunun kendi arayüzü, script erişimi yok. (Resource pack ile UI
+dosyası değiştirilebilir ama oradaki düğme script çağıramaz.)
+
+Onun yerine **aynı bloğa ikinci bir giriş** eklendi:
+
+| hareket | sonuç |
+|---|---|
+| Craft masasına **normal sağ tık** | oyunun kendi craft ekranı — hiç değişmedi |
+| Craft masasına **EĞİLİP sağ tık** (el boş) | **miktar seçme ekranı** |
+
+Eğilip sağ tık şu an oyunda hiçbir şey yapmıyordu (eğilmek blok
+arayüzlerini açmayı engelliyor), o yüzden boş bir tuş gibi kullanılabildi.
+Elinde blok varken eğilip tıklarsan blok koyma çalışmaya devam ediyor —
+oraya karışılmıyor.
+
+`!uret` komutu ve menüdeki **Toplu Üretim** düğmesi de aynı ekranı açıyor.
+
+### Ekran
+
+1. **Ne üretebilirsin** — envanterindeki malzemeyle üretilebilecek her şey,
+   en çok üretilebilenden aza doğru sıralı. Arama var.
+2. **Kaç tane** — hazır düğmeler + "HEPSİ" + serbest sayı:
+
+```
+Meşe Kalası
+Tarif: 1 seferde 4 adet
+1x meşe kütüğü
+
+Malzemen yeter: 256 adete kadar
+
+[ 4 adet ] [ 8 ] [ 16 ] [ 32 ] [ 64 ] [ HEPSİ (256) ] [ Başka bir sayı... ]
+```
+
+Tarif 4'erli veriyorsa 7 adet isteyince 8 üretilir (2 kere) — Minecraft'ta
+1 kalas üretmek zaten mümkün değil.
+
+### Tarifler nereden geliyor
+
+`scripts/tarifler.js`, `arac/tarif_guncelle.py` tarafından **582 tarif**
+olarak derleniyor. Üç kaynak:
+
+| kaynak | sayı | ne |
+|---|---|---|
+| Mojang'ın kendi tarif dosyaları | 500 | `arac/vanilla_tarifler.json` |
+| Etiketli tarifler | 62 | çubuk, sandık, meşale, fırın... |
+| Elle eklenenler | 20 | mumlar, kemik bloğu, lapis bloğu, kurabiye |
+
+**Etiketli tarifler neden ayrı:** Bedrock'un tarif dosyaları
+`#minecraft:planks` gibi **etiketler** kullanıyor. JSON dökümü bunları
+çözemediği için en çok kullanılan tarifler (çubuk, sandık, meşale, fırın,
+kâse) eksik kalıyordu. Etiketler artık açıkça tanımlı:
+
+| etiket | üyeler |
+|---|---|
+| `@planks` | 12 ağaç türünün kalası |
+| `@logs` | kütükler + gövdeler |
+| `@wooden_slab` | ahşap yarım bloklar |
+| `@coals` | kömür, odun kömürü |
+| `@wool` | 16 renk yün |
+| `@stone` | cobblestone, blackstone, cobbled_deepslate |
+
+Yani huş kalasıyla da çubuk yapabiliyorsun, ladin kalasıyla da.
+
+### Envanter dolduğunda eşya kaybolmuyor
+
+İlk sürümde gerçek bir hata vardı, test yakaladı:
+
+```
+34 yuva dolu + 64 kütük  ->  128 kalas üretildi, 32 kütük BUHAR OLDU
+```
+
+Malzeme düşürülüyor, çıktı sığmayınca iade edilmeye çalışılıyordu — ama
+envanter zaten dolu olduğu için iade de sığmıyordu. Düzeltme: **malzeme
+düşürmeden ÖNCE** envanterde kaç tane yer olduğuna bakılıyor ve üretim ona
+göre kırpılıyor. Aynı test artık `64 kalas üretildi, 48 kütük duruyor,
+kayıp YOK` diyor.
+
+### Ekonomi denetimi
+
+`arac/arbitraj.mjs`'e **582 toplu üretim tarifi** eklendi ve **en ucuz
+etiket üyesiyle** denetleniyor — oyuncu doğal olarak en ucuz kalası
+kullanır, denetim de öyle yapmalı. Toplam: **1518 kontrol × 2 senaryo, 0
+açık.**
+
 ## Paketleme
 
 ```bash
-bash paketle.sh          # -> Market_v4.7.mcaddon
+bash paketle.sh          # -> Market_v4.8.mcaddon
 ```
 
 Sürüm numarası hem `manifest.json` dosyalarında hem de `main.js` içindeki

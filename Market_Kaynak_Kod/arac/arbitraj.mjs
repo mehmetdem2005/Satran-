@@ -28,25 +28,12 @@ const pSayi = (ad) => {
 };
 const P_ALIS_UST = pSayi("alisUst"), P_SATIS_ALT = pSayi("satisAlt");
 
-// VIP-10 oyuncusu marketten %10 indirimli aliyor. Girdiler o kadar
-// ucuzken cikti da arz-talep ucundaysa en kotu durum bu.
-const vipKaynak = fs.readFileSync(path.join(kok, "Market_BP/scripts/vip.js"), "utf8");
-const EN_COK_INDIRIM = Math.max(...[...vipKaynak.matchAll(/indirim:\s*([0-9.]+)/g)].map(m => +m[1]));
-
 const SENARYOLAR = [
   { ad: "normal piyasa (carpan 1.00)", carpan: null },
   {
     ad: `arz-talep ucu (alis x${P_ALIS_UST}, satis x${P_SATIS_ALT})`,
     carpan: () => ({ alis: P_ALIS_UST, satis: P_SATIS_ALT })
   },
-  {
-    // VIP indirimi arz-talep DIBININ altina inemez (vip.js `dip` tabani).
-    // O yuzden en kotu alis carpani yine satisAlt. Bu senaryo o kurali
-    // belgeler: kural kaldirilirsa carpan satisAlt x 0.90'a duser ve
-    // asagidaki 923 kontrolden 23'u acik verir.
-    ad: `arz-talep ucu + VIP-10 (%${Math.round(EN_COK_INDIRIM * 100)}, dip tabani ile)`,
-    carpan: () => ({ alis: P_ALIS_UST, satis: Math.max(P_SATIS_ALT, P_SATIS_ALT * (1 - EN_COK_INDIRIM)) })
-  }
 ];
 
 let acik = 0, kontrol = 0;
@@ -142,6 +129,43 @@ for (const [blk, urun, adet] of [
     acik++;
     console.log(`  ACIK  ${blk} (${satis(blk)}) -> ${adet}x ${urun} (${alis(urun) * adet})`);
   }
+}
+
+// ============ TOPLU URETIM TARIFLERI ============
+// uretim.js etiketli girdi kabul ediyor ("@planks" = herhangi bir kalas).
+// Oyuncu dogal olarak EN UCUZ uyeyi kullanir; denetimi de oyle yapmaliyiz,
+// yoksa "en ucuz kalasi al, craftla, sat" acigi gozden kacar.
+{
+  const TJS = await import(path.join(kok, "Market_BP/scripts/tarifler.js"));
+  const enUcuz = (girdi) => {
+    if (!girdi.startsWith("@")) return satis(girdi.replace("minecraft:", ""));
+    const uyeler = TJS.ETIKETLER[girdi] ?? [];
+    let en = Infinity;
+    for (const u of uyeler) { const v = satis(u.replace("minecraft:", "")); if (v > 0) en = Math.min(en, v); }
+    return Number.isFinite(en) ? en : 0;
+  };
+  let atlanan = 0;
+  console.log(`\n${TJS.TARIF_SAYISI} toplu uretim tarifi denetleniyor (en ucuz girdiyle)...`);
+  for (const [cikti, liste] of TJS.TARIFLER) {
+    const kazanc = alis(cikti.replace("minecraft:", "")) * 1;
+    for (const t of liste) {
+      const c = alis(cikti.replace("minecraft:", "")) * t.n;
+      if (!c) { atlanan++; continue; }
+      let maliyet = 0, eksik = false;
+      for (const [g, adet] of t.g) {
+        const m = enUcuz(g);
+        if (!m) { eksik = true; break; }
+        maliyet += m * adet;
+      }
+      if (eksik) { atlanan++; continue; }
+      kontrol++;
+      if (c > maliyet) {
+        acik++;
+        console.log(`  ACIK  uretim ${t.g.map(([g, n]) => n + "x" + g.replace("minecraft:", "")).join(" + ")} (${maliyet}) -> ${t.n}x ${cikti.replace("minecraft:", "")} (${c})  +${c - maliyet}`);
+      }
+    }
+  }
+  if (atlanan) console.log(`  (${atlanan} tarif atlandi: fiyati olmayan esya iceriyor)`);
 }
 
 // ============ MADEN KIRMA ============
