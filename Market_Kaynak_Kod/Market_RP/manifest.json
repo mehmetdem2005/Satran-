@@ -1,13 +1,13 @@
 {
   "format_version": 2,
   "header": {
-    "name": "Market & Ekonomi RP v4.4.1",
-    "description": "v4.4.1 | Tecrube sisesi artik \"Mob & Degerli\" kategorisinde, tek sayfada gorunuyor. Turkce arama: tecrube / xp / deneyim. Fiyati ONEMLI zammiyla 298.",
+    "name": "Market & Ekonomi RP v4.5",
+    "description": "v4.5 | Egil + herhangi bir aletle sag tik: blok yonu doner (gozlemci, huni, firin, merdiven...). Ametist alet sadece balta ve kilic; istedigin buyuyle dovdurulen Ametist Atolyesi. Arz-talep artik adet degil DEGER olcuyor: ucuz yigin mallar fiyati sarsmiyor.",
     "uuid": "201cbafc-bcfc-4212-a13f-428a03328b5b",
     "version": [
       4,
-      4,
-      1
+      5,
+      0
     ],
     "min_engine_version": [
       1,
@@ -21,8 +21,8 @@
       "uuid": "551a0d01-3e84-4438-88a3-87bf7d3263c5",
       "version": [
         4,
-        4,
-        1
+        5,
+        0
       ]
     }
   ]

@@ -1,4 +1,4 @@
-# Market & Ekonomi — Kaynak Kod (v4.4.1)
+# Market & Ekonomi — Kaynak Kod (v4.5)
 
 Bu klasör Minecraft Bedrock için yazılan Market/Ekonomi addon'ının tüm
 kaynak dosyalarını içerir. `.mcaddon` sadece bunların zip'lenmiş hali;
@@ -926,7 +926,8 @@ Market_BP/                 Behavior Pack (mantık, script, tarifler)
     veri.js                  Veri sürümü, göç ve yedek/geri yükleme
     fiyat.js                 Fiyat motoru: ham madde tabanları + türetme kuralları
     piyasa.js                Arz-talep: alım satım fiyatları oynatır (v4.4)
-    ametis.js                Süreli ametist aletler (4 saat ömür)
+    yon.js                   Eğil + aletle sağ tık: blok yönü çevirme (v4.5)
+    ametis.js                Süreli ametist aletler + Ametist Atölyesi
     golem.js                 Bakır golem hızlandırıcı (tek turda 10 yığın)
     arsa.js                  Arsa/bölge koruma sistemi
     icons.js                 Item id -> texture yolu çözücü
@@ -966,7 +967,7 @@ ikon_guncelle.py           İkon haritasını resmî resource pack verisinden ü
 ## Komutlar
 
 Sohbete yazılır: `!menu !market !ara !sat !takas !alim !teklif !teklifler
-!para !arsa !pazar !uye !golem !ametis !piyasa !hazir !ilanlarim !rehber !bakiye !id !kitap` ve v2.0
+!para !arsa !pazar !uye !golem !ametis !atolye !piyasa !hazir !ilanlarim !rehber !bakiye !id !kitap` ve v2.0
 ile gelen `!yenile` (eşya listesini yeniden kurar), `!liste` (listenin
 durumunu ve hangi kaynaktan kaç eşya geldiğini yazar). v3.2 ile `!pazar`
 satılık/kiralık arsaları açar, `!ev` kendi arsana ışınlar. v3.3 ile
@@ -1105,10 +1106,157 @@ alındı (netherit, beacon, totem ile aynı raf), `ONEMLI_ZAM ×3` ile alış
 fiyatı **298** oldu — 30. seviye ~59.400. Satış fiyatı 25'te kaldı, yani
 rahipten aldığın şişeleri hâlâ paraya çevirebiliyorsun.
 
+## Eğil + aletle sağ tık: blok yönünü çevir (v4.5)
+
+**Herhangi bir aletle** (kazma, kürek, balta, çapa, kılıç — taş, tahta,
+demir, elmas, netherit, ametist, malzeme farketmez) **eğilip** yönü olan
+bir bloğa **sağ tıklayınca** blok **bir adım** döner.
+
+Gözlemci, huni, fırın, piston, varil, merdiven, kütük, meşale, kaldıraç,
+ray, tekrarlayıcı, karşılaştırıcı, zil, crafter... **listesi elle
+yazılmıyor.** Kod bloğun kendi durum (state) tablosuna bakıyor: içinde bir
+yön durumu varsa çevriliyor. Oyuna yeni bir yönlü blok gelse bile kod
+değişmeden çalışır.
+
+```
+§d↻ §fGözlemci §7→ §fdoğu
+```
+
+### Nasıl çalışıyor
+
+`scripts/yon.js` bir **eksen listesi** tutuyor — öncelik sırasıyla:
+
+| durum | örnek blok | değerler |
+|---|---|---|
+| `minecraft:cardinal_direction` | fırın, stonecutter | kuzey → doğu → güney → batı |
+| `minecraft:facing_direction` | varil, yeni bloklar | 4 yön + yukarı + aşağı |
+| `facing_direction` (sayı) | gözlemci, huni, piston | 2→5→3→4→1→0 |
+| `weirdo_direction` | merdiven | doğu → batı → güney → kuzey |
+| `pillar_axis` | kütük | dikey → doğu-batı → kuzey-güney |
+| `orientation` | crafter, jigsaw | 12 konum |
+| `torch_facing_direction`, `lever_direction`, `attachment`, `rail_direction`, `ground_sign_direction`, `direction`, `coral_direction`, `multi_face_direction_bits` | meşale, kaldıraç, zil, ray... | kendi tabloları |
+
+Blokta birden fazlası varsa **ilki** ana eksen. Ana eksen bir tam tur
+atınca **ikincil eksen** bir adım ilerliyor (kilometre sayacı mantığı) —
+merdivenin 4 yönü bitince ters/düz değişiyor, yani 8 konumun hepsine tek
+tuşla ulaşılıyor.
+
+### Dikkat edilen köşeler
+
+- **Huni yukarı bakamaz.** `facing_direction` tablosunda 1 (yukarı) değeri
+  var ama huni onu kullanmıyor; denenirse bozuk huni oluşuyor. Huni için o
+  değer atlanıyor.
+- **Kapı iki bloktur.** Sadece bir yarısını döndürmek bozuk görünüm
+  bırakır; alt ve üst yarı birlikte dönüyor.
+- **Dışarıda tutulanlar:** yatak, çift sandık, kafa/kurukafa, çift bitki,
+  piston kolu, tabela ve sancak. Bunların ikinci parçası **yan** blokta
+  durduğu için döndürmek yerini de taşımayı gerektirirdi.
+- **Aletin normal işi durduruluyor.** Baltayla kabuk soyma, kürekle patika
+  açma, çapayla toprak sürme — eğilipken bunlar iptal ediliyor, yoksa
+  blok hem dönüp hem soyulurdu.
+- **Arsa koruması sorulıyor.** Başkasının arsasında blok döndüremezsin;
+  `arsa.js` içindeki aynı izin kontrolünden geçiyor.
+- **180 ms bekleme.** Sağ tuşu basılı tutunca blok deli gibi dönmesin diye.
+
+Yönü olmayan bir bloğa (taş, toprak) eğilip tıklarsan olaya hiç
+karışılmıyor — normal davranış korunuyor.
+
+## Ametist: sadece balta ve kılıç, ama istediğin büyüyle (v4.5)
+
+### Kazma, kürek ve mızrak kaldırıldı
+
+Beş ayrı süreli alet hem craft'ı karmaşıklaştırıyordu hem de her birinin
+ayrı ömür sayacı envanteri gürültüye boğuyordu. **Ametist Balta** ve
+**Ametist Kılıç** kaldı; ikisi de 4 saatlik ömrünü koruyor.
+
+### Ametist Atölyesi (`!atolye`)
+
+Düz alet yerine **istediğin büyüyle** alet dövdürüyorsun. Büyü **aletin
+üstüne yazılıyor**:
+
+```
+Ametist Kılıç
+§7Ametist alet - §dsüreli
+§5Keskinlik V
+§7Kalan ömür: 4 sa 0 dk
+§8Süre dolunca eriyip yok olur.
+```
+
+Üç ekran: **alet seç → büyü seç → seviye seç ve onayla.** Her adımda fiyat
+yazıyor.
+
+| Ametist Kılıç | en fazla | seviye başı |
+|---|---|---|
+| Keskinlik | V | 9.000 |
+| Kutsama | V | 6.000 |
+| Böcek Belası | V | 6.000 |
+| Alev Dokunuşu | II | 14.000 |
+| Yağma | III | 20.000 |
+| Geri İtme | II | 5.000 |
+| Dayanıklılık | III | 8.000 |
+| Onarım | I | 40.000 |
+
+| Ametist Balta | en fazla | seviye başı |
+|---|---|---|
+| Keskinlik | V | 9.000 |
+| Verimlilik | V | 9.000 |
+| Şans | III | 22.000 |
+| İpeksi Dokunuş | I | 30.000 |
+| Dayanıklılık | III | 8.000 |
+| Onarım | I | 40.000 |
+
+**Fiyat = gövde + (seviye × büyü bedeli).** Gövde fiyatı market motorundan
+geliyor, yani arz-talep oynarsa atölye de onunla oynuyor.
+
+| örnek | hesap | toplam |
+|---|---|---|
+| Kılıç + Keskinlik V | 59.400 + 5×9.000 | **104.400** |
+| Balta + Şans III | 55.441 + 3×22.000 | **121.441** |
+| Balta + İpeksi Dokunuş | 55.441 + 30.000 | **85.441** |
+
+Kasten ağır: bu aletler 4 saatte eriyor. Ucuz olsaydı ekonomi tek kalemden
+akardı. Kâr açığı da yok — markete geri satarken büyü değeri en fazla 3
+kat sayılıyor (kılıç 15.000 × 3 = 45.000), yani alış her zaman satıştan
+pahalı.
+
+## Arz-talep dengelendi: adet değil DEĞER (v4.5)
+
+v4.4'teki motor **adet** sayıyordu: 2000 buğday ile 2000 elmas piyasayı
+aynı kadar oynatıyordu. Bir envanter dolusu buğday (2.304 adet, ~11.500
+değerinde) fiyatı **%60** zıplatıyordu — dengesizdi.
+
+Artık her adet **eşyanın taban değeri kadar** ağırlık taşıyor ve `hacim`
+eşiği 150.000 (≈ 27 yığın elmas):
+
+| hareket | piyasa etkisi |
+|---|---|
+| 64 elmas alındı (1 yığın) | alış fiyatı **+2%** |
+| 640 elmas alındı (10 yığın) | **+23%** |
+| 1728 elmas alındı (27 yığın) | **+60%** (tavan) |
+| 2304 buğday alındı (dolu envanter) | **+2%** |
+| 640 demir satıldı | **-1%** |
+| 12.500 demir satıldı | **-25%** (taban) |
+
+**Sonsuz artmıyor:** 1 milyon elmas alsan bile alış fiyatı ×1.60'ta,
+satış fiyatı ×0.75'te duruyor.
+
+**Almayınca yavaş yavaş düşüyor:** her 5 dakikada net akış %3 eriyor.
+
+| geçen süre | kalan baskı |
+|---|---|
+| 30 dk | %83 |
+| 1 saat | %69 |
+| 2 saat | %48 |
+| 4 saat | %23 |
+| 8 saat | %5 |
+
+Güvenlik payı değişmedi: `arac/arbitraj.mjs` hâlâ iki senaryoda birden
+(normal piyasa + en kötü durum) çalışıyor — **891 kontrol, 0 açık**.
+
 ## Paketleme
 
 ```bash
-bash paketle.sh          # -> Market_v4.4.1.mcaddon
+bash paketle.sh          # -> Market_v4.5.mcaddon
 ```
 
 Sürüm numarası hem `manifest.json` dosyalarında hem de `main.js` içindeki

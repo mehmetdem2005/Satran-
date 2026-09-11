@@ -1,7 +1,4 @@
 item.mk:kontrol_kitabi.name=Market Kontrol Kitabi
 item.mk:arsa_sopasi.name=Claim Wand
-item.mk:ametis_kazma.name=Amethyst Pickaxe
-item.mk:ametis_kurek.name=Amethyst Shovel
 item.mk:ametis_balta.name=Amethyst Axe
 item.mk:ametis_kilic.name=Amethyst Sword
-item.mk:ametis_mizrak.name=Amethyst Spear

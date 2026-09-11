@@ -189,6 +189,12 @@ function engelliMi(api, player, d, x, z) {
   return a;
 }
 
+// Disaridan sorulabilsin diye (yon.js blok cevirmeden once bakiyor):
+// bu oyuncu orada blok degistirebilir mi?
+export function insaEdebilirMi(api, p, d, x, z) {
+  return !engelliMi(api, p, d, Math.floor(x), Math.floor(z));
+}
+
 function uyar(p, a, tip) {
   system.run(() => {
     try {

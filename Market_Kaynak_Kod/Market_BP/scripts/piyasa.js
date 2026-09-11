@@ -17,12 +17,16 @@
 // arac/arbitraj.mjs bunu "en kotu durum" olarak ayrica denetliyor.
 
 import * as mc from "@minecraft/server";
-import { piyasaBagla } from "./fiyat.js";
+import { piyasaBagla, tabanDeger } from "./fiyat.js";
 
 export const PIYASA_CFG = {
   acik: true,
   anahtar: "mk_piyasa",
-  hacim: 2000,          // bu kadar adetlik net akis carpani ucuna tasir
+  // Akis ADET degil DEGER olarak olculur: 2000 bugday ile 2000 elmas
+  // piyasayi ayni kadar oynatmamali. Her adet, esyanin taban degeri
+  // kadar agirlik tasir; hacim de o yuzden "kac liralik net akis
+  // carpani ucuna tasir" demek. 150.000 ~ 27 yigin elmas (1728 adet).
+  hacim: 150000,
   // ALIS = marketin sana odedigi. Cok satarsan duser.
   alisAlt: 0.75, alisUst: 1.10,
   // SATIS = senin odedigin. Cok alirsan yukselir.
@@ -30,7 +34,7 @@ export const PIYASA_CFG = {
   sonum: 0.97,          // her sonumAraligi'nda net akis bu oranda erir
   sonumAraligi: 300,    // saniye (5 dakika)
   kayitAraligi: 60,     // saniye - diske yazma
-  enAzAkis: 5           // bunun altindaki net akis kaydedilmez
+  enAzAkis: 250         // bunun altindaki net akis kaydedilmez (~3 elmas)
 };
 
 // id -> net akis (pozitif: oyuncular ALDI, negatif: oyuncular SATTI)
@@ -72,9 +76,21 @@ export function carpan(id) {
   return { alis, satis };
 }
 
+// Bir adedin piyasa agirligi = esyanin taban degeri. Boylece ucuz yigin
+// mallar fiyati sarsmaz, pahali esyalar birkac yiginda hissedilir.
+const agirlikBellek = new Map();
+function agirlik(id) {
+  let a = agirlikBellek.get(id);
+  if (a === undefined) {
+    try { a = Math.max(1, tabanDeger(id)); } catch { a = 1; }
+    agirlikBellek.set(id, a);
+  }
+  return a;
+}
+
 // Oyuncu marketten ALDI (talep) / markete SATTI (arz).
-export function alindi(id, adet) { hareket(id, +Math.max(0, adet)); }
-export function satildi(id, adet) { hareket(id, -Math.max(0, adet)); }
+export function alindi(id, adet) { hareket(id, +Math.max(0, adet) * agirlik(id)); }
+export function satildi(id, adet) { hareket(id, -Math.max(0, adet) * agirlik(id)); }
 function hareket(id, delta) {
   if (!PIYASA_CFG.acik || !delta) return;
   const yeni = (akis.get(id) ?? 0) + delta;

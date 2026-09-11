@@ -106,8 +106,7 @@ const TABAN = {
   // degerliler. Degerleri, craft girdilerinin ALIS bedelinin ALTINDA
   // tutuldu (en ucuz tarif 2 netherit kulce = ~17.240), yoksa "girdiyi
   // al, craftla, sat" acigi olusurdu.
-  ametis_kurek: 13500, ametis_kazma: 14000, ametis_balta: 14000,
-  ametis_kilic: 15000, ametis_mizrak: 16000,
+  ametis_balta: 14000, ametis_kilic: 15000,
   glow_frame: 12, decorated_pot: 12,
   crafter: 90, end_rod: 8,
   fermented_spider_eye: 12, suspicious_stew: 15, 
@@ -302,11 +301,8 @@ const TARIF = {
 
   // Ametist aletler: TABAN'daki degerleri tarifin altinda kalsin diye
   // tarifleri de burada; arbitraj denetcisi ikisini karsilastiriyor.
-  ametis_kazma: { g: [["amethyst_block", 3], ["netherite_ingot", 2]], n: 1 },
-  ametis_kurek: { g: [["amethyst_block", 1], ["netherite_ingot", 2]], n: 1 },
   ametis_balta: { g: [["amethyst_block", 3], ["netherite_ingot", 2]], n: 1 },
   ametis_kilic: { g: [["amethyst_block", 2], ["netherite_ingot", 2]], n: 1 },
-  ametis_mizrak: { g: [["amethyst_block", 1], ["netherite_ingot", 2]], n: 1 },
   respawn_anchor: { g: [["crying_obsidian", 6], ["glowstone", 3]], n: 1 },
   enchanting_table: { g: [["obsidian", 4], ["diamond", 2], ["book", 1]], n: 1 },
   brewing_stand: { g: [["cobblestone", 3], ["blaze_rod", 1]], n: 1 },

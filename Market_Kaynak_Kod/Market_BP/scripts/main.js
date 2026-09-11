@@ -11,13 +11,14 @@ import * as Arsa from "./arsa.js";
 import * as Golem from "./golem.js";
 import * as Ametis from "./ametis.js";
 import * as Piyasa from "./piyasa.js";
+import * as Yon from "./yon.js";
 
 const { world, system, ItemStack } = mc;
 const { ActionFormData, ModalFormData } = ui;
 
 // ==================== AYARLAR ====================
 const CFG = {
-  surum: "4.4.1",
+  surum: "4.5",
   ad: "m",
   objective: "money",
   simge: "$",
@@ -386,6 +387,7 @@ function kitapMenu(p) {
   ekle("\u00a7lArsa / B\u00f6lge\n\u00a7r\u00a77Yerini koru, \u00fcye ekle", "minecraft:grass_block", () => Arsa.arsaMenu(p, API));
   ekle("\u00a7lPara / E\u015fya G\u00f6nder", "minecraft:ender_pearl", () => paraMenu(p));
   ekle(`\u00a7lD\u00fcello / PvP${Dovus.gelenIstekler(p).length ? ` \u00a7c(${Dovus.gelenIstekler(p).length})` : ""}\n\u00a7r\u00a77Stadyumda, kendi e\u015fyanla`, "minecraft:iron_sword", () => Dovus.dovusMenu(p, API));
+  ekle("\u00a7lAmetist At\u00f6lyesi\n\u00a7r\u00a77\u0130stedi\u011fin b\u00fcy\u00fcyle, s\u00fcreli alet", "minecraft:amethyst_shard", () => Ametis.atolye(p, API));
   ekle("\u00a7lFiyat Rehberi\n\u00a7r\u00a77Piyasa ortalamalar\u0131", "minecraft:clock", () => rehberSec(p));
   ekle("\u00a7lBilgi ve Komutlar", "minecraft:writable_book", () => yardim(p));
   if (admin) ekle("\u00a7c\u00a7lAdmin Paneli", "minecraft:command_block", () => adminPanel(p));
@@ -1446,6 +1448,7 @@ function calistir(p, komut, arg) {
     case "ametis": case "ametist":
       for (const satir of Ametis.rapor(p)) p.sendMessage(satir);
       return;
+    case "atolye": case "atölye": return Ametis.atolye(p, API);
     case "piyasa": case "borsa": return piyasaEkrani(p);
     case "ev": case "home": case "arsalarim2": return void Arsa.eveIsinla(p, API);
     case "topluSat": case "toplusat": return topluSat(p);
@@ -1882,6 +1885,7 @@ guvenli("slash komutlari", () => {
     kayit("uye", "Arsana uye ekle / cikar", (p) => Arsa.uyeArsaSec(p, API));
     kayit("golem", "Bakir golem durumu", (p) => { for (const s of Golem.rapor(p)) p.sendMessage(s); });
     kayit("ametis", "Ametist aletin kalan omru", (p) => { for (const s of Ametis.rapor(p)) p.sendMessage(s); });
+    kayit("atolye", "Buyulu ametist alet dovdur", (p) => Ametis.atolye(p, API));
     kayit("piyasa", "Arz-talep hareketleri", (p) => piyasaEkrani(p));
     kayit("ev", "Kendi arsana isinlan", (p) => { Arsa.eveIsinla(p, API); });
     kayit("dovus", "Duello menusu", (p) => Dovus.dovusMenu(p, API));
@@ -1934,6 +1938,8 @@ function oyuncuyuHazirla(p, gercekGiris = false) {
 guvenli("arsa korumasi", () => Arsa.arsaKur(API));
 guvenli("bakir golem", () => Golem.kur(API));
 guvenli("ametist aletler", () => Ametis.kur());
+// Egil + aletle sag tik -> blok yonu doner. Arsa korumasi da sorulur.
+guvenli("blok yonu", () => Yon.kur((p, d, k) => Arsa.insaEdebilirMi(API, p, d, k.x, k.z)));
 guvenli("arz-talep piyasasi", () => Piyasa.kur(API));
 
 guvenli("duello olum kontrolu", () => {
