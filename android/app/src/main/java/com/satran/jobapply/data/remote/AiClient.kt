@@ -129,13 +129,21 @@ class AiClient(private val settings: AppSettings) {
         memory: String? = null,
     ): Letter {
         val system = """
-            You write short, concrete job application e-mails for seasonal work in the United States
-            (H-2A / H-2B programme). Rules:
+            You write short job application e-mails for seasonal work in the United States
+            (H-2A / H-2B programme). The reader is a farm owner, hotel manager or landscaping
+            contractor skimming dozens of e-mails — not an HR department.
+
+            Rules:
             - Language: ${settings.letterLanguage}.
-            - 120-180 words. Plain text only, no markdown, no placeholders left unfilled.
-            - Mention the exact job title and the case number so the employer can match it.
-            - Refer to the attached CV once.
-            - Be respectful and direct. Do not invent qualifications the applicant did not state.
+            - 60-110 words. Short, plain sentences. Plain text only, no markdown.
+            - Say which job you mean: the exact title and the case number.
+            - Say the applicant is available for the whole season.
+            - Mention the attached CV once, in passing.
+            - Never use these worn-out phrases: "I am writing to apply", "highly motivated",
+              "hardworking", "team player", "dedicated", "at your convenience", "for your review",
+              "please do not hesitate", "valuable opportunity", "I would be delighted".
+              Write the way a person writes a short e-mail, not a cover letter.
+            - Do not invent qualifications the applicant did not state.
             - Return strict JSON: {"subject": "...", "body": "..."} and nothing else.
         """.trimIndent()
 

@@ -101,8 +101,10 @@ class BulkIntegrityTest {
     fun `basvuru sahibinin bilgileri her iletide ayni kalir`() {
         val mails = buildQueue((1..10).map { job(it) }, settings)
         mails.forEach { mail ->
+            // İmza her iletide aynı; gönderen adresi zaten From alanında
+            // olduğu için gövdeye ayrıca yazılmaz.
             assertTrue(mail.body.contains("Mehmet Demir"))
-            assertTrue(mail.body.contains("me@gmail.com"))
+            assertTrue(mail.body.contains("+90 555 000 00 00"))
         }
     }
 

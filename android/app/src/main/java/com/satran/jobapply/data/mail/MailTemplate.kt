@@ -20,6 +20,17 @@ object MailTemplate {
         "{{email}}" to "Senin e-postan",
     )
 
+    /**
+     * Doldurulmamış bir alan (telefon girilmemişse gibi) metinde boşluk
+     * bırakır. Bu boşluklar temizlenmezse mektup baştan savma görünür.
+     */
+    private fun String.tidy(): String = lines()
+        .map { it.trimEnd() }
+        .joinToString("\n")
+        // Üç ve daha fazla boş satırı tek paragraf boşluğuna indir.
+        .replace(Regex("\n{3,}"), "\n\n")
+        .trim()
+
     fun render(template: String, job: Job, settings: AppSettings): String {
         var out = template
         val values = mapOf(
@@ -36,6 +47,6 @@ object MailTemplate {
             "{{email}}" to settings.gmailAddress,
         )
         values.forEach { (key, value) -> out = out.replace(key, value) }
-        return out.trim()
+        return out.tidy()
     }
 }

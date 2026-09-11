@@ -133,7 +133,7 @@ data class AppSettings(
     val phone: String = "",
     val nationality: String = "",
     val summary: String = "",
-    val subjectTemplate: String = "Application for {{title}} – {{case}}",
+    val subjectTemplate: String = "Application for {{title}} ({{case}})",
     val bodyTemplate: String = DEFAULT_BODY_TEMPLATE,
 
     // Yapay zekâ
@@ -217,7 +217,29 @@ data class AppSettings(
         const val LIFTING_WORDS = "lifting, lift, carry, heavy"
         const val NIGHT_SHIFT_WORDS = "night shift, overnight, graveyard"
 
-        const val DEFAULT_BODY_TEMPLATE = """Dear Hiring Manager at {{employer}},
+        /**
+         * Bu mektubu okuyan kişi çiftlik sahibi, otel müdürü ya da peyzaj
+         * şirketi patronu — kurumsal kapak mektubu değil kısa bir not bekliyor.
+         * Bilmek istediği üç şey var: hangi iş, sezonun tamamında var mısın,
+         * sana nasıl ulaşır. Dolgu cümlesi yok.
+         */
+        const val DEFAULT_BODY_TEMPLATE = """Hello,
+
+I would like to apply for the {{title}} position in {{location}} (job order {{case}}).
+
+I am available for the whole season and can start on the first day. My CV is attached.
+
+If you need anything else, just reply to this e-mail.
+
+Thank you,
+{{name}}
+{{phone}}"""
+
+        /**
+         * İlk sürümdeki metin. Kullanıcı şablonuna dokunmadıysa yenisiyle
+         * değiştirilir; kendi yazdıysa olduğu gibi bırakılır.
+         */
+        const val LEGACY_BODY_TEMPLATE = """Dear Hiring Manager at {{employer}},
 
 I am writing to apply for the position of {{title}} ({{case}}) in {{location}}.
 

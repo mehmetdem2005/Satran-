@@ -42,8 +42,20 @@ class SettingsStore(context: Context) {
      * (kapalı) taşıdığı için mevcut kurulumlarda kendiliğinden açılmazdı.
      */
     private fun migrate(stored: AppSettings): AppSettings {
-        if (stored.translateDefaultApplied) return stored
-        val migrated = stored.copy(translateAllJobs = true, translateDefaultApplied = true)
+        var migrated = stored
+
+        if (!migrated.translateDefaultApplied) {
+            migrated = migrated.copy(translateAllJobs = true, translateDefaultApplied = true)
+        }
+
+        // İlk sürümün mektubu kalıplaşmış cümlelerle doluydu. Kullanıcı
+        // şablonuna dokunmadıysa sadeleştirilmiş metinle değiştirilir;
+        // kendi yazdıysa elleme.
+        if (migrated.bodyTemplate.trim() == AppSettings.LEGACY_BODY_TEMPLATE.trim()) {
+            migrated = migrated.copy(bodyTemplate = AppSettings.DEFAULT_BODY_TEMPLATE)
+        }
+
+        if (migrated == stored) return stored
         prefs.edit().putString(KEY_SETTINGS, Net.json.encodeToString(AppSettings.serializer(), migrated)).apply()
         return migrated
     }
