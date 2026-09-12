@@ -213,10 +213,25 @@ const bellek = new Map();
 
 export function ikonSayisi() { return IKON_SAYISI; }
 
+// Bu paketin KENDI esyalari. Eskiden buraya bakilmadigi icin "mk:" oneki
+// soyulmuyor ve yol "textures/items/mk:ametis_balta" gibi cikiyordu -
+// icinde iki nokta olan boyle bir dosya yok, oyunda mor-siyah "eksik
+// doku" karesi gorunuyordu. Ametist balta ve kilic markette boyle
+// duruyordu.
+const PAKET = {
+  "mk:kontrol_kitabi": "textures/items/mk_kitap",
+  "mk:arsa_sopasi": "textures/items/mk_sopa",
+  "mk:yon_anahtari": "textures/items/mk_yon_anahtari",
+  "mk:ametis_balta": "textures/items/mk_ametis_balta",
+  "mk:ametis_kilic": "textures/items/mk_ametis_kilic"
+};
+
 export function ikon(typeId) {
   if (bellek.has(typeId)) return bellek.get(typeId);
   const tam = String(typeId).includes(":") ? String(typeId) : `minecraft:${typeId}`;
-  const ad = tam.replace(/^minecraft:/, "");
+  if (PAKET[tam]) { bellek.set(typeId, PAKET[tam]); return PAKET[tam]; }
+  // Ad alanini (namespace) TAMAMEN soy: sadece "minecraft:" degil.
+  const ad = tam.replace(/^[a-z0-9_]+:/, "");
 
   let yol = resmiIkon(ad) ?? OZEL[ad] ?? renkliAile(ad);
   if (!yol) {

@@ -550,7 +550,9 @@ export const ARAMA_SOZLUK = {
   elmas: "diamond", zumrut: "emerald", zümrüt: "emerald", altin: "gold", altın: "gold",
   demir: "iron", bakir: "copper", bakır: "copper", komur: "coal", kömür: "coal",
   kizil: "redstone", kızıl: "redstone", kirmizitas: "redstone", lapis: "lapis",
-  netherit: "netherite", kuvars: "quartz", ametist: "amethyst", cevher: "ore",
+  netherit: "netherite", kuvars: "quartz", cevher: "ore",
+  // "ametis" paketin kendi aletleri (mk:ametis_balta / mk:ametis_kilic)
+  ametist: ["amethyst", "ametis"],
   kulce: "ingot", külçe: "ingot", blok: "block", tas: "stone", taş: "stone",
   toprak: "dirt", cimen: "grass", çimen: "grass", kum: "sand", cakil: "gravel",
   kil: "clay", odun: "log", agac: "wood", ağaç: "wood", tahta: "planks",

@@ -1,12 +1,12 @@
 {
   "format_version": 2,
   "header": {
-    "name": "Market & Ekonomi BP v4.8",
-    "description": "v4.8 | Toplu Uretim: craft masasina EGILIP sag tik, miktari sec, tek tikla 64 tane uret (oyunun kendi craft arayuzune dokunulmadi). VIP seviye sistemi kaldirildi.",
+    "name": "Market & Ekonomi BP v4.9",
+    "description": "v4.9 | Ametist balta/kilic markette silahlar kisminda (ikon yolu bozuktu). Netherit parcasi ve antik kalinti madenlerde. Macera Puani/unvan kaldirildi. Zincir tavani: cok adimli craft aciklari kapatildi (105 esyada para basiyordu).",
     "uuid": "bb41fa3d-7901-4559-8e61-d650ac191764",
     "version": [
       4,
-      8,
+      9,
       0
     ],
     "min_engine_version": [
@@ -22,7 +22,7 @@
       "uuid": "b9808c32-f7e3-4a89-93e1-f00313e58099",
       "version": [
         4,
-        8,
+        9,
         0
       ],
       "entry": "scripts/main.js"
@@ -41,7 +41,7 @@
       "uuid": "201cbafc-bcfc-4212-a13f-428a03328b5b",
       "version": [
         4,
-        8,
+        9,
         0
       ]
     }

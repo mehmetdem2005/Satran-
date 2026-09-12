@@ -393,6 +393,27 @@ const YASAK_DESEN = [
   /(^|_)(skull|head)$/  // butun mob kafalari
 ];
 
+import { TARIFLER as GERCEK_TARIF, ETIKETLER as GERCEK_ETIKET } from "./tarifler.js";
+
+// ============ ZINCIR TAVANI ============
+// URETIM (1.7) HER craft adiminda carpiliyor, MAKAS (2.2) ise alis-satis
+// arasinda BIR KEZ. Iki adimli bir zincir 1.7^2 = 2.89 > 2.2 demek: acik.
+//
+// Gercek ornek (v4.8'e kadar vardi): 2 mese kutugu 18'e alinip 8 kalasa,
+// 8 kalas da 4 kapiya cevriliyordu; 4 kapi 28'e satiliyordu. 18 -> 28.
+// Tek tek tarife bakan denetim bunu goremiyordu, cunku girdiyi hep
+// "marketten kalas al" fiyatiyla olcuyordu - oysa oyuncu kalasi kendisi
+// yapiyor.
+//
+// Cozum: bir esyanin taban degeri, HAMMADDE ICERIGININ en fazla
+// ZINCIR_TAVANI katı olabilir. Katma deger duruyor (%65) ama artık
+// adım adım katlanmıyor.
+// Tavan, esyayi PARA olarak elde etmenin en ucuz yoluna baglidir:
+//   alis(x) <= en_ucuz_elde_etme_bedeli(x) x ZINCIR_PAYI
+// Arz-talep uclarinda da saglam kalmali:
+//   alis x 1.10 (talep ucu)  <=  bedel x 0.90 (arz ucu)   ->  pay <= 0.818
+const ZINCIR_PAYI = 0.80;
+
 const bellek = new Map();
 const sarmal = new Set();
 
@@ -410,11 +431,86 @@ export function tabanDeger(id) {
   if (bellek.has(a)) return bellek.get(a);
   if (sarmal.has(a)) return 5;        // dongusel referans korumasi
   sarmal.add(a);
-  const v = Math.max(1, Math.round(hesapla(a)));
+  let v = Math.max(1, Math.round(hesapla(a)));
+  // ZINCIR TAVANI: bu esyayi craftlayarak elde etmek kac paraya geliyorsa,
+  // markete satis fiyati onun altinda kalmak zorunda. ASAGI yuvarlaniyor;
+  // yukari yuvarlama ucuz esyalarda tavani asiyordu (cubuk: icerik 1 iken
+  // tavan round(1.65) = 2 -> 1 kutuk 9'a alinip 8 cubuga cevrilip 16'ya
+  // satiliyordu, %78 kar).
+  const bedel = craftBedeli(a);
+  if (bedel > 0 && Number.isFinite(bedel))
+    v = Math.min(v, Math.max(1, Math.floor(bedel * ZINCIR_PAYI)));
   sarmal.delete(a);
   bellek.set(a, v);
   return v;
 }
+
+// ---- Zincir tavaninin hesabi ----
+// Bir esyayi MARKET yoluyla elde etmenin en ucuz bedeli (para).
+const bedelBellek = new Map(), bedelSarmal = new Set();
+
+// Bu esyayi marketten almak kaca gelir? Alinamiyorsa sonsuz.
+function satisBedeli(a) {
+  try { if (!marketAlinabilir(a) || yasakMi(a) || !piyasadaMi(a)) return Infinity; }
+  catch { return Infinity; }
+  const t = D(a);
+  if (!(t > 0)) return Infinity;
+  const zam = (hammaddeMi(a) ? 1 : ISLENMIS_ZAM) * (onemliMi(a) ? ONEMLI_ZAM : 1);
+  return Math.ceil(t * MAKAS * zam * OLCEK);
+}
+
+function eldeBedeli(a) {
+  if (bedelBellek.has(a)) return bedelBellek.get(a);
+  if (bedelSarmal.has(a)) return Infinity;      // dongusel tarif: bu dal elenir
+  bedelSarmal.add(a);
+  const v = Math.min(satisBedeli(a), craftBedeli(a));
+  bedelSarmal.delete(a);
+  bedelBellek.set(a, v);
+  return v;
+}
+
+// Gercek Mojang tarifinden craft maliyeti. Etiketli girdide (@planks)
+// EN UCUZ uyeyi alir - oyuncu da oyle yapar.
+// girdi'nin tarifi, cikti'dan TEK girdiyle yapiliyorsa dongu var.
+function tersiVarMi(cikti, girdiTam) {
+  const l = GERCEK_TARIF.get(girdiTam) ?? [];
+  const kisa = ad(cikti);
+  return l.some(t => t.g.length === 1 && ad(t.g[0][0]) === kisa);
+}
+
+function craftBedeli(a) {
+  // Iki kaynak: Mojang'in tarif tablosu (tarifler.js) ve bu dosyanin kendi
+  // TARIF tablosu. Ikisi de eksik kalabiliyor - kuru yosun blogu Mojang
+  // dokumunde yoktu ve tavansiz kaliyordu (9 yosun 45'e alinip blok 77'ye
+  // satiliyordu).
+  const liste = [
+    ...(GERCEK_TARIF.get(`minecraft:${a}`) ?? GERCEK_TARIF.get(`mk:${a}`) ?? []),
+    ...(TARIF[a] ? [{ n: TARIF[a].n, g: TARIF[a].g }] : [])
+  ];
+  if (!liste.length) return Infinity;
+  let en = Infinity;
+  for (const t of liste) {
+    // "Paketi ac" tarifini atla: 1 blok -> 9 parca. Karsiligi (9 parca ->
+    // 1 blok) da tabloda oldugu icin ikisi birbirini besliyor ve fiyat,
+    // hangi esyanin ONCE hesaplandigina gore degisiyordu (kuru yosun blogu
+    // bir cagrida 36, bir cagrida 77 cikiyordu). Paketleme yonu duruyor;
+    // ters yon zaten arac/arbitraj.mjs'in "9'luk blok cevrimi" bolumunde
+    // iki yonlu denetleniyor.
+    if (t.n > 1 && t.g.length === 1 && t.g[0][1] === 1 && tersiVarMi(a, t.g[0][0])) continue;
+    let toplam = 0, kotu = false;
+    for (const [g, adet] of t.g) {
+      let birim = Infinity;
+      if (g.startsWith("@")) {
+        for (const u of GERCEK_ETIKET[g] ?? []) birim = Math.min(birim, eldeBedeli(ad(u)));
+      } else birim = eldeBedeli(ad(g));
+      if (!Number.isFinite(birim)) { kotu = true; break; }
+      toplam += birim * adet;
+    }
+    if (!kotu) en = Math.min(en, toplam / (t.n || 1));
+  }
+  return en;
+}
+
 const D = (x) => tabanDeger(x);
 
 // Bedrock'ta bazi mese esyalari agac adi tasimaz (oak_door degil wooden_door
@@ -670,9 +766,9 @@ function hesapla(a) {
   if (a.startsWith("smithing_template") || a.endsWith("_smithing_template")) return 200;
   if (a.startsWith("polished_") || a.startsWith("chiseled_") || a.startsWith("cut_") || a.startsWith("smooth_")) {
     const kok = a.replace(/^(polished_|chiseled_|cut_|smooth_)/, "");
-    return D(kok) * 1.7;      // 1:1 donusum, URETIM ile ayni katma deger
+    return D(kok) * URETIM;      // 1:1 donusum, URETIM ile ayni katma deger
   }
-  if (a.startsWith("mossy_") || a.startsWith("cracked_")) return D(a.replace(/^(mossy_|cracked_)/, "")) * 1.7;
+  if (a.startsWith("mossy_") || a.startsWith("cracked_")) return D(a.replace(/^(mossy_|cracked_)/, "")) * URETIM;
   if (a.startsWith("waxed_")) return D(a.slice(6)) * 1.3;   // + petek
 
   // bilinmeyen: makul bir varsayilan
@@ -919,7 +1015,11 @@ export const PIYASA_DISI = new Set([
   "enchanted_golden_apple", "heart_of_the_sea", "dragon_breath",
   "end_crystal", "recovery_compass", "echo_shard", "wither_rose",
   "shulker_shell", "shulker_box", "undyed_shulker_box",
-  "netherite_ingot", "netherite_block", "netherite_scrap", "ancient_debris",
+  // netherite_scrap ve ancient_debris MARKETTE (v4.9, kullanici istegi:
+  // "netherite parcalari da satilsin markette madenlerde"). Kulce, blok ve
+  // takim disarida kaliyor - onlar odul zincirinin sonu, sinirsiz stoklu
+  // market onlari satarsa Nether'a inmenin anlami kalmaz.
+  "netherite_ingot", "netherite_block",
   "netherite_sword", "netherite_pickaxe", "netherite_axe",
   "netherite_shovel", "netherite_hoe", "netherite_helmet",
   "netherite_chestplate", "netherite_leggings", "netherite_boots",

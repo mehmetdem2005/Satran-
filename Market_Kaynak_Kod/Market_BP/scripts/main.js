@@ -21,7 +21,7 @@ const { ActionFormData, ModalFormData } = ui;
 
 // ==================== AYARLAR ====================
 const CFG = {
-  surum: "4.8",
+  surum: "4.9",
   ad: "m",
   objective: "money",
   simge: "$",
@@ -516,6 +516,11 @@ function adayIdler() {
   catch (e) { console.warn("[Market] katalog() calismadi: " + e); }
   RAPOR.katalog = kume.size - n; n = kume.size;
 
+  // 3b) BU PAKETIN satilabilir ozel esyalari. ItemTypes.getAll() addon
+  // esyalarini her surumde dondurmuyor ve gomulu katalog sadece vanilla;
+  // ametist balta ve kilic bu yuzden markette hic gorunmuyordu.
+  for (const id of PAKET_ESYALARI) ekle(id);
+
   // 4) Varsa vanilla enum
   try {
     const enumlar = mc.MinecraftItemTypes ?? {};
@@ -572,6 +577,10 @@ function* kurumJob(adaylar) {
   }
   listeyiBitir(gecerli);
 }
+
+// Markette yer alacak kendi esyalarimiz (kontrol kitabi / sopa / anahtar
+// satilmaz, onlar asagida listeden cikariliyor).
+const PAKET_ESYALARI = ["mk:ametis_balta", "mk:ametis_kilic"];
 
 function listeyiKur(arkaPlan) {
   if (LISTE_KURULUYOR) return;

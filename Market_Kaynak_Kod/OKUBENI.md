@@ -1,4 +1,4 @@
-# Market & Ekonomi — Kaynak Kod (v4.8)
+# Market & Ekonomi — Kaynak Kod (v4.9)
 
 Bu klasör Minecraft Bedrock için yazılan Market/Ekonomi addon'ının tüm
 kaynak dosyalarını içerir. `.mcaddon` sadece bunların zip'lenmiş hali;
@@ -1597,10 +1597,115 @@ etiket üyesiyle** denetleniyor — oyuncu doğal olarak en ucuz kalası
 kullanır, denetim de öyle yapmalı. Toplam: **1518 kontrol × 2 senaryo, 0
 açık.**
 
+## Zincir tavanı: çok adımlı craft açıkları (v4.9)
+
+Denetçiye **zincirleme maliyet** kontrolü eklendi ve **105 eşyada para
+basıldığı** ortaya çıktı. En basit örnek:
+
+```
+2 meşe kütüğü satın al        18
+  -> 8 kalas
+  -> 4 meşe kapısı
+4 kapıyı markete sat          28        +%55 kâr, sonsuz tekrarlanabilir
+```
+
+### Neden eski denetim göremiyordu
+
+Tarif denetimi girdileri hep **"marketten satın alma"** fiyatıyla
+ölçüyordu. Oysa oyuncu kalası marketten almıyor — kütükten kendisi
+yapıyor, ve o çok daha ucuz. Denetim "6 kalas (30) → 3 kapı (21)" deyip
+temiz sanıyordu; gerçek yol "1,5 kütük (13,5) → 3 kapı (21)".
+
+### Kökü: katma değer katlanıyordu
+
+`URETIM` (1.7) **her craft adımında** çarpılıyor, `MAKAS` (2.2) ise
+alış-satış arasında **bir kez**. İki adımlık zincir:
+
+```
+1.7 × 1.7 = 2.89  >  2.2      -> açık
+```
+
+Üç adımda 4.91. Yani zincir uzadıkça açık büyüyor. Bu, `URETIM`'in 1.15'ten
+1.7'ye çıktığı v4.3'ten beri duruyordu.
+
+### Çözüm
+
+Her eşyanın taban değeri artık **onu craftlayarak elde etmenin para
+maliyetiyle** sınırlı:
+
+```
+alış(x) ≤ en_ucuz_craft_bedeli(x) × 0.80
+```
+
+`0.80` keyfi değil: arz-talep uçlarında da sağlam kalmalı —
+`alış × 1.10 (talep ucu) ≤ bedel × 0.90 (arz ucu)` → pay ≤ 0.818.
+
+Katma değer duruyor (tek adımlık craft hâlâ %70 değer katıyor), sadece
+**adım adım katlanmıyor**. Meşe kapısı 7'den 3'e indi; 2 kütük (18) → 4
+kapı (12) artık zarar.
+
+### Yol boyunca çıkan üç ayrı hata
+
+1. **Ucuz eşyalarda yukarı yuvarlama.** Çubuğun hammadde içeriği 1, tavan
+   `round(1.65) = 2` çıkıyordu. 1 kütük 9'a alınıp 8 çubuğa çevrilince 16'ya
+   satılıyordu (**+%78**). Tavan artık **aşağı** yuvarlanıyor.
+2. **Ara adımlarda 1'e yuvarlama.** Çubuğun içeriği 0.5 iken 1 sayılıyor,
+   8 çubuklu eşyanın içeriği 4 yerine 8 görünüyor, tavan gevşiyordu.
+   Hammadde hesabında yuvarlama kaldırıldı.
+3. **Fiyatlar sıraya bağlıydı.** Blok ↔ parça tarifleri birbirini besliyor
+   ve kuru yosun bloğu bir çağrıda 36, bir çağrıda 77 çıkıyordu. "Paketi aç"
+   yönündeki tarif (1 blok → 9 parça) artık tavan hesabına girmiyor;
+   paketleme yönü duruyor ve ters yön zaten "9'luk blok çevrimi" bölümünde
+   iki yönlü denetleniyor.
+
+**Denetim durumu: 2073 kontrol × 2 senaryo, 0 açık.**
+
+## Ametist eşyalar markette görünmüyordu (v4.9)
+
+`icons.js` sadece `minecraft:` önekini soyuyordu. `mk:ametis_balta` için
+üretilen yol şuydu:
+
+```
+textures/items/mk:ametis_balta      <- içinde iki nokta, böyle bir dosya yok
+```
+
+Bedrock bunu **mor-siyah "eksik doku" karesi** olarak çiziyordu. Düzeltme:
+paketin kendi eşyaları için açık bir tablo (`PAKET`) eklendi, ve ad alanı
+artık `minecraft:` ile sınırlı değil, **tamamen** soyuluyor.
+
+İki şey daha:
+
+- **Liste kaynağına eklendi.** `ItemTypes.getAll()` addon eşyalarını her
+  sürümde döndürmüyor; ametist balta ve kılıç artık açıkça ekleniyor.
+- **Türkçe arama.** `ametist` sözlükte sadece `amethyst`'e bağlıydı, bizim
+  aletlerin id'si `ametis`. Artık ikisine birden bağlı — `!ara ametist`
+  aletleri en üstte getiriyor.
+
+Konumları: **Alet, Zırh & Silah** kategorisi.
+
+## Netherit parçası ve antik kalıntı markette (v4.9)
+
+`netherite_scrap` ve `ancient_debris` artık **Madenler & Cevher**
+kategorisinde, **260 sat / 1.716 al**. Külçe, blok ve netherit takım
+dışarıda kalmaya devam ediyor — onlar ödül zincirinin sonu, sınırsız
+stoklu market onları satarsa Nether'a inmenin anlamı kalmaz.
+
+Bunun bir yan etkisi oldu ve doğrusu bu: **ametist aletlerin fiyatı düştü**
+(15.000 → 11.379). Artık parçayı marketten alabildiğin için külçeyi kendin
+yapabiliyorsun, yani aleti elde etmenin en ucuz yolu ucuzladı — zincir
+tavanı da fiyatı ona göre sınırladı. Craftlamak hâlâ satın almaktan çok
+daha ucuz (malzeme ~14.200, market fiyatı 45.061).
+
+## Seviye sistemi tamamen kalktı (v4.9)
+
+v4.8'de VIP kaldırılmıştı; görev sistemindeki **Macera Puanı ve unvanlar**
+(Gezgin / Kaşif / Macera Ustası / Efsane) da kaldırıldı. Görevler artık
+sadece para veriyor, hiçbir yerde seviye yok.
+
 ## Paketleme
 
 ```bash
-bash paketle.sh          # -> Market_v4.8.mcaddon
+bash paketle.sh          # -> Market_v4.9.mcaddon
 ```
 
 Sürüm numarası hem `manifest.json` dosyalarında hem de `main.js` içindeki

@@ -166,7 +166,7 @@ export function durum(ad) {
   let k = veri[ad];
   if (!k) {
     k = veri[ad] = { hafta: -1, teklif: [], secili: [], kazanilan: 0, yenileme: 0,
-                     haftalikYenileme: 0, sonYenilemeHafta: -99, yorgunluk: {}, puan: 0, biten: 0 };
+                     haftalikYenileme: 0, sonYenilemeHafta: -99, yorgunluk: {}, biten: 0 };
     kirli = true;
   }
   if (k.hafta !== hafta()) yeniHafta(k);
@@ -225,14 +225,12 @@ function tamamla(p, kayitli, g) {
   k.yorgunluk[g.kat] = Math.min(GOREV_CFG.yorgunlukEnCok, yorgun + GOREV_CFG.yorgunlukCeza);
   // Diger kategoriler yavasca dinlenir
   for (const kat of Object.keys(k.yorgunluk)) if (kat !== g.kat) k.yorgunluk[kat] = Math.max(0, k.yorgunluk[kat] - 0.05);
-  const puan = Math.max(1, Math.round(ZORLUK[g.z] * 10));
-  k.puan = (k.puan ?? 0) + puan;
   k.biten = (k.biten ?? 0) + 1;
   kirli = true;
   if (odul > 0) api.paraEkle(p, odul);
   try {
     p.sendMessage(`§6§l✔ GÖREV TAMAM §r§f${g.ad}`);
-    p.sendMessage(`§7Ödül: §a${api.fmt(odul)}§7  §8+${puan} Macera Puanı${kirpildi ? " §8(haftalık tavan)" : ""}`);
+    p.sendMessage(`§7Ödül: §a${api.fmt(odul)}${kirpildi ? " §8(haftalık tavan)" : ""}`);
     p.playSound("random.levelup");
     p.onScreenDisplay.setTitle("§6Görev Tamam!", { subtitle: `§a${api.fmt(odul)}`, fadeInDuration: 5, stayDuration: 40, fadeOutDuration: 10 });
   } catch { }
@@ -334,14 +332,6 @@ export function kur(apiRef) {
   console.warn("[Görev] Haftalık macera görevleri aktif.");
 }
 
-// ---- Unvanlar ----
-export const UNVANLAR = [
-  { puan: 0, ad: "§7Yeni Başlayan" }, { puan: 100, ad: "§a🏕️ Gezgin" },
-  { puan: 500, ad: "§b🧭 Kaşif" }, { puan: 1500, ad: "§6⚔️ Macera Ustası" },
-  { puan: 4000, ad: "§5👑 Efsane" }
-];
-export const unvan = (puan) => [...UNVANLAR].reverse().find(u => puan >= u.puan) ?? UNVANLAR[0];
-
 // ---- Ekranlar ----
 export function ekran(p, apiRef) {
   if (apiRef) api = apiRef;
@@ -350,7 +340,7 @@ export function ekran(p, apiRef) {
   const acik = k.secili.filter(x => !x.bitti);
   const biten = k.secili.filter(x => x.bitti);
 
-  let govde = `§7Macera Puanı: §f${k.puan ?? 0} ${unvan(k.puan ?? 0).ad}\n`
+  let govde = `§7Bitirdiğin görev: §f${k.biten ?? 0}\n`
     + `§7Bu hafta kazanılan: §a${api.fmt(k.kazanilan ?? 0)}§7 / ${api.fmt(GOREV_CFG.haftalikTavan)}\n`
     + `§7Hafta bitimine: §f${kalanGun} Minecraft günü\n\n`;
   if (k.secili.length) {
@@ -432,8 +422,7 @@ function acikla(p) {
 export function rapor(ad) {
   const k = durum(ad);
   const acik = k.secili.filter(x => !x.bitti);
-  const satir = [`§6Macera Puanı: §f${k.puan ?? 0} ${unvan(k.puan ?? 0).ad}`,
-                 `§7Bitirilen görev: §f${k.biten ?? 0}`];
+  const satir = [`§6Macera Görevleri`, `§7Bitirdiğin görev: §f${k.biten ?? 0}`];
   if (acik.length) {
     satir.push("§7Açık görevlerin:");
     for (const x of acik) {

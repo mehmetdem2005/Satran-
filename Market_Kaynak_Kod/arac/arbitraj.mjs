@@ -251,6 +251,78 @@ try {
   console.log("  UYARI: vanilla_tarifler.json okunamadi -> " + e.message);
 }
 
+// ============ ZINCIRLEME MALIYET (en guclu kontrol) ============
+// Tek tek tarife bakmak yetmiyor: bir ara urunu MARKETTEN almak pahali ama
+// KENDIN CRAFTLAMAK ucuz olabilir. Denetim o zaman aciyi kaciriyor.
+//
+// Gercek ornek: netherit kulcesi markette 12.474, ametist balta 14.000'e
+// satiliyor -> tek tarife bakinca temiz. Ama netherit PARCASI markette
+// satilmaya baslayinca gercek yol sudur:
+//   8 parca + 8 altin (7.344) -> 2 kulce  +  3 ametist blogu (450)
+//   = 14.498 maliyetle 14.000'lik balta   -> normalde pay var
+//   ama arz-talep uclarinda (girdi x0.9 / cikti x1.1) kar cikiyor.
+//
+// Bu yuzden her esya icin "en ucuz ELDE ETME maliyeti" ozyinelemeli
+// hesaplaniyor:  min(marketten al, en ucuz tariften craftla)
+// Sonra tek bir kural denetleniyor: hicbir esyanin ALIS fiyati, onu elde
+// etmenin en ucuz yolundan pahali olamaz.
+{
+  const TJS = await import(path.join(kok, "Market_BP/scripts/tarifler.js"));
+  const bellek = new Map(), sarmal = new Set();
+
+  const alinabilirMi = (kisa) => {
+    // piyasadaMi de sart: netherit kulcesi "alinabilir kategoride" ama
+    // sistem marketinde HIC yer almiyor. Bunu atlayinca denetci olmayan
+    // bir yolu varsayip yanlis acik bildiriyordu.
+    try {
+      const id = "minecraft:" + kisa;
+      return F.marketAlinabilir(id) && F.piyasadaMi(id) && !F.yasakMi(id) && !!F.fiyat(id);
+    } catch { return false; }
+  };
+
+  // Elde etme maliyeti. Infinity = marketten alinamaz ve craftlanamaz
+  // (sadece kazilarak/toplanarak bulunur -> emek, market acigi degil).
+  function maliyet(tam) {
+    if (bellek.has(tam)) return bellek.get(tam);
+    if (sarmal.has(tam)) return Infinity;          // dongusel tarif korumasi
+    sarmal.add(tam);
+    const kisa = tam.replace("minecraft:", "");
+    let en = alinabilirMi(kisa) ? satis(kisa) : Infinity;
+    for (const t of TJS.TARIFLER.get(tam) ?? []) {
+      let toplam = 0;
+      for (const [g, adet] of t.g) {
+        let birim;
+        if (g.startsWith("@")) {
+          birim = Infinity;
+          for (const u of TJS.ETIKETLER[g] ?? []) birim = Math.min(birim, maliyet(u));
+        } else birim = maliyet(g);
+        if (!Number.isFinite(birim)) { toplam = Infinity; break; }
+        toplam += birim * adet;
+      }
+      if (Number.isFinite(toplam)) en = Math.min(en, toplam / (t.n || 1));
+    }
+    sarmal.delete(tam);
+    bellek.set(tam, en);
+    return en;
+  }
+
+  let atlanan = 0;
+  console.log("\nZincirleme maliyet denetimi (marketten al VEYA craftla, hangisi ucuzsa)...");
+  for (const tam of TJS.TARIFLER.keys()) {
+    const kisa = tam.replace("minecraft:", "");
+    const kazanc = alis(kisa);
+    if (!kazanc) { atlanan++; continue; }
+    const m = maliyet(tam);
+    if (!Number.isFinite(m)) { atlanan++; continue; }   // market yoluyla elde edilemiyor
+    kontrol++;
+    if (kazanc > m) {
+      acik++;
+      console.log(`  ACIK  zincir ${kisa}: elde etme ${Math.round(m)} -> satis ${kazanc}  (+${Math.round(kazanc - m)})`);
+    }
+  }
+  if (atlanan) console.log(`  (${atlanan} esya atlandi: market yoluyla elde edilemiyor)`);
+}
+
 console.log(`\n${kontrol} kontrol, ${acik} acik.  [${senaryo.ad}]`);
 if (acik) { F.piyasaBagla(null); process.exit(1); }
 }
