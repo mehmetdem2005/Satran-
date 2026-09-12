@@ -21,7 +21,7 @@ const { ActionFormData, ModalFormData } = ui;
 
 // ==================== AYARLAR ====================
 const CFG = {
-  surum: "4.9",
+  surum: "4.10",
   ad: "m",
   objective: "money",
   simge: "$",

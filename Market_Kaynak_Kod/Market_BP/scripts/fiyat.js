@@ -53,7 +53,7 @@ const TABAN = {
 
   // esyalar
   elytra: 1500,
-  experience_bottle: 25, cobweb: 5, honeycomb: 8, honey_bottle: 10,
+  experience_bottle: 3, cobweb: 5, honeycomb: 8, honey_bottle: 10,
   gunpowder_block: 0, lily_pad: 2, vine: 1,
   dandelion: 2, poppy: 2, blue_orchid: 3, allium: 3, azure_bluet: 2,
   oxeye_daisy: 2, cornflower: 3, lily_of_the_valley: 3, sunflower: 3,
@@ -844,9 +844,10 @@ const ONEMLI = new Set([
   "trident", "enchanted_golden_apple", "heart_of_the_sea", "dragon_breath",
   "shulker_shell", "shulker_box", "undyed_shulker_box", "recovery_compass",
   "echo_shard", "wither_rose", "end_crystal",
-  // Tecrube sisesi parayi dogrudan BUYU SEVIYESINE ceviriyor. Normal
-  // fiyatla (100) 30. seviye 20.000'e mal olurdu; o zaman buyu masasi
-  // icin XP toplamanin anlami kalmazdi. ONEMLI_ZAM ile 297 oluyor.
+  // Tecrube sisesi parayi dogrudan BUYU SEVIYESINE ceviriyor, o yuzden
+  // ONEMLI_ZAM (x3) listesinde duruyor - alis ile satis arasindaki makas
+  // genis kalsin. Taban degeri v4.10'da 25'ten 3'e indi (kullanici "10 kat
+  // ucuz yap" dedi): 25/298 -> 3/36. Artik 30. seviye ~7.200'e geliyor.
   "experience_bottle"
 ]);
 export const ONEMLI_ZAM = 3;

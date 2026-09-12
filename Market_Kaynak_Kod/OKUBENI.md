@@ -1,4 +1,4 @@
-# Market & Ekonomi — Kaynak Kod (v4.9)
+# Market & Ekonomi — Kaynak Kod (v4.10)
 
 Bu klasör Minecraft Bedrock için yazılan Market/Ekonomi addon'ının tüm
 kaynak dosyalarını içerir. `.mcaddon` sadece bunların zip'lenmiş hali;
@@ -1112,6 +1112,11 @@ alındı (netherit, beacon, totem ile aynı raf), `ONEMLI_ZAM ×3` ile alış
 fiyatı **298** oldu — 30. seviye ~59.400. Satış fiyatı 25'te kaldı, yani
 rahipten aldığın şişeleri hâlâ paraya çevirebiliyorsun.
 
+> **v4.10 güncellemesi:** kullanıcı "10 kat ucuz yap" dedi. Taban değeri
+> 25'ten 3'e indi: **3 sat / 36 al**. `ONEMLI` listesinde kalıyor (alış-satış
+> makası geniş kalsın diye), yani ikisi birlikte ~8 kat ucuzladı.
+> 30. seviye artık **~7.200** — eskiden 59.400'dü.
+
 ## Eğil + aletle sağ tık: blok yönünü çevir (v4.5)
 
 **Herhangi bir aletle** (kazma, kürek, balta, çapa, kılıç — taş, tahta,
@@ -1702,10 +1707,37 @@ v4.8'de VIP kaldırılmıştı; görev sistemindeki **Macera Puanı ve unvanlar*
 (Gezgin / Kaşif / Macera Ustası / Efsane) da kaldırıldı. Görevler artık
 sadece para veriyor, hiçbir yerde seviye yok.
 
+## Tecrübe şişesi 10 kat ucuz (v4.10)
+
+| | önce | sonra |
+|---|---|---|
+| Markete satış | 25 | **3** |
+| Marketten alış | 298 | **36** |
+| 30. seviyeye çıkmak (~200 şişe) | 59.400 | **7.200** |
+
+Taban değeri 25 → 3. `ONEMLI` listesinde (×3 zam) kalıyor ki alış-satış
+makası geniş kalsın; ikisi birlikte ölçekleniyor. Tecrübe şişesi
+craftlanamıyor ve hiçbir şeyin girdisi değil, o yüzden zincir tavanını
+etkilemiyor — **2073 kontrol, 0 açık**.
+
+### Sıçrayan ve kalıcı iksirin adı
+
+Aynı kategoride "Splash potion" / "Lingering potion" düz metin olarak
+duruyordu. Bedrock'ta iksirin adı **hep efektiyle** geliyor
+(`potion.waterBreathing.splash.name` = "Splash Potion of Water Breathing");
+efektsiz genel id için `item.` ya da `tile.` anahtarı yok. Atılan iksir
+**varlığının** adı (`entity.splash_potion.name`) doğru metni veriyor ve her
+dilde çevirisi var — ona bağlandılar.
+
+`ad_guncelle.py` artık elle yazılan karşılıkları **tüm** anahtar kümesine
+karşı doğruluyor (önce sadece `item.`/`tile.` içinde arıyordu). Otomatik
+eşleşme hâlâ sadece `item.`/`tile.` içinde arıyor — yoksa varlık adları
+eşyalara yanlış bağlanabilirdi (inek eşyası / inek varlığı).
+
 ## Paketleme
 
 ```bash
-bash paketle.sh          # -> Market_v4.9.mcaddon
+bash paketle.sh          # -> Market_v4.10.mcaddon
 ```
 
 Sürüm numarası hem `manifest.json` dosyalarında hem de `main.js` içindeki

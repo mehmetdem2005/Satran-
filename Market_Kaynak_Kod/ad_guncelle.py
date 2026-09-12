@@ -48,6 +48,11 @@ ELLE = {
     "powder_snow_bucket": "item.bucketPowderSnow.name",
     "lava_bucket": "item.bucketLava.name", "water_bucket": "item.bucketWater.name",
     "milk_bucket": "item.milk.name",
+    # Bedrock'ta iksirin adi hep efektiyle geliyor ("Splash Potion of X");
+    # efektsiz genel id icin duz bir anahtar yok. Atilan iksir VARLIGININ
+    # adi dogru metni veriyor ve her dilde ceviri var.
+    "lingering_potion": "entity.lingering_potion.name",
+    "splash_potion": "entity.splash_potion.name",
 }
 
 
@@ -85,9 +90,13 @@ def kimlikler(dal):
 duz = lambda s: re.sub(r"[^a-z0-9]+", " ", s.lower()).strip()
 
 
-def coz(a, adlar, ters):
+def coz(a, adlar, ters, tum=None):
     """Bir esya id'si icin DOGRULANMIS dil anahtari bul (ya da None)."""
-    if a in ELLE and ELLE[a] in adlar:
+    # ELLE tablosu TUM anahtar kumesine karsi dogrulanir: iksirlerin adi
+    # "entity.lingering_potion.name" gibi item./tile. disi anahtarlarda
+    # duruyor. Otomatik eslesme ise sadece item./tile. icinde arar, yoksa
+    # varlik adlari esyalara yanlis baglanabilir (inek esyasi/varligi).
+    if a in ELLE and ELLE[a] in (tum or adlar):
         return ELLE[a]
     for k in (f"item.{a}.name", f"tile.{a}.name"):
         if k in adlar:
@@ -148,10 +157,10 @@ def katalog_kimlikleri():
 
 
 def main():
-    adlar = {}
+    tum = {}
     for dal in (SURUM, YENI_DAL):
-        lang_oku(indir(dal, LANG), adlar)
-    adlar = {k: v for k, v in adlar.items()
+        lang_oku(indir(dal, LANG), tum)
+    adlar = {k: v for k, v in tum.items()
              if (k.startswith("item.") or k.startswith("tile.")) and k.endswith(".name")}
     ters = defaultdict(list)
     for k, v in adlar.items():
@@ -161,7 +170,7 @@ def main():
     hepsi = kimlikler(SURUM) | kimlikler(YENI_DAL) | katalog_kimlikleri()
     harita, eksik = {}, []
     for a in sorted(hepsi):
-        k = coz(a, adlar, ters)
+        k = coz(a, adlar, ters, tum)
         if k:
             harita[a] = k
         else:
