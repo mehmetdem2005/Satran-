@@ -32,6 +32,17 @@ object JobQuery {
     private const val SOC_AGRICULTURE_FROM = "45-"
     private const val SOC_AGRICULTURE_TO = "46-"
 
+    /**
+     * Geri çekilmiş ya da reddedilmiş başvurular. Bunlara yazmanın anlamı yok;
+     * "aktif" penceresi gevşetildiğinde araya karışmasınlar diye elenir.
+     */
+    private val DEAD_STATUSES = listOf(
+        "Withdrawn",
+        "Determination Issued - Denied",
+        "Determination Issued - Withdrawn",
+        "Pending Action - Recruitment Report not Received",
+    )
+
     data class Input(
         val text: String = "",
         val state: String? = null,
@@ -40,6 +51,13 @@ object JobQuery {
         val excludeAgricultural: Boolean = true,
         val blockedWords: List<String> = emptyList(),
         val requiredWords: List<String> = emptyList(),
+        /**
+         * İşe başlama tarihi gelecekte olan, belgesi çıkmış ama sitenin
+         * "aktif" penceresi kapanmış ilanlar da gelsin mi?
+         */
+        val includeUpcoming: Boolean = true,
+        /** Gelecek tarih karşılaştırması için OData zaman damgası. */
+        val nowIso: String = "",
     )
 
     /** Sunucuya gönderilen iki dize. Arayüz bunları olduğu gibi gösterir. */
@@ -57,10 +75,18 @@ object JobQuery {
     )
 
     private fun buildFilter(input: Input): String {
-        val clauses = mutableListOf(
-            "active eq true",
-            "display eq true",
-        )
+        val clauses = mutableListOf("display eq true")
+
+        // `active`, DOL sitesinin kendi gösterim penceresidir; işi bitmemiş,
+        // belgesi çıkmış binlerce ilan bu pencere kapandığı için gizli kalıyor.
+        // Yurt dışından başvuran için asıl değerli olanlar bunlar: işe başlama
+        // tarihi ileride olduğu için vize süreci yetişiyor.
+        if (input.includeUpcoming && input.nowIso.isNotEmpty()) {
+            clauses += "not search.in(case_status, '${DEAD_STATUSES.joinToString("|")}', '|')"
+            clauses += "(active eq true or begin_date gt ${input.nowIso})"
+        } else {
+            clauses += "active eq true"
+        }
         if (input.emailOnly) {
             clauses += "apply_email ne null"
             clauses += "apply_email ne 'N/A'"

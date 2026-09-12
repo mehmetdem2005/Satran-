@@ -128,6 +128,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         emailOnly: Boolean = _jobs.value.emailOnly,
         excludeAgricultural: Boolean = _jobs.value.excludeAgricultural,
         hideApplied: Boolean = _jobs.value.hideApplied,
+        includeUpcoming: Boolean = _jobs.value.includeUpcoming,
     ) {
         _jobs.update {
             it.copy(
@@ -137,6 +138,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 emailOnly = emailOnly,
                 excludeAgricultural = excludeAgricultural,
                 hideApplied = hideApplied,
+                includeUpcoming = includeUpcoming,
             )
         }
         search(reset = true)
@@ -298,7 +300,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         excludeAgricultural = state.excludeAgricultural,
         blockedWords = config.blockedWordList,
         requiredWords = config.requiredWordList,
+        includeUpcoming = state.includeUpcoming,
+        nowIso = nowIso(),
     )
+
+    /** OData karşılaştırması için UTC zaman damgası. */
+    private fun nowIso(): String = java.text.SimpleDateFormat(
+        "yyyy-MM-dd'T'00:00:00'Z'",
+        java.util.Locale.US,
+    ).apply {
+        timeZone = java.util.TimeZone.getTimeZone("UTC")
+    }.format(java.util.Date())
 
     /**
      * Sunucuda ifade edilemeyen tek süzgeç: "zaten başvurduklarımı gizle".

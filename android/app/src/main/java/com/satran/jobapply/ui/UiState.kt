@@ -38,6 +38,8 @@ data class JobsUiState(
     val emailOnly: Boolean = true,
     /** Tarım dışı: H-2B vizesi + SOC 45 (tarım/balıkçılık/ormancılık) hariç. */
     val excludeAgricultural: Boolean = true,
+    /** İşe başlama tarihi gelecekte olan ilanlar da listelensin mi? */
+    val includeUpcoming: Boolean = true,
     val hideApplied: Boolean = true,
 
     val expanded: Set<String> = emptySet(),

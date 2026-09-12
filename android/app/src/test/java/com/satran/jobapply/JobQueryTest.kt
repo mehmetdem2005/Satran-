@@ -27,10 +27,43 @@ class JobQueryTest {
     }
 
     @Test
-    fun `aktif ve gorunur kosullari her zaman var`() {
-        val built = JobQuery.build(JobQuery.Input())
+    fun `gorunur kosulu her zaman var`() {
+        assertTrue(JobQuery.build(JobQuery.Input()).filter.contains("display eq true"))
+    }
+
+    @Test
+    fun `yaklasan ilanlar kapaliyken yalnizca aktifler gelir`() {
+        val built = JobQuery.build(JobQuery.Input(includeUpcoming = false))
         assertTrue(built.filter.contains("active eq true"))
-        assertTrue(built.filter.contains("display eq true"))
+        assertFalse(built.filter.contains("begin_date gt"))
+    }
+
+    @Test
+    fun `yaklasan ilanlar acikken baslama tarihi kosulu eklenir`() {
+        val built = JobQuery.build(
+            JobQuery.Input(includeUpcoming = true, nowIso = "2026-09-12T00:00:00Z"),
+        )
+        // DOL'un "aktif" penceresi kapansa da işi başlamamış ilanlar gelmeli.
+        assertTrue(built.filter.contains("(active eq true or begin_date gt 2026-09-12T00:00:00Z)"))
+    }
+
+    @Test
+    fun `yaklasan ilanlarda iptal ve red edilenler elenir`() {
+        val built = JobQuery.build(
+            JobQuery.Input(includeUpcoming = true, nowIso = "2026-09-12T00:00:00Z"),
+        )
+        // Geri çekilmiş ilana e-posta göndermenin anlamı yok.
+        assertTrue(built.filter.contains("not search.in(case_status"))
+        assertTrue(built.filter.contains("Withdrawn"))
+        assertTrue(built.filter.contains("Determination Issued - Denied"))
+    }
+
+    @Test
+    fun `zaman damgasi yoksa gevsetme yapilmaz`() {
+        // Tarih hesaplanamadıysa sessizce her şeyi açmak yerine eski davranış.
+        val built = JobQuery.build(JobQuery.Input(includeUpcoming = true, nowIso = ""))
+        assertTrue(built.filter.contains("active eq true"))
+        assertFalse(built.filter.contains("begin_date gt"))
     }
 
     @Test

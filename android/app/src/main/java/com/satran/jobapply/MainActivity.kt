@@ -172,6 +172,7 @@ private fun AppRoot() {
                             hideApplied = hideApplied,
                         )
                     },
+                    onToggleUpcoming = { viewModel.onFilterChange(includeUpcoming = it) },
                     onFetchAll = viewModel::fetchAllJobs,
                     onRefreshArchive = viewModel::refreshArchive,
                     onToggleQueryPanel = viewModel::toggleQueryPanel,

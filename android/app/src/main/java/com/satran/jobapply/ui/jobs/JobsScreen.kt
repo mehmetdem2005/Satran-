@@ -86,6 +86,7 @@ fun JobsScreen(
     onAiSearch: (String) -> Unit,
     onViewChange: (JobsView) -> Unit,
     onFilter: (state: String?, sort: SeasonalJobsApi.Sort, excludeAgricultural: Boolean, emailOnly: Boolean, hideApplied: Boolean) -> Unit,
+    onToggleUpcoming: (Boolean) -> Unit,
     onFetchAll: () -> Unit,
     onRefreshArchive: () -> Unit,
     onToggleQueryPanel: () -> Unit,
@@ -177,7 +178,12 @@ fun JobsScreen(
             Spacer(Modifier.height(6.dp))
 
             // Süzgeçler tek satırda kalır ve yana kayar; alt alta binip yer yemez.
-            FilterStrip(state = state, onFilter = onFilter, onTranslateAll = onTranslateAll)
+            FilterStrip(
+                state = state,
+                onFilter = onFilter,
+                onTranslateAll = onTranslateAll,
+                onToggleUpcoming = onToggleUpcoming,
+            )
 
             Spacer(Modifier.height(2.dp))
             SummaryRow(
@@ -343,6 +349,7 @@ private fun FilterStrip(
     state: JobsUiState,
     onFilter: (String?, SeasonalJobsApi.Sort, Boolean, Boolean, Boolean) -> Unit,
     onTranslateAll: (Boolean) -> Unit,
+    onToggleUpcoming: (Boolean) -> Unit,
 ) {
     var stateMenu by remember { mutableStateOf(false) }
     var sortMenu by remember { mutableStateOf(false) }
@@ -378,6 +385,15 @@ private fun FilterStrip(
                     onFilter(state.selectedState, state.sort, !state.excludeAgricultural, state.emailOnly, state.hideApplied)
                 },
                 label = { Text("Tarım dışı") },
+            )
+        }
+        item {
+            // DOL sitesinin "aktif" penceresi kapansa da işi başlamamış,
+            // belgesi çıkmış ilanlar başvurulabilir durumda.
+            FilterChip(
+                selected = state.includeUpcoming,
+                onClick = { onToggleUpcoming(!state.includeUpcoming) },
+                label = { Text("Yaklaşan ilanlar") },
             )
         }
         item {

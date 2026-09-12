@@ -233,12 +233,31 @@ Uygulamada **"Sunucuya giden sorguyu göster"** düğmesi gönderilen `search` v
 | Arayüzdeki anahtar | Sunucuya giden ifade |
 |---|---|
 | Tarım dışı (H-2B) | `visa_class eq 'H-2B' and not (soc_code_id ge '45-' and soc_code_id lt '46-')` |
+| Yaklaşan ilanlar | `(active eq true or begin_date gt <bugün>)` + iptal/red edilenler hariç |
 | E-postası olan | `apply_email ne null and apply_email ne 'N/A'` |
 | Eyalet | `worksite_state eq 'TEXAS'` |
 | Sıralama | `orderby accepted_date desc` / `basic_rate_from desc` / `begin_date asc` |
 | Yasaklı kelime | `search: -lbs -pounds` |
 | Zorunlu kelime | `search: housing` (searchMode=all) |
 | *Başvurulanları gizle* | **tek istisna** — gönderim geçmişi cihazda tutulduğu için cihazda uygulanır |
+
+### "Yaklaşan ilanlar" neden gerekli
+
+Dizindeki `active` alanı, ilanın gerçek olup olmadığını değil **DOL sitesinin
+kendi gösterim penceresini** anlatır. Bu pencere kapandığında, işe başlama
+tarihi hâlâ ileride olan ve belgesi çıkmış binlerce ilan listeden düşer.
+
+Eylül 2026'da ölçüm (tarım dışı + e-postası olan):
+
+| Süzgeç | İlan |
+|---|---|
+| Yalnızca `active eq true` | 593 |
+| Yaklaşan ilanlar dahil | **2706** |
+
+Gizli kalan 2302 ilanın 2215'i *Determination Issued - Certification*, yani
+belgesi tamamlanmış gerçek işler. Yurt dışından başvuran için asıl değerli
+olanlar bunlar: işe başlama tarihi ileride olduğu için vize süreci yetişir.
+Geri çekilmiş (*Withdrawn*) ve reddedilmiş (*Denied*) ilanlar elenir.
 
 **Tarım dışı** ABD'nin resmî ayrımını kullanır: **H-2A** tarım işçiliği,
 **H-2B** tarım dışı işler (otel, restoran, peyzaj, inşaat, temizlik). Ek olarak
