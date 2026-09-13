@@ -285,7 +285,11 @@ fun LazyListScope.translationSection(
 
 // ==================================================================== arama
 
-fun LazyListScope.searchSection(settings: AppSettings, onUpdate: Update) {
+fun LazyListScope.searchSection(
+    settings: AppSettings,
+    onUpdate: Update,
+    onBackgroundWatch: (Boolean) -> Unit,
+) {
     item {
         NumberChoiceRow(
             label = "Bir aramada kaç ilan çekilsin",
@@ -313,10 +317,27 @@ fun LazyListScope.searchSection(settings: AppSettings, onUpdate: Update) {
     }
     item {
         Hint(
-            "Açık olduğunda kalkan, sezonu biten ve geri çekilen ilanlar listeden " +
-                "kendiliğinden düşer; yeni gelenler \"↑ yeni ilan\" olarak belirir. " +
-                "Yalnızca uygulama ekranda açıkken çalışır — Android arka planda en " +
-                "sık 15 dakikada bir iş çalıştırmaya izin verir, bunu aşmanın yolu yok.",
+            "Kalkan, sezonu biten ve geri çekilen ilanlar listeden kendiliğinden " +
+                "düşer; yeni gelenler \"↑ yeni ilan\" olarak belirir.",
+        )
+    }
+    item {
+        SwitchRow(
+            title = "Uygulama kapalıyken de izle",
+            subtitle = "Kalıcı bildirimle, aynı sıklıkta",
+            checked = settings.backgroundWatch,
+            onCheckedChange = onBackgroundWatch,
+        )
+    }
+    item {
+        Hint(
+            "Android'de zamanlanmış işler en sık 15 dakikada bir çalışabilir; " +
+                "dakikalık denetimin tek yolu ön plan servisidir ve o da kalıcı " +
+                "bir bildirim ister — bildirim Android'in şartı, kaldıramıyorum. " +
+                "Yeni ilan çıkınca bildirim düşer, uygulamayı açınca listenin " +
+                "başında bekler. Pil: saatte kabaca 60 küçük istek. Telefon " +
+                "ayarlarından uygulamayı \"pil optimizasyonundan\" muaf tutmazsan " +
+                "bazı markalar (Xiaomi, Huawei, Samsung) servisi yine de uyutabilir.",
         )
     }
 

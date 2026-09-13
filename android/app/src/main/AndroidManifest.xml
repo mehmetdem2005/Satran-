@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <queries>
         <package android:name="com.google.android.gm" />
@@ -35,6 +37,33 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!--
+            Dakikalik denetim icin on plan servisi. WorkManager'in alt siniri
+            15 dakika; bu siklikta calismanin tek mesru yolu bu servis ve
+            yanindaki kalici bildirimdir.
+        -->
+        <service
+            android:name=".watch.LiveWatchService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <!--
+                dataSync Android 15'te gunde 6 saatle sinirli; sinir dolunca
+                sistem servisi durduruyor. specialUse bu sinira tabi degil.
+            -->
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Is ilanlarinin dakikalik durum denetimi" />
+        </service>
+
+        <receiver
+            android:name=".watch.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <provider
             android:name="androidx.core.content.FileProvider"

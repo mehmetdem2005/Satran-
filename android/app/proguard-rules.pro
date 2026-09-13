@@ -27,6 +27,11 @@
 -keep class com.satran.jobapply.SatranApp { *; }
 -keep class com.satran.jobapply.MainActivity { *; }
 -keep class com.satran.jobapply.send.BulkSendWorker { *; }
+# Servis, alıcı ve yedek işçi manifest'te sınıf adıyla anılır.
+-keep class com.satran.jobapply.watch.LiveWatchService { *; }
+-keep class com.satran.jobapply.watch.LiveWatchWorker { *; }
+-keep class com.satran.jobapply.watch.BootReceiver { *; }
+-keep class com.satran.jobapply.watch.LiveWatchState { *; }
 -keep class com.satran.jobapply.data.model.** { *; }
 -keep class com.satran.jobapply.data.memory.** { *; }
 -keep class com.satran.jobapply.send.QueuedMail { *; }

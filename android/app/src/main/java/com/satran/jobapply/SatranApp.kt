@@ -27,10 +27,22 @@ class SatranApp : Application() {
             description = "Toplu başvuru gönderiminin ilerlemesi"
             setShowBadge(false)
         }
-        getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
+        val watchChannel = NotificationChannel(
+            WATCH_CHANNEL_ID,
+            "İlan izleme",
+            NotificationManager.IMPORTANCE_DEFAULT,
+        ).apply {
+            description = "Kalkan ve yeni eklenen ilanların dakikalık denetimi"
+            setShowBadge(true)
+        }
+        getSystemService(NotificationManager::class.java)?.apply {
+            createNotificationChannel(channel)
+            createNotificationChannel(watchChannel)
+        }
     }
 
     companion object {
         const val CHANNEL_ID = "satran_send_channel"
+        const val WATCH_CHANNEL_ID = "satran_watch_channel"
     }
 }

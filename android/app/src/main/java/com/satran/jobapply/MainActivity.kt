@@ -270,6 +270,7 @@ private fun AppRoot() {
                     onClearMemory = viewModel::clearMemory,
                     onOpenUrl = openUrl,
                     onToggleTranslateAll = viewModel::setTranslateAll,
+                    onBackgroundWatch = viewModel::setBackgroundWatch,
                     contentPadding = padding,
                 )
             }

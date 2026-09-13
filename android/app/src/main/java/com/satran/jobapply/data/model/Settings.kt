@@ -162,13 +162,26 @@ data class AppSettings(
     val requiredWords: String = "",
     /** Daha önce görülen ilanlar bir daha listelenmesin. */
     val hideSeenJobs: Boolean = true,
-    /**
-     * Uygulama açıkken listenin kaç saniyede bir tazeleneceği. 0 = kapalı.
-     *
-     * Yalnızca ön planda çalışır: Android'de arka plan işlerinin en sık
-     * çalışma aralığı 15 dakikadır, daha sık çalıştırmanın yolu yoktur.
-     */
+    /** Listenin kaç saniyede bir tazeleneceği. 0 = kapalı. */
     val liveRefreshSeconds: Int = 60,
+    /**
+     * Uygulama kapalıyken de dakikalık denetim.
+     *
+     * WorkManager'ın en sık çalışma aralığı 15 dakikadır; dakikalık hassasiyet
+     * ancak **ön plan servisiyle** olur. Bu yüzden açıkken kalıcı bir bildirim
+     * durur — Android kalıcı bildirim olmadan bu sıklıkta çalışmaya izin vermez.
+     */
+    val backgroundWatch: Boolean = false,
+    /**
+     * Arka plan izleyicisinin hangi süzgeci izleyeceği. Süzgeçler arayüz
+     * durumunda yaşıyor; servis uygulamadan bağımsız çalıştığı için son
+     * kullanılan arama burada saklanır.
+     */
+    val watchQuery: String = "",
+    val watchState: String? = null,
+    val watchEmailOnly: Boolean = true,
+    val watchExcludeAgricultural: Boolean = true,
+    val watchIncludeUpcoming: Boolean = true,
     /** Arşivin siteyle en son ne zaman karşılaştırıldığı (epoch ms). */
     val lastArchiveCheckAt: Long = 0L,
     /** Açılışta arşivi kendiliğinden denetle. */

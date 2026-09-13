@@ -27,6 +27,7 @@ import com.satran.jobapply.data.pipeline.ApplicationPipeline
 import com.satran.jobapply.data.remote.SeasonalJobsApi
 import com.satran.jobapply.send.BulkSendWorker
 import com.satran.jobapply.send.QueuedMail
+import com.satran.jobapply.watch.LiveWatchService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job as CoroutineJob
@@ -99,8 +100,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         rememberProfile()
+        drainBackgroundFindings()
         search(reset = true)
         maybeAutoRefreshArchive()
+        // Ayar açıksa servis dursun: sistem belleği için kapatmış olabilir.
+        reconcileWatchService()
         refreshGmailAvailability()
         _jobs.update { it.copy(translateAll = settings.value.translateAllJobs) }
     }
@@ -210,6 +214,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 limit = config.jobsPerSearch,
             )
 
+            // Arka plan servisi arayüz durumunu göremez; en son bakılan süzgeci
+            // ayarlara yazıyoruz ki uygulama kapalıyken de aynı şeyi izlesin.
+            rememberWatchedFilter(current)
+
             // Bir sayfadaki ilanların tamamı zaten görülmüşse ekran boş kalmasın:
             // yeni ilan çıkana kadar sonraki sayfalara geç.
             var attemptOffset = offset
@@ -257,11 +265,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     } else {
                         shown
                     }
+                    val mergedCases = merged.mapTo(HashSet()) { it.caseNumber }
                     state.copy(
                         loading = false,
                         loadingMore = false,
                         refreshing = false,
                         results = merged,
+                        // Arka planda bulunup "yeni ilan" olarak bekleyenler bu
+                        // aramada zaten geldiyse rozette iki kez sayılmasın.
+                        incomingJobs = state.incomingJobs.filterNot { it.caseNumber in mergedCases },
                         offset = landedOffset,
                         fetchedThisSearch = page.jobs.size,
                         total = page.totalCount,
@@ -473,10 +485,73 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // ============================================================ canlı tazeleme
 
+    /** Servisin izleyeceği süzgeci ayarlara yazar (yalnızca değiştiyse). */
+    private fun rememberWatchedFilter(state: JobsUiState) {
+        val config = settings.value
+        val unchanged = config.watchQuery == state.query &&
+            config.watchState == state.selectedState &&
+            config.watchEmailOnly == state.emailOnly &&
+            config.watchExcludeAgricultural == state.excludeAgricultural &&
+            config.watchIncludeUpcoming == state.includeUpcoming
+        if (unchanged) return
+        container.settingsStore.update {
+            it.copy(
+                watchQuery = state.query,
+                watchState = state.selectedState,
+                watchEmailOnly = state.emailOnly,
+                watchExcludeAgricultural = state.excludeAgricultural,
+                watchIncludeUpcoming = state.includeUpcoming,
+            )
+        }
+    }
+
+    /**
+     * Arka plan izleyicisini açar/kapatır.
+     *
+     * Servis kalıcı bir bildirimle çalışır; Android bu sıklıkta çalışmayı
+     * ancak öyle kabul ediyor. Kullanıcı bildirimdeki "Durdur"a basarsa ayar
+     * da kapanır, servis geri gelmez.
+     */
+    fun setBackgroundWatch(enabled: Boolean) {
+        updateSettings { config ->
+            config.copy(
+                backgroundWatch = enabled,
+                // "Kapalı" aralıkla arka plan izleme çelişir; açarken
+                // denetimi de dakikalığa alıyoruz.
+                liveRefreshSeconds = if (enabled && config.liveRefreshSeconds <= 0) {
+                    LiveWatchService.MIN_INTERVAL_SECONDS
+                } else {
+                    config.liveRefreshSeconds
+                },
+            )
+        }
+        _message.value = if (enabled) {
+            "Arka plan izleme açıldı. Kalıcı bildirim Android'in şartı, kaldırılamıyor."
+        } else {
+            "Arka plan izleme kapatıldı."
+        }
+    }
+
+    /** Uygulama kapalıyken bulunan ilanları "yeni ilan" rozetine aktarır. */
+    private fun drainBackgroundFindings() {
+        val found = container.liveWatch.drainNew()
+        if (found.isEmpty()) return
+        val known = _jobs.value.results.mapTo(HashSet()) { it.caseNumber }
+        val applied = container.historyStore.appliedCaseNumbers
+        val fresh = found.filterNot { it.caseNumber in known || it.caseNumber in applied }
+        if (fresh.isEmpty()) return
+        _jobs.update {
+            it.copy(incomingJobs = (fresh + it.incomingJobs).distinctBy { job -> job.caseNumber })
+        }
+    }
+
     private var liveJob: CoroutineJob? = null
 
     /** Uzun listelerde taramanın kaldığı yer. */
     private var liveSweepCursor = 0
+
+    /** Servise en son uygulanan durum; gereksiz start/stop çağrısını önler. */
+    private var watchRunning: Boolean? = null
 
     /**
      * Liste ekranı açıkken listeyi düzenli olarak tazeler.
@@ -905,6 +980,28 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun updateSettings(transform: (AppSettings) -> AppSettings) {
         container.settingsStore.update(transform)
         rememberProfile()
+        reconcileWatchService()
+    }
+
+    /**
+     * Ayar ile servisin durumunu eşitler.
+     *
+     * Tazeleme aralığı "Kapalı"ya çekilince arka plan izleme de durmalı:
+     * aksi hâlde kullanıcı denetimi kapattığı hâlde kalıcı bildirim ekranda
+     * kalırdı.
+     */
+    private fun reconcileWatchService() {
+        val config = settings.value
+        val shouldRun = config.backgroundWatch && config.liveRefreshSeconds > 0
+        // updateSettings her ayar değişiminde çağrılıyor; servise ve
+        // WorkManager'a her seferinde dokunmanın anlamı yok.
+        if (shouldRun == watchRunning) return
+        watchRunning = shouldRun
+        if (shouldRun) {
+            LiveWatchService.start(getApplication())
+        } else {
+            LiveWatchService.stop(getApplication())
+        }
     }
 
     fun onCvPicked(uriString: String, fileName: String) {

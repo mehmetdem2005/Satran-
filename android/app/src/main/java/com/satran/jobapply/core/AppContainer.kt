@@ -12,6 +12,7 @@ import com.satran.jobapply.data.remote.SeasonalJobsApi
 import com.satran.jobapply.data.remote.WebSearchClient
 import com.satran.jobapply.data.translate.JobTranslator
 import com.satran.jobapply.send.SendQueueStore
+import com.satran.jobapply.watch.LiveWatchStore
 
 /** Uygulamanın tek bağımlılık kabı. Çerçeve kullanmadan elle kurulur. */
 class AppContainer(context: Context) {
@@ -28,6 +29,9 @@ class AppContainer(context: Context) {
     val jobArchive = JobArchiveStore(context)
     val searchHistory = SearchHistoryStore(context)
     val ragStore = RagStore(context)
+
+    /** Arka plan izleyicisinin bulguları. */
+    val liveWatch = LiveWatchStore(context)
 
     /** İstemciler o anki ayarlara bağlı olduğundan her çağrıda yeniden kurulur. */
     fun aiClient() = AiClient(settingsStore.settings.value)
