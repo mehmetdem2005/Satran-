@@ -24,6 +24,11 @@ data class JobsUiState(
     val total: Int = 0,
     val duplicatesSkipped: Int = 0,
     val lastUpdatedAt: Long = 0L,
+    /** Canlı tazelemede gelen, henüz listeye eklenmemiş yeni ilanlar. */
+    val incomingJobs: List<Job> = emptyList(),
+    val liveChecking: Boolean = false,
+    /** Canlı tazelemede listeden düşen ilan sayısı. */
+    val removedLive: Int = 0,
 
     val loading: Boolean = false,
     val loadingMore: Boolean = false,

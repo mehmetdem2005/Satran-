@@ -124,4 +124,58 @@ class JobQueryTest {
     fun `ayni kelime iki kez sayilmaz`() {
         assertEquals(listOf("lbs"), JobQuery.parseWordList("lbs, lbs , LBS ".lowercase()))
     }
+
+    // ------------------------------------------------ tazelik / canlı liste
+
+    @Test
+    fun `sezonu bitmis ilan hicbir kosulda listelenmez`() {
+        val now = "2026-09-13T00:00:00Z"
+        listOf(true, false).forEach { upcoming ->
+            val built = JobQuery.build(JobQuery.Input(includeUpcoming = upcoming, nowIso = now))
+            assertTrue(
+                "includeUpcoming=$upcoming icin end_date korumasi yok",
+                built.filter.contains("end_date gt $now"),
+            )
+        }
+    }
+
+    @Test
+    fun `tazelik suzgeci kullanicinin tercihlerini tasimaz`() {
+        // Kullanici listeyi Teksas'a daraltinca arsivdeki diger eyaletler
+        // "kalkmis" sanilip silinmemeli.
+        val filter = JobQuery.freshnessFilter(
+            JobQuery.livenessInput("2026-09-13T00:00:00Z"),
+            listOf("H-300-26000-000000"),
+        )
+        assertTrue(!filter.contains("worksite_state"))
+        assertTrue(!filter.contains("visa_class"))
+        assertTrue(!filter.contains("apply_email"))
+        assertTrue(!filter.contains("soc_code_id"))
+    }
+
+    @Test
+    fun `tazelik suzgeci yaklasan ilanlari da canli sayar`() {
+        val filter = JobQuery.freshnessFilter(
+            JobQuery.livenessInput("2026-09-13T00:00:00Z"),
+            listOf("H-300-26000-000000"),
+        )
+        // v18'de bu yoktu ve tazelik denetimi yaklasan ilanlarin hepsini silerdi.
+        assertTrue(filter.contains("begin_date gt 2026-09-13T00:00:00Z"))
+        assertTrue(filter.contains("end_date gt 2026-09-13T00:00:00Z"))
+    }
+
+    @Test
+    fun `tazelik suzgeci istenen ilanlari tek tek sorar`() {
+        val filter = JobQuery.freshnessFilter(
+            JobQuery.livenessInput("2026-09-13T00:00:00Z"),
+            listOf("H-300-1", "H-300-2"),
+        )
+        assertTrue(filter.contains("search.in(case_number, 'H-300-1|H-300-2', '|')"))
+    }
+
+    @Test
+    fun `ilan numarasindaki tek tirnak kacirilir`() {
+        val filter = JobQuery.freshnessFilter(JobQuery.livenessInput("2026-09-13T00:00:00Z"), listOf("H'1"))
+        assertTrue(filter.contains("'H''1'"))
+    }
 }

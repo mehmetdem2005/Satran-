@@ -28,6 +28,7 @@ import com.satran.jobapply.data.remote.SeasonalJobsApi
 import com.satran.jobapply.send.BulkSendWorker
 import com.satran.jobapply.send.QueuedMail
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job as CoroutineJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -73,6 +74,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
         /** Tamamı görülmüş sayfalarda en fazla kaç kez ileri atlanacağı. */
         const val MAX_EMPTY_PAGE_SKIPS = 6
+
+        /** Canlı tazelemede yeni ilan aramak için çekilen sayfa boyu. */
+        const val LIVE_PROBE_SIZE = 40
+
+        /** Canlı tazelemede bir turda tazeliği denetlenecek en fazla ilan. */
+        const val LIVE_SWEEP_SIZE = 300
 
         /** Görev tanımının gelmesi için beklenecek süre. */
         const val DETAIL_WAIT_TRIES = 40
@@ -400,7 +407,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 if (!silent) _message.value = "Arşiv boş."
                 return@launch
             }
-            runCatching { container.jobsApi.stillActive(cases) }
+            runCatching { container.jobsApi.stillActive(cases, JobQuery.livenessInput(nowIso())) }
                 .onSuccess { alive ->
                     val removed = container.jobArchive.retainOnly(alive)
                     updateSettings { it.copy(lastArchiveCheckAt = System.currentTimeMillis()) }
@@ -463,6 +470,163 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** AI ve mektup için tam metinli sürüm; yoksa listedeki hafif sürüm. */
     fun fullJob(job: Job): Job = _jobs.value.details[job.caseNumber] ?: job
+
+    // ============================================================ canlı tazeleme
+
+    private var liveJob: CoroutineJob? = null
+
+    /** Uzun listelerde taramanın kaldığı yer. */
+    private var liveSweepCursor = 0
+
+    /**
+     * Liste ekranı açıkken listeyi düzenli olarak tazeler.
+     *
+     * Her turda iki şey yapılır:
+     *  1. Ekrandaki ilanlar hâlâ süzgece uyuyor mu diye sorulur; uymayanlar
+     *     (sezonu bitmiş, geri çekilmiş, kaldırılmış) anında düşürülür.
+     *  2. En yeni sayfa çekilip listede olmayanlar toplanır.
+     *
+     * Yeni gelenler listeyi kullanıcının altından kaydırmasın diye, sayfa
+     * başındaysa doğrudan eklenir; değilse "N yeni ilan" olarak bekletilir.
+     */
+    fun startLiveRefresh() {
+        if (liveJob?.isActive == true) return
+        if (settings.value.liveRefreshSeconds <= 0) return
+
+        liveJob = viewModelScope.launch {
+            while (true) {
+                // Her turda yeniden okunur: ayarlardan aralık değişince
+                // ya da kapatılınca döngü kendiliğinden uyar.
+                val seconds = settings.value.liveRefreshSeconds
+                if (seconds <= 0) break
+                delay(seconds * 1000L)
+                val current = _jobs.value
+                // Arama, toplu çekim ya da gönderim sürerken araya girmez.
+                if (current.isBusy || current.view != JobsView.LIVE) continue
+                liveTick()
+            }
+        }
+    }
+
+    fun stopLiveRefresh() {
+        liveJob?.cancel()
+        liveJob = null
+    }
+
+    private suspend fun liveTick() {
+        val state = _jobs.value
+        val input = queryInput(state, settings.value)
+        _jobs.update { it.copy(liveChecking = true) }
+
+        dropRemovedJobs(liveSweepSlice(state), JobQuery.livenessInput(nowIso()))
+        collectIncomingJobs(input)
+
+        _jobs.update { it.copy(liveChecking = false, lastUpdatedAt = System.currentTimeMillis()) }
+    }
+
+    /**
+     * Bu turda hangi ilanların denetleneceği.
+     *
+     * "Tümünü çek" sonrası listede 8000 ilan olabiliyor; hepsini her dakika
+     * sormak 54 istek eder, telefonu da sunucuyu da yorar. Bunun yerine liste
+     * her turda [LIVE_SWEEP_SIZE] kadar ilerleyen bir pencereyle taranır —
+     * denetim yine dakikada bir, ama sırayla. Seçili ilanlar her turda dahildir:
+     * mektup gidecek olanlar onlar.
+     *
+     * Gönderimden hemen önce `prepare()` seçilenlerin tamamını ayrıca
+     * denetler; yani kalkmış bir ilana mektup gitmesi bu pencereye bağlı değil.
+     */
+    private fun liveSweepSlice(state: JobsUiState): List<String> {
+        val all = state.results.map { it.caseNumber }
+        if (all.isEmpty()) {
+            liveSweepCursor = 0
+            return emptyList()
+        }
+        if (all.size <= LIVE_SWEEP_SIZE) {
+            liveSweepCursor = 0
+            return all
+        }
+        if (liveSweepCursor >= all.size) liveSweepCursor = 0
+        val slice = all.drop(liveSweepCursor).take(LIVE_SWEEP_SIZE)
+        liveSweepCursor += LIVE_SWEEP_SIZE
+        return (slice + state.selected.keys).distinct()
+    }
+
+    /**
+     * Ekrandaki ilanlardan süzgece artık uymayanları (sezonu bitmiş, geri
+     * çekilmiş, siteden kalkmış) listeden, seçimden ve arşivden düşürür.
+     */
+    private suspend fun dropRemovedJobs(shown: List<String>, input: JobQuery.Input) {
+        if (shown.isEmpty()) return
+        val alive = runCatchingCancellable {
+            container.jobsApi.stillActive(shown, input)
+        }.getOrNull() ?: return
+
+        // Ağ hatasında boş küme dönmez (null döner); yine de tamamı birden
+        // "kalkmış" görünüyorsa bu bir süzgeç/uç hatasıdır, listeyi silmeyiz.
+        if (alive.isEmpty()) return
+
+        val gone = shown.filterNot { it in alive }.toSet()
+        if (gone.isEmpty()) return
+
+        container.jobArchive.remove(gone)
+        _jobs.update { current ->
+            current.copy(
+                results = current.results.filterNot { it.caseNumber in gone },
+                selected = current.selected.filterKeys { it !in gone },
+                removedLive = current.removedLive + gone.size,
+            )
+        }
+    }
+
+    /**
+     * En yeni sayfayı çeker ve listede olmayanları beklemeye alır. Doğrudan
+     * eklenmez: kullanıcı okurken liste ayağının altından kaymasın diye
+     * "N yeni ilan" rozetine dokunulduğunda eklenir.
+     */
+    private suspend fun collectIncomingJobs(input: JobQuery.Input) {
+        val page = runCatchingCancellable {
+            container.jobsApi.search(
+                SeasonalJobsApi.Query(
+                    input = input,
+                    sort = SeasonalJobsApi.Sort.NEWEST,
+                    offset = 0,
+                    limit = LIVE_PROBE_SIZE,
+                ),
+            )
+        }.getOrNull() ?: return
+
+        val current = _jobs.value
+        val known = current.results.mapTo(HashSet()) { it.caseNumber }
+        current.incomingJobs.mapTo(known) { it.caseNumber }
+        val seen = if (settings.value.hideSeenJobs) container.jobArchive.seenCaseNumbers else emptySet()
+
+        val fresh = applyLocalFilters(page.jobs, current)
+            .filterNot { it.caseNumber in known || it.caseNumber in seen }
+
+        _jobs.update {
+            it.copy(
+                total = page.totalCount,
+                incomingJobs = (it.incomingJobs + fresh).distinctBy { job -> job.caseNumber },
+            )
+        }
+    }
+
+    /** Bekleyen yeni ilanları listenin başına alır. */
+    fun showIncoming() {
+        val incoming = _jobs.value.incomingJobs
+        if (incoming.isEmpty()) return
+        container.jobArchive.recordAndFilterNew(incoming, _jobs.value.query)
+        _jobs.update { state ->
+            state.copy(
+                results = (incoming + state.results).distinctBy { it.caseNumber },
+                incomingJobs = state.incomingJobs.filterNot { job ->
+                    incoming.any { it.caseNumber == job.caseNumber }
+                },
+            )
+        }
+        if (_jobs.value.translateAll) translateHeadlines()
+    }
 
     fun clearArchive() {
         container.jobArchive.clear()
@@ -846,7 +1010,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             // Kalkmış bir ilana başvuru göndermemek için son bir tazelik denetimi.
             val notes = mutableListOf<String>()
             val live = runCatching {
-                container.jobsApi.stillActive(selected.map { it.caseNumber })
+                container.jobsApi.stillActive(
+                    selected.map { it.caseNumber },
+                    JobQuery.livenessInput(nowIso()),
+                )
             }.getOrNull()
 
             val targets = if (live == null) {

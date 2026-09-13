@@ -221,15 +221,16 @@ class SeasonalJobsApi(
     }
 
     /**
-     * Verilen ilan numaralarından hangilerinin **hâlâ yayında** olduğunu söyler.
-     * Arşivdeki kayıtlardan siteden kalkmış olanları temizlemek için kullanılır.
+     * Verilen ilan numaralarından hangilerinin **hâlâ listede** olduğunu söyler.
+     *
+     * Süzgeç listeyle birebir aynıdır ([JobQuery.freshnessFilter]); yoksa
+     * listede duran ilanlar "kalkmış" sanılıp silinir.
      */
-    suspend fun stillActive(caseNumbers: List<String>): Set<String> {
+    suspend fun stillActive(caseNumbers: List<String>, input: JobQuery.Input): Set<String> {
         if (caseNumbers.isEmpty()) return emptySet()
         val alive = mutableSetOf<String>()
 
         caseNumbers.distinct().chunked(CASE_CHUNK).forEach { chunk ->
-            val list = chunk.joinToString("|")
             val payload = buildJsonObject {
                 put("search", JsonPrimitive("*"))
                 put("count", JsonPrimitive(true))
@@ -237,7 +238,7 @@ class SeasonalJobsApi(
                 put("select", JsonPrimitive("case_number"))
                 put(
                     "filter",
-                    JsonPrimitive("active eq true and display eq true and search.in(case_number, '$list', '|')"),
+                    JsonPrimitive(JobQuery.freshnessFilter(input, chunk)),
                 )
             }
             val request = Request.Builder()

@@ -67,6 +67,32 @@ object JobQuery {
         val searchMode: String,
     )
 
+    /**
+     * Tazelik denetiminin girdisi: **yalnızca** ilanın hâlâ yayında olup
+     * olmadığına bakar.
+     *
+     * Kullanıcının tercih süzgeçleri (eyalet, vize, e-postalı olsun, tarım dışı)
+     * bilerek dışarıda bırakılır. Aksi hâlde kullanıcı listeyi Teksas'a
+     * daraltınca arşivdeki Florida ilanları "kalkmış" sanılıp silinirdi.
+     * Yaklaşan ilanlar da hep dahildir; v18'de bu unutulduğu için tazelik
+     * denetimi 2100 yaklaşan ilanı silecekti.
+     */
+    fun livenessInput(nowIso: String): Input = Input(
+        emailOnly = false,
+        excludeAgricultural = false,
+        includeUpcoming = true,
+        nowIso = nowIso,
+    )
+
+    /**
+     * Verilen ilanlardan hangilerinin hâlâ yayında olduğunu soran süzgeç.
+     * [livenessInput] ile çağrılmalı.
+     */
+    fun freshnessFilter(input: Input, caseNumbers: List<String>): String {
+        val list = caseNumbers.joinToString("|") { it.odataEscape() }
+        return buildFilter(input) + " and search.in(case_number, '$list', '|')"
+    }
+
     fun build(input: Input): Built = Built(
         filter = buildFilter(input),
         search = buildSearch(input),
@@ -81,6 +107,10 @@ object JobQuery {
         // belgesi çıkmış binlerce ilan bu pencere kapandığı için gizli kalıyor.
         // Yurt dışından başvuran için asıl değerli olanlar bunlar: işe başlama
         // tarihi ileride olduğu için vize süreci yetişiyor.
+        if (input.nowIso.isNotEmpty()) {
+            // Sezonu bitmiş ilan hiçbir koşulda listelenmez.
+            clauses += "end_date gt ${input.nowIso}"
+        }
         if (input.includeUpcoming && input.nowIso.isNotEmpty()) {
             clauses += "not search.in(case_status, '${DEAD_STATUSES.joinToString("|")}', '|')"
             clauses += "(active eq true or begin_date gt ${input.nowIso})"

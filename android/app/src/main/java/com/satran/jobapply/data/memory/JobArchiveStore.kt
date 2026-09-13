@@ -101,6 +101,26 @@ class JobArchiveStore(context: Context) {
         return before - next.size
     }
 
+    /**
+     * Siteden kalktığı **kesinleşmiş** ilanları arşivden siler.
+     *
+     * [retainOnly] bütün arşivi bir listeyle karşılaştırır; canlı tazelemede
+     * elimizde yalnızca ekrandaki sayfa olduğu için ters yönde çalışan bu
+     * sürüm gerekli, yoksa ekranda olmayan her kayıt silinirdi.
+     *
+     * @return silinen kayıt sayısı.
+     */
+    @Synchronized
+    fun remove(caseNumbers: Set<String>): Int {
+        if (caseNumbers.isEmpty()) return 0
+        val before = _archive.value.size
+        val next = _archive.value.filterNot { it.job.caseNumber in caseNumbers }
+        if (next.size == before) return 0
+        _archive.value = next
+        persist(next)
+        return before - next.size
+    }
+
     @Synchronized
     fun clear() {
         _archive.value = emptyList()

@@ -99,6 +99,7 @@ fun JobsScreen(
     onClearSelection: () -> Unit,
     onLoadMore: () -> Unit,
     onTranslateAll: (Boolean) -> Unit,
+    onShowIncoming: () -> Unit,
     setupHint: String?,
     onOpenSettings: () -> Unit,
     onGoToApply: () -> Unit,
@@ -293,6 +294,32 @@ fun JobsScreen(
                 }
             }
         }
+
+            // Canlı tazelemede gelen yeni ilanlar listeye kendiliğinden
+            // eklenmez; okurken sayfa altından kayacağı için dokunmaya
+            // bırakılır.
+            if (state.view == JobsView.LIVE && state.incomingJobs.isNotEmpty()) {
+                Surface(
+                    color = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    shape = MaterialTheme.shapes.large,
+                    tonalElevation = 6.dp,
+                    shadowElevation = 6.dp,
+                    onClick = {
+                        onShowIncoming()
+                        scope.launch { listState.animateScrollToItem(0) }
+                    },
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 8.dp),
+                ) {
+                    Text(
+                        "↑ ${state.incomingJobs.size} yeni ilan · göster",
+                        style = MaterialTheme.typography.labelLarge,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                }
+            }
 
             // Uzun listede başa dönmek için; birkaç kart kaydırılınca beliriyor.
             // (AnimatedVisibility dıştaki Column'un kapsamına takıldığı için
@@ -607,6 +634,11 @@ private fun summaryLine(state: JobsUiState): String = buildString {
         }
     }
     if (state.selectedCount > 0) append(" · ${state.selectedCount} seçili")
-    if (state.removedStale > 0) append(" · ${state.removedStale} kalkan silindi")
-    if (state.lastUpdatedAt > 0) append(" · ${UPDATED_FORMAT.format(Date(state.lastUpdatedAt))}")
+    val removed = state.removedStale + state.removedLive
+    if (removed > 0) append(" · $removed kalkan silindi")
+    if (state.liveChecking) {
+        append(" · denetleniyor…")
+    } else if (state.lastUpdatedAt > 0) {
+        append(" · ${UPDATED_FORMAT.format(Date(state.lastUpdatedAt))}")
+    }
 }

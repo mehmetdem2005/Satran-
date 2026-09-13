@@ -29,6 +29,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -37,6 +38,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.satran.jobapply.data.mail.CvLoader
 import com.satran.jobapply.ui.MainViewModel
@@ -96,6 +100,29 @@ private fun AppRoot() {
     LaunchedEffect(Unit) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    // Canlı tazeleme yalnızca İlanlar sekmesi önplandayken döner. Uygulama
+    // arka plana alınınca durur: Android'de arka plan işleri en sık 15
+    // dakikada bir çalışabilir, dakikalık denetim ancak ekran açıkken olur.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, tab, settings.liveRefreshSeconds) {
+        val watchThisTab = tab == 0
+        if (watchThisTab && lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+            viewModel.startLiveRefresh()
+        }
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> if (watchThisTab) viewModel.startLiveRefresh()
+                Lifecycle.Event.ON_PAUSE -> viewModel.stopLiveRefresh()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            viewModel.stopLiveRefresh()
         }
     }
 
@@ -190,6 +217,7 @@ private fun AppRoot() {
                     onClearSelection = viewModel::clearSelection,
                     onLoadMore = viewModel::loadMore,
                     onTranslateAll = viewModel::setTranslateAll,
+                    onShowIncoming = viewModel::showIncoming,
                     setupHint = setupHint(settings),
                     onOpenSettings = { tab = 2 },
                     onGoToApply = { tab = 1 },

@@ -162,6 +162,13 @@ data class AppSettings(
     val requiredWords: String = "",
     /** Daha önce görülen ilanlar bir daha listelenmesin. */
     val hideSeenJobs: Boolean = true,
+    /**
+     * Uygulama açıkken listenin kaç saniyede bir tazeleneceği. 0 = kapalı.
+     *
+     * Yalnızca ön planda çalışır: Android'de arka plan işlerinin en sık
+     * çalışma aralığı 15 dakikadır, daha sık çalıştırmanın yolu yoktur.
+     */
+    val liveRefreshSeconds: Int = 60,
     /** Arşivin siteyle en son ne zaman karşılaştırıldığı (epoch ms). */
     val lastArchiveCheckAt: Long = 0L,
     /** Açılışta arşivi kendiliğinden denetle. */

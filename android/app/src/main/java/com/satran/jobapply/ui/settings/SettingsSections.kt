@@ -302,6 +302,24 @@ fun LazyListScope.searchSection(settings: AppSettings, onUpdate: Update) {
             onCheckedChange = { v -> onUpdate { it.copy(hideSeenJobs = v) } },
         )
     }
+    item { SectionTitle("Canlı liste") }
+    item {
+        LabelledChoiceRow(
+            label = "Listeyi kaç saniyede bir denetlesin",
+            value = settings.liveRefreshSeconds,
+            options = listOf(0 to "Kapalı", 30 to "30 sn", 60 to "1 dk", 120 to "2 dk", 300 to "5 dk"),
+            onSelect = { n -> onUpdate { it.copy(liveRefreshSeconds = n) } },
+        )
+    }
+    item {
+        Hint(
+            "Açık olduğunda kalkan, sezonu biten ve geri çekilen ilanlar listeden " +
+                "kendiliğinden düşer; yeni gelenler \"↑ yeni ilan\" olarak belirir. " +
+                "Yalnızca uygulama ekranda açıkken çalışır — Android arka planda en " +
+                "sık 15 dakikada bir iş çalıştırmaya izin verir, bunu aşmanın yolu yok.",
+        )
+    }
+
 
     item { SectionTitle("Kelime süzgeci") }
     item {
@@ -658,6 +676,28 @@ fun NumberChoiceRow(label: String, value: Int, options: List<Int>, onSelect: (In
                     selected = option == value,
                     onClick = { onSelect(option) },
                     label = { Text(option.toString()) },
+                )
+            }
+        }
+    }
+}
+
+/** Değeri sayı, etiketi metin olan seçim satırı (0 = "Kapalı" gibi). */
+@Composable
+fun LabelledChoiceRow(
+    label: String,
+    value: Int,
+    options: List<Pair<Int, String>>,
+    onSelect: (Int) -> Unit,
+) {
+    Column {
+        Text(label, style = MaterialTheme.typography.labelMedium)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            options.forEach { (option, text) ->
+                FilterChip(
+                    selected = option == value,
+                    onClick = { onSelect(option) },
+                    label = { Text(text) },
                 )
             }
         }
