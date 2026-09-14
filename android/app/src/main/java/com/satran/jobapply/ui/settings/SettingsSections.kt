@@ -198,6 +198,14 @@ fun LazyListScope.profileSection(settings: AppSettings, onUpdate: Update, onPick
 
 fun LazyListScope.templateSection(settings: AppSettings, onUpdate: Update) {
     item {
+        Hint(
+            "Tek mektup yazıyorsun, binlerce ilana gidiyor. {{...}} yazan yerler " +
+                "gönderilirken her ilanın kendi bilgisiyle değişir — yani her " +
+                "işverene kendi işinin adını yazmış olursun. Aşağıdaki " +
+                "önizlemede ne olduklarını görebilirsin.",
+        )
+    }
+    item {
         LabeledField(
             label = "Konu",
             value = settings.subjectTemplate,
@@ -215,14 +223,20 @@ fun LazyListScope.templateSection(settings: AppSettings, onUpdate: Update) {
             modifier = Modifier.fillMaxWidth(),
         )
     }
+    item { TemplatePreview(settings) }
     item {
         Column {
-            Text("Yer tutucular — dokun, sonuna eklenir", style = MaterialTheme.typography.labelMedium)
+            Text(
+                "Ekle — dokununca gövdenin sonuna gelir",
+                style = MaterialTheme.typography.labelMedium,
+            )
             FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                MailTemplate.PLACEHOLDERS.forEach { (token, _) ->
+                // Çip üstünde Türkçe adı yazıyor; metne giren şey yer tutucu.
+                // Ham "{{title}}" yazan çip kullanıcıya kod artığı gibi geliyordu.
+                MailTemplate.PLACEHOLDERS.forEach { (token, label) ->
                     AssistChip(
                         onClick = { onUpdate { it.copy(bodyTemplate = it.bodyTemplate + token) } },
-                        label = { Text(token, style = MaterialTheme.typography.labelSmall) },
+                        label = { Text(label, style = MaterialTheme.typography.labelSmall) },
                     )
                 }
             }
@@ -231,6 +245,50 @@ fun LazyListScope.templateSection(settings: AppSettings, onUpdate: Update) {
     item {
         TextButton(onClick = { onUpdate { it.copy(bodyTemplate = AppSettings.DEFAULT_BODY_TEMPLATE) } }) {
             Text("Şablonu sıfırla")
+        }
+    }
+}
+
+/**
+ * Şablonun örnek bir ilanla doldurulmuş hâli.
+ *
+ * Yer tutucuların ne işe yaradığını anlatmanın en kısa yolu göstermek;
+ * ayrıca kendi adını/telefonunu girmediysen eksik kaldığı da burada belli olur.
+ */
+@Composable
+private fun TemplatePreview(settings: AppSettings) {
+    val job = MailTemplate.SAMPLE_JOB
+    val subject = MailTemplate.render(settings.subjectTemplate, job, settings)
+    val body = MailTemplate.render(settings.bodyTemplate, job, settings)
+
+    Card {
+        Column(Modifier.padding(12.dp)) {
+            Text(
+                "Örnek ilanla önizleme",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                "${job.title} · ${job.location}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.outline,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text("Konu", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+            Text(subject, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(8.dp))
+            Text("Gövde", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+            Text(body, style = MaterialTheme.typography.bodySmall)
+
+            if (settings.fullName.isBlank() || settings.phone.isBlank()) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Adın ya da telefonun boş görünüyor — Profil bölümünden doldur, " +
+                        "yoksa mektupta da boş gider.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
         }
     }
 }

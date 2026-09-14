@@ -21,6 +21,38 @@ object MailTemplate {
     )
 
     /**
+     * Şablon önizlemesi için örnek ilan.
+     *
+     * Ayarlarda yer tutucular ham hâlde (`{{title}}`) görünüyor ve kullanıcıya
+     * kod artığı gibi geliyor. Yanına gerçek verilerle doldurulmuş hâli
+     * konunca ne işe yaradıkları tek bakışta anlaşılıyor.
+     *
+     * Alanlar seasonaljobs.dol.gov'dan gelen tipik bir H-2B ilanıyla aynı
+     * biçimde; uydurma bir işveren adı kullanılıyor.
+     */
+    val SAMPLE_JOB = Job(
+        caseNumber = "H-400-26245-210160",
+        title = "SNOW REMOVAL WORKER",
+        employer = "Example Mountain Resorts LLC",
+        email = "hr@example.com",
+        phone = null,
+        applyUrl = null,
+        location = "Aspen, CO",
+        socCode = "37-3011.00",
+        socTitle = "Landscaping and Groundskeeping Worker",
+        visaClass = "H-2B",
+        positions = 12,
+        wage = "\$19.24 / saat",
+        period = "01.12.2026 – 15.04.2027",
+        duties = null,
+        requirements = null,
+        education = null,
+        experience = null,
+        schedule = null,
+        postedOn = null,
+    )
+
+    /**
      * Doldurulmamış bir alan (telefon girilmemişse gibi) metinde boşluk
      * bırakır. Bu boşluklar temizlenmezse mektup baştan savma görünür.
      */

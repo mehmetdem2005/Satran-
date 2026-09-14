@@ -97,4 +97,42 @@ class MailTemplateTest {
         // Geçiş yalnızca dokunulmamış eski şablonu değiştirir; ikisi farklı olmalı.
         assertFalse(AppSettings.LEGACY_BODY_TEMPLATE == AppSettings.DEFAULT_BODY_TEMPLATE)
     }
+
+    @Test
+    fun `onizleme ornek ilanda hic yer tutucu birakmaz`() {
+        // Ayarlardaki önizleme kullanıcıya "{{title}} ne işe yarıyor" sorusunun
+        // cevabı; içinde ham yer tutucu kalırsa tam tersini anlatır.
+        val subject = MailTemplate.render(
+            AppSettings().subjectTemplate,
+            MailTemplate.SAMPLE_JOB,
+            settings,
+        )
+        val body = MailTemplate.render(
+            AppSettings.DEFAULT_BODY_TEMPLATE,
+            MailTemplate.SAMPLE_JOB,
+            settings,
+        )
+        assertFalse("konuda yer tutucu kaldı: $subject", subject.contains("{{"))
+        assertFalse("gövdede yer tutucu kaldı: $body", body.contains("{{"))
+    }
+
+    @Test
+    fun `ornek ilan her yer tutucuyu doldurabilir`() {
+        // Her çipin karşılığı örnek ilanda dolu olmalı; boş kalan bir alan
+        // önizlemede sessizce kaybolur ve kullanıcı o çipi bozuk sanır.
+        val template = MailTemplate.PLACEHOLDERS.joinToString("\n") { (token, label) -> "$label: $token" }
+        val rendered = MailTemplate.render(template, MailTemplate.SAMPLE_JOB, settings)
+        MailTemplate.PLACEHOLDERS.forEach { (_, label) ->
+            val line = rendered.lines().first { it.startsWith("$label:") }
+            assertTrue("$label boş kaldı", line.removePrefix("$label:").isNotBlank())
+        }
+    }
+
+    @Test
+    fun `ornek ilan gercek ilan bicimindedir`() {
+        val job = MailTemplate.SAMPLE_JOB
+        // Gerçek DOL ilan numarası biçimi: H-400-26245-210160
+        assertTrue(job.caseNumber.matches(Regex("H-\\d{3}-\\d{5}-\\d{6}")))
+        assertEquals("H-2B", job.visaClass)
+    }
 }
