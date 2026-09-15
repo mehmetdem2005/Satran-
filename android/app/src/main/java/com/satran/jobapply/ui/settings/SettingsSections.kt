@@ -44,6 +44,7 @@ import com.satran.jobapply.data.model.SearchProvider
 import com.satran.jobapply.data.model.SendMode
 import com.satran.jobapply.data.model.SendRecord
 import com.satran.jobapply.data.model.SendStatus
+import com.satran.jobapply.data.model.failureReasons
 import com.satran.jobapply.data.model.summarize
 import com.satran.jobapply.data.model.TranslationEngine
 import com.satran.jobapply.data.remote.SeasonalJobsApi
@@ -766,13 +767,24 @@ fun LazyListScope.dataSection(
                 )
                 if (failed > 0) {
                     Text(
-                        "$failed deneme başarısız oldu — aşağıdaki listede kırmızı olanlar.",
+                        "$failed deneme başarısız oldu",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
                     )
+                    Spacer(Modifier.height(6.dp))
+                    // 95 kaydı tek tek okumak yerine sebep sebep döküm:
+                    // "neden başarısız oluyor" sorusunun cevabı burada.
+                    history.failureReasons().forEach { (reason, count) ->
+                        Text(
+                            "• $count × $reason",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    Spacer(Modifier.height(6.dp))
                     Text(
                         "Gmail'in \"Gönderilenler\" klasöründe yalnızca başarılı olanlar görünür; " +
-                            "sayıların farklı olması normaldir.",
+                            "sayıların farklı olması normaldir. Adresi kapanmış ilanlar tekrar " +
+                            "denenmez; bağlantı ve sınır hataları kuyrukta kalıp yeniden denenir.",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.outline,
                     )

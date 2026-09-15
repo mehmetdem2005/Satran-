@@ -65,6 +65,10 @@ class BulkSendWorker(
         val cv: CvFile? = runCatching { CvLoader.resolve(applicationContext, settings) }.getOrNull()
         val cvMissing = cv == null
 
+        // Üst üste gelen geçici hata, tek tek ilanların değil bağlantının
+        // sorunu demektir; her ilanı tek tek denemek boşuna.
+        var transientStreak = 0
+
         try {
             GmailSender(settings).use { sender ->
                 sender.connect()
@@ -104,18 +108,60 @@ class BulkSendWorker(
                         )
                     }
 
-                    container.historyStore.add(
-                        SendRecord(
-                            caseNumber = mail.caseNumber,
-                            title = mail.title,
-                            employer = mail.employer,
-                            email = mail.to,
-                            status = if (outcome.isSuccess) SendStatus.SENT else SendStatus.FAILED,
-                            error = outcome.exceptionOrNull()?.let { it.message ?: it::class.java.simpleName },
-                        ),
-                    )
-                    state = queue.complete(mail.caseNumber, outcome.isSuccess)
-                    if (outcome.isSuccess) remainingToday--
+                    if (outcome.isSuccess) {
+                        container.historyStore.add(
+                            SendRecord(
+                                caseNumber = mail.caseNumber,
+                                title = mail.title,
+                                employer = mail.employer,
+                                email = mail.to,
+                                status = SendStatus.SENT,
+                            ),
+                        )
+                        state = queue.complete(mail.caseNumber, succeeded = true)
+                        remainingToday--
+                        transientStreak = 0
+                    } else {
+                        val failure = MailFailures.classify(outcome.exceptionOrNull())
+                        when (failure.kind) {
+                            // Kota ya da hız sınırı: ısrar etmek hesabı riske
+                            // atar. Kalan iletiler kuyrukta durur, yarın sürer.
+                            FailureKind.THROTTLED -> {
+                                queue.defer(mail.caseNumber)
+                                notifyPaused(queue.state.value)
+                                scheduleNextDay()
+                                return Result.success(summaryData(queue.state.value))
+                            }
+
+                            // Geçici: sona al, tekrar denenecek. Üst üste
+                            // olursa bağlantı gitmiş demektir, ısrar etmeyiz.
+                            FailureKind.TRANSIENT -> {
+                                state = queue.defer(mail.caseNumber)
+                                transientStreak++
+                                if (transientStreak >= MAX_TRANSIENT_STREAK) {
+                                    scheduleRetry()
+                                    notifyError(failure.reason)
+                                    return Result.success(summaryData(state))
+                                }
+                            }
+
+                            // Kalıcı: adres yok. Tekrar denemenin anlamı yok.
+                            FailureKind.PERMANENT -> {
+                                container.historyStore.add(
+                                    SendRecord(
+                                        caseNumber = mail.caseNumber,
+                                        title = mail.title,
+                                        employer = mail.employer,
+                                        email = mail.to,
+                                        status = SendStatus.FAILED,
+                                        error = failure.reason,
+                                    ),
+                                )
+                                state = queue.complete(mail.caseNumber, succeeded = false)
+                                transientStreak = 0
+                            }
+                        }
+                    }
 
                     if (queue.state.value.isActive && remainingToday > 0 && settings.sendDelaySeconds > 0) {
                         delay(settings.sendDelaySeconds * 1000L)
@@ -243,6 +289,9 @@ class BulkSendWorker(
         const val KEY_FAILED = "failed"
         const val KEY_PENDING = "pending"
         const val KEY_ERROR = "error"
+
+        /** Kaç ardışık geçici hatadan sonra bağlantı sorunu sayılır. */
+        private const val MAX_TRANSIENT_STREAK = 5
 
         private const val NOTIFICATION_ID = 4201
         private const val DONE_NOTIFICATION_ID = 4202

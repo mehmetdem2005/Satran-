@@ -43,3 +43,16 @@ fun List<SendRecord>.summarize(): SendSummary {
     }
     return SendSummary(sent = sent, failed = failed, other = other)
 }
+
+/**
+ * Başarısız gönderimleri sebebe göre gruplar, çoktan aza sıralar.
+ *
+ * "Neden başarısız oluyor" sorusunun cevabı yüzlerce kaydın içinde
+ * kayboluyordu; döküm tek bakışta gösteriyor.
+ */
+fun List<SendRecord>.failureReasons(): List<Pair<String, Int>> = this
+    .filter { it.status == SendStatus.FAILED }
+    .groupingBy { it.error?.takeIf { e -> e.isNotBlank() } ?: "Sebep kaydedilmemiş" }
+    .eachCount()
+    .toList()
+    .sortedByDescending { it.second }

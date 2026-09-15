@@ -29,6 +29,8 @@ data class SendQueueState(
     val dayStamp: String = "",
     val startedAt: Long = 0L,
     val lastSentAt: Long = 0L,
+    /** Geçici hata yüzünden sona alınıp tekrar denenecek ileti sayısı. */
+    val deferred: Int = 0,
 ) {
     val isActive: Boolean get() = pending.isNotEmpty()
     val doneCount: Int get() = sentTotal + failedTotal
@@ -80,6 +82,24 @@ class SendQueueStore(context: Context) {
             failedTotal = current.failedTotal + if (succeeded) 0 else 1,
             sentToday = current.sentToday + if (succeeded) 1 else 0,
             lastSentAt = System.currentTimeMillis(),
+        )
+        write(next)
+        return next
+    }
+
+    /**
+     * İletiyi kuyruğun sonuna alır; başarısız sayılmaz.
+     *
+     * Geçici hatalarda kullanılır. [complete] iletiyi kuyruktan sildiği için,
+     * ağ koptuğu an denk gelen başvuru bir daha hiç denenmiyordu.
+     */
+    @Synchronized
+    fun defer(caseNumber: String): SendQueueState {
+        val current = _state.value
+        val mail = current.pending.firstOrNull { it.caseNumber == caseNumber } ?: return current
+        val next = current.copy(
+            pending = current.pending.filterNot { it.caseNumber == caseNumber } + mail,
+            deferred = current.deferred + 1,
         )
         write(next)
         return next
