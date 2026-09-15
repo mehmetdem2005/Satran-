@@ -387,7 +387,11 @@ private fun ApplyToAllCard(
             }
             if (!settings.smtpReady) {
                 Text(
-                    "Önce Ayarlar'dan Gmail'i kur.",
+                    // Toplu gönderim yalnızca SMTP ile olur: "Gmail'de aç" yolu
+                    // her ilanda kullanıcının Gönder'e basmasını gerektiriyor.
+                    "Tek tuşla toplu başvuru için Ayarlar'dan Gmail uygulama " +
+                        "şifresini gir. Şifresiz kullanmak istersen ilanları tek " +
+                        "tek \"Gmail'de aç\" ile gönderebilirsin.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                 )
@@ -445,7 +449,7 @@ private fun ReadinessCard(settings: AppSettings, selectedCount: Int, onPickCv: (
             )
             CheckLine(
                 "Gmail",
-                settings.smtpReady,
+                settings.sendReady,
                 if (settings.smtpReady) settings.gmailAddress else "adres + uygulama şifresi gerekli",
             )
             CheckLine(

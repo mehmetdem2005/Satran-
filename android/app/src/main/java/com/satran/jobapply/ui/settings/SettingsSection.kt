@@ -19,10 +19,11 @@ enum class SettingsSection(val title: String) {
     ;
 
     fun subtitle(settings: AppSettings, historyCount: Int, archiveSize: Int): String = when (this) {
-        GMAIL -> if (settings.smtpReady) {
-            "${settings.gmailAddress} · ${settings.sendMode.label}"
-        } else {
-            "Kurulmadı — başvuru gönderemezsin"
+        GMAIL -> when {
+            settings.smtpReady -> "${settings.gmailAddress} · ${settings.sendMode.label}"
+            // Şifresiz yol kuruluma gerek duymaz; "kurulmadı" demek yanlış olur.
+            settings.sendReady -> settings.sendMode.label
+            else -> "Kurulmadı — başvuru gönderemezsin"
         }
 
         // CV artık uygulamanın içinde geliyor; eksik olabilecek tek alan ad.

@@ -218,6 +218,20 @@ data class AppSettings(
         get() = gmailAddress.isNotBlank() && appPasswordClean().isNotBlank()
 
     /**
+     * Seçili gönderim yoluyla başvuru gönderilebilir mi?
+     *
+     * "Gmail uygulamasında aç" yolu şifre istemez: ileti Gmail'de hazır açılır,
+     * Gönder'e kullanıcı basar. Dolayısıyla 2 adımlı doğrulaması olmayan da
+     * uygulamayı kullanabilir. Kurulum uyarıları [smtpReady]'ye bakarsa bu
+     * kişiye "Gmail eksik, başvuru gönderemezsin" der ki doğru değil.
+     */
+    val sendReady: Boolean
+        get() = when (sendMode) {
+            SendMode.SMTP -> smtpReady
+            SendMode.INTENT -> true
+        }
+
+    /**
      * Uygulama şifresini girişe verilebilir hâle getirir.
      *
      * Google şifreyi "abcd efgh ijkl mnop" diye boşluklu gösteriyor; kopyalayan

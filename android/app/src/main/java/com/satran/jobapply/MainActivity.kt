@@ -283,7 +283,7 @@ private val TAB_TITLES = listOf("Mevsimlik iş ilanları", "Başvuru gönder", "
 /** Başvuru gönderebilmek için eksik olanı tek satırda söyler; hepsi tamamsa null. */
 private fun setupHint(settings: com.satran.jobapply.data.model.AppSettings): String? {
     val missing = buildList {
-        if (!settings.smtpReady) add("Gmail")
+        if (!settings.sendReady) add("Gmail")
         // CV uygulamanın içinde geliyor; artık eksik olamaz.
         if (settings.fullName.isBlank()) add("ad soyad")
     }
