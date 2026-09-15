@@ -183,7 +183,7 @@ private fun ReadinessCard(
 ) {
     val missing = buildList {
         if (!settings.smtpReady) add("Gmail" to SettingsSection.GMAIL)
-        if (settings.cvFileName.isBlank()) add("PDF CV" to SettingsSection.PROFILE)
+        // CV uygulamanın içinde geliyor; artık eksik olamaz.
         if (settings.fullName.isBlank()) add("Ad soyad" to SettingsSection.PROFILE)
     }
 

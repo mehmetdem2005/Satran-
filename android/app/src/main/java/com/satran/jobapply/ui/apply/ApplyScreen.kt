@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.work.WorkInfo
+import com.satran.jobapply.data.mail.CvLoader
 import com.satran.jobapply.data.model.AppSettings
 import com.satran.jobapply.data.model.Job
 import com.satran.jobapply.data.model.SendMode
@@ -141,13 +142,9 @@ fun ApplyScreen(
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Ek: ${settings.cvFileName.ifBlank { "CV seçilmedi" }}",
+                        "Ek: ${settings.cvFileName.ifBlank { CvLoader.BUILT_IN_NAME }}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (settings.cvFileName.isBlank()) {
-                            MaterialTheme.colorScheme.error
-                        } else {
-                            MaterialTheme.colorScheme.outline
-                        },
+                        color = MaterialTheme.colorScheme.outline,
                     )
                     Spacer(Modifier.height(8.dp))
                     Text("Alıcılar:", style = MaterialTheme.typography.labelMedium)
@@ -443,8 +440,8 @@ private fun ReadinessCard(settings: AppSettings, selectedCount: Int, onPickCv: (
             CheckLine("Seçili ilan", selectedCount > 0, "$selectedCount ilan")
             CheckLine(
                 "PDF CV",
-                settings.cvFileName.isNotBlank(),
-                settings.cvFileName.ifBlank { "seçilmedi" },
+                true,
+                settings.cvFileName.ifBlank { "${CvLoader.BUILT_IN_NAME} (yerleşik)" },
             )
             CheckLine(
                 "Gmail",

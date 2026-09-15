@@ -1333,14 +1333,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun openInGmail(mail: QueuedMail) {
         viewModelScope.launch {
             val config = settings.value
-            val cv: CvFile? = config.cvUri.takeIf { it.isNotBlank() }?.let { uri ->
-                withContext(Dispatchers.IO) { runCatching { CvLoader.load(getApplication(), uri) }.getOrNull() }
+            // CV her zaman gider: kullanıcı kendi PDF'ini seçmediyse ya da
+            // seçtiği dosya okunamıyorsa uygulamayla gelen CV eklenir.
+            val cv: CvFile? = withContext(Dispatchers.IO) {
+                runCatching { CvLoader.resolve(getApplication(), config) }.getOrNull()
             }
-            if (config.cvUri.isNotBlank() && cv == null) {
-                _message.value = "CV okunamadı, ileti eksiz açılıyor. Ayarlar'dan CV'yi yeniden seç."
-            }
-            if (config.cvUri.isBlank()) {
-                _message.value = "CV seçilmemiş; ileti eksiz açılıyor."
+            if (cv == null) {
+                _message.value = "CV okunamadı, ileti eksiz açılıyor."
+            } else if (config.cvUri.isNotBlank() && cv.fileName == CvLoader.BUILT_IN_NAME) {
+                _message.value = "Seçtiğin CV okunamadı; yerleşik CV eklendi."
             }
 
             runCatching {

@@ -60,10 +60,10 @@ class BulkSendWorker(
 
         setForeground(foregroundInfo(state, state.pending.firstOrNull()?.employer.orEmpty()))
 
-        val cv: CvFile? = settings.cvUri.takeIf { it.isNotBlank() }?.let { uri ->
-            runCatching { CvLoader.load(applicationContext, uri) }.getOrNull()
-        }
-        val cvMissing = settings.cvUri.isNotBlank() && cv == null
+        // Toplu gönderimde de ek her mektuba girer; seçilmiş dosya okunamazsa
+        // yerleşik CV devreye girer, mektuplar eksiz gitmez.
+        val cv: CvFile? = runCatching { CvLoader.resolve(applicationContext, settings) }.getOrNull()
+        val cvMissing = cv == null
 
         try {
             GmailSender(settings).use { sender ->

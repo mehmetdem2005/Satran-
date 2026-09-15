@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.satran.jobapply.data.filter.JobQuery
+import com.satran.jobapply.data.mail.CvLoader
 import com.satran.jobapply.data.mail.MailTemplate
 import com.satran.jobapply.data.memory.SearchEntry
 import com.satran.jobapply.data.model.AiProvider
@@ -147,13 +148,35 @@ fun LazyListScope.gmailSection(
 
 fun LazyListScope.profileSection(settings: AppSettings, onUpdate: Update, onPickCv: () -> Unit) {
     item {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = onPickCv) { Text("PDF CV seç") }
-            Text(
-                settings.cvFileName.ifBlank { "Henüz seçilmedi" },
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(top = 12.dp),
-            )
+        val usingBuiltIn = settings.cvUri.isBlank()
+        Card {
+            Column(Modifier.padding(12.dp)) {
+                Text("Her mektuba eklenen CV", style = MaterialTheme.typography.labelMedium)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    if (usingBuiltIn) CvLoader.BUILT_IN_NAME else settings.cvFileName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    if (usingBuiltIn) {
+                        "Uygulamanın içinde geliyor — telefonda dosya olmasa da gider."
+                    } else {
+                        "Telefonundan seçtiğin dosya. Okunamazsa yerleşik CV gider."
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline,
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = onPickCv) { Text("Başka PDF seç") }
+                    if (!usingBuiltIn) {
+                        TextButton(onClick = { onUpdate { it.copy(cvUri = "", cvFileName = "") } }) {
+                            Text("Yerleşiğe dön")
+                        }
+                    }
+                }
+            }
         }
     }
     item {
