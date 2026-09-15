@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.satran.jobapply.data.filter.JobQuery
+import com.satran.jobapply.core.GoogleLinks
 import com.satran.jobapply.data.mail.CvLoader
 import com.satran.jobapply.data.mail.MailTemplate
 import com.satran.jobapply.data.memory.SearchEntry
@@ -109,8 +110,11 @@ fun LazyListScope.gmailSection(
     }
     item {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { onOpenUrl("https://myaccount.google.com/apppasswords") }) {
+            OutlinedButton(onClick = { onOpenUrl(GoogleLinks.appPasswords(settings.gmailAddress)) }) {
                 Text("Şifre al")
+            }
+            OutlinedButton(onClick = { onOpenUrl(GoogleLinks.twoStep(settings.gmailAddress)) }) {
+                Text("2 adımlı")
             }
             Button(onClick = onTestSmtp, enabled = !testing && settings.smtpReady) {
                 Text(if (testing) "Deneniyor…" else "Bağlantıyı test et")
