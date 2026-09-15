@@ -52,6 +52,6 @@ enum class SettingsSection(val title: String) {
             "Kapalı — isteğe bağlı, çeviri bundan bağımsız"
         }
 
-        DATA -> "$historyCount gönderim · $archiveSize arşivlenmiş ilan"
+        DATA -> "$historyCount gönderim kaydı · $archiveSize arşivlenmiş ilan"
     }
 }

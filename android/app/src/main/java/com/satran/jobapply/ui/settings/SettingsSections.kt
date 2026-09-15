@@ -44,6 +44,7 @@ import com.satran.jobapply.data.model.SearchProvider
 import com.satran.jobapply.data.model.SendMode
 import com.satran.jobapply.data.model.SendRecord
 import com.satran.jobapply.data.model.SendStatus
+import com.satran.jobapply.data.model.summarize
 import com.satran.jobapply.data.model.TranslationEngine
 import com.satran.jobapply.data.remote.SeasonalJobsApi
 import com.satran.jobapply.ui.common.LabeledField
@@ -748,11 +749,42 @@ fun LazyListScope.dataSection(
         }
     }
 
+    item { SectionTitle("Gönderim özeti") }
+    item {
+        // history.size hem başarılıyı hem başarısızı sayıyor. Tek sayı olarak
+        // "gönderim" demek yanıltıcıydı: kullanıcı Gmail'in Gönderilenler
+        // klasöründe daha az ileti görüp arada bir hata sanıyordu.
+        val summary = history.summarize()
+        val sent = summary.sent
+        val failed = summary.failed
+        Card {
+            Column(Modifier.padding(12.dp)) {
+                Text(
+                    "$sent ileti gönderildi",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                if (failed > 0) {
+                    Text(
+                        "$failed deneme başarısız oldu — aşağıdaki listede kırmızı olanlar.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    Text(
+                        "Gmail'in \"Gönderilenler\" klasöründe yalnızca başarılı olanlar görünür; " +
+                            "sayıların farklı olması normaldir.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline,
+                    )
+                }
+            }
+        }
+    }
     item { SectionTitle("Depolanan veri") }
     item {
         Text(
             "$archiveSize arşivlenmiş ilan · $memorySize bellek parçası · " +
-                "${searchHistory.size} arama · ${history.size} gönderim",
+                "${searchHistory.size} arama · ${history.size} gönderim kaydı",
             style = MaterialTheme.typography.bodySmall,
         )
     }
