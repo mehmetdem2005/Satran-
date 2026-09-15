@@ -106,6 +106,9 @@ data class PrepareProgress(
     val total: Int,
 )
 
+/** Gmail bağlantı denemesinin sonucu; ayarlar ekranında olduğu gibi gösterilir. */
+data class SmtpTestResult(val ok: Boolean, val text: String)
+
 data class ApplyUiState(
     val preparing: Boolean = false,
     /** "Hepsine başvur" kuyruğu kuruluyor. */
@@ -114,6 +117,13 @@ data class ApplyUiState(
     val progress: PrepareProgress? = null,
     val notes: List<String> = emptyList(),
     val testing: Boolean = false,
+    /**
+     * Son Gmail bağlantı denemesinin sonucu.
+     *
+     * Snackbar uzun metni kesiyor; giriş reddedildiğinde asıl yardımcı olan
+     * satırlar (hangi adres, kaç hane, ne kontrol edilmeli) görünmüyordu.
+     */
+    val smtpResult: SmtpTestResult? = null,
     val loadingModels: Boolean = false,
     val verifying: Boolean = false,
     val sourceProof: SeasonalJobsApi.SourceProof? = null,

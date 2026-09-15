@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.satran.jobapply.data.memory.SearchEntry
 import com.satran.jobapply.data.model.AppSettings
+import com.satran.jobapply.ui.SmtpTestResult
 import com.satran.jobapply.data.model.SendRecord
 import com.satran.jobapply.data.remote.SeasonalJobsApi
 
@@ -53,6 +54,7 @@ fun SettingsScreen(
     memorySize: Int,
     archiveSize: Int,
     testing: Boolean,
+    smtpResult: SmtpTestResult?,
     loadingModels: Boolean,
     verifying: Boolean,
     sourceProof: SeasonalJobsApi.SourceProof?,
@@ -116,7 +118,7 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxSize(),
         ) {
             when (section!!) {
-                SettingsSection.GMAIL -> gmailSection(settings, testing, onUpdate, onTestSmtp, onOpenUrl)
+                SettingsSection.GMAIL -> gmailSection(settings, testing, smtpResult, onUpdate, onTestSmtp, onOpenUrl)
                 SettingsSection.PROFILE -> profileSection(settings, onUpdate, onPickCv)
                 SettingsSection.TEMPLATE -> templateSection(settings, onUpdate)
                 SettingsSection.TRANSLATION -> translationSection(settings, onUpdate, onToggleTranslateAll)

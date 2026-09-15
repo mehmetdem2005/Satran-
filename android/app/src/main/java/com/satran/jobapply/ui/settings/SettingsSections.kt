@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
@@ -37,6 +38,7 @@ import com.satran.jobapply.data.mail.MailTemplate
 import com.satran.jobapply.data.memory.SearchEntry
 import com.satran.jobapply.data.model.AiProvider
 import com.satran.jobapply.data.model.AppSettings
+import com.satran.jobapply.ui.SmtpTestResult
 import com.satran.jobapply.data.model.SearchProvider
 import com.satran.jobapply.data.model.SendMode
 import com.satran.jobapply.data.model.SendRecord
@@ -57,6 +59,7 @@ private typealias Update = ((AppSettings) -> AppSettings) -> Unit
 fun LazyListScope.gmailSection(
     settings: AppSettings,
     testing: Boolean,
+    smtpResult: SmtpTestResult?,
     onUpdate: Update,
     onTestSmtp: () -> Unit,
     onOpenUrl: (String) -> Unit,
@@ -111,6 +114,27 @@ fun LazyListScope.gmailSection(
             }
             Button(onClick = onTestSmtp, enabled = !testing && settings.smtpReady) {
                 Text(if (testing) "Deneniyor…" else "Bağlantıyı test et")
+            }
+        }
+    }
+    item {
+        // Reddin sebebini anlatan satırlar snackbar'da kesiliyordu; burada
+        // tamamı duruyor ve kullanıcı okuyarak sırayla eleyebiliyor.
+        smtpResult?.let { result ->
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = if (result.ok) {
+                        MaterialTheme.colorScheme.secondaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.errorContainer
+                    },
+                ),
+            ) {
+                Text(
+                    result.text,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(12.dp),
+                )
             }
         }
     }

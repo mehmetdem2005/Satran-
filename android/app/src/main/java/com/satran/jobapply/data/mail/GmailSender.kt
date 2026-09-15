@@ -74,9 +74,26 @@ class GmailSender(private val settings: AppSettings) : AutoCloseable {
         try {
             newTransport.connect(HOST, user, secret)
         } catch (e: javax.mail.AuthenticationFailedException) {
+            // Google reddin sebebini bildirmiyor; bütün nedenler aynı hatayla
+            // dönüyor. Kullanıcı kendi kendine ayırt edebilsin diye elimizdeki
+            // tek somut bilgiyi yazıyoruz: hangi adresle, kaç haneyle denendi.
+            // En sık iki sebep, şifrenin başka bir hesapta üretilmiş olması ve
+            // iptal edilmiş eski şifrenin alanda kalmış olması.
             throw IllegalStateException(
-                "Gmail girişi reddedildi. 2 adımlı doğrulamayı açıp 16 haneli uygulama şifresi " +
-                    "ürettiğinden emin ol (normal hesap şifresi çalışmaz).",
+                buildString {
+                    appendLine("Gmail girişi reddedildi.")
+                    appendLine()
+                    appendLine("Denenen adres: $user")
+                    append("Girilen şifre: ${secret.length} hane")
+                    if (secret.length != APP_PASSWORD_LENGTH) append(" — $APP_PASSWORD_LENGTH olmalı")
+                    appendLine()
+                    appendLine()
+                    appendLine("Sırayla kontrol et:")
+                    appendLine("1. Uygulama şifresini tam olarak $user hesabında mı ürettin?")
+                    appendLine("2. Eski şifreyi iptal ettiysen buradaki artık geçersizdir; yenisini gir.")
+                    appendLine("3. 2 adımlı doğrulama açık mı? Kapalıysa Google uygulama şifresi vermez.")
+                    append("4. Normal hesap şifresi çalışmaz; 16 haneli uygulama şifresi gerekir.")
+                },
                 e,
             )
         }
@@ -130,6 +147,8 @@ class GmailSender(private val settings: AppSettings) : AutoCloseable {
     }
 
     private companion object {
+        /** Google'ın uygulama şifresi uzunluğu. */
+        const val APP_PASSWORD_LENGTH = 16
         const val TAG = "GmailSender"
         const val HOST = "smtp.gmail.com"
         const val PORT = "587"

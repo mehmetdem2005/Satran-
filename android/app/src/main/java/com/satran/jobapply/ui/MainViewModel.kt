@@ -1039,12 +1039,29 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun testSmtp() {
         viewModelScope.launch {
-            _apply.update { it.copy(testing = true) }
+            _apply.update { it.copy(testing = true, smtpResult = null) }
             runCatching {
                 withContext(Dispatchers.IO) { GmailSender(settings.value).use { it.connect() } }
             }
-                .onSuccess { _message.value = "Gmail bağlantısı çalışıyor ✓" }
-                .onFailure { _message.value = it.friendly() }
+                .onSuccess {
+                    _message.value = "Gmail bağlantısı çalışıyor ✓"
+                    _apply.update {
+                        it.copy(
+                            smtpResult = SmtpTestResult(
+                                ok = true,
+                                text = "Gmail bağlantısı çalışıyor. Başvuruları gönderebilirsin.",
+                            ),
+                        )
+                    }
+                }
+                .onFailure { error ->
+                    // Snackbar'a kısa hâli, ekrana tam hâli: reddin sebebini
+                    // anlatan satırlar snackbar'da kesiliyordu.
+                    _message.value = error.friendly().lineSequence().first()
+                    _apply.update {
+                        it.copy(smtpResult = SmtpTestResult(ok = false, text = error.friendly()))
+                    }
+                }
             _apply.update { it.copy(testing = false) }
         }
     }

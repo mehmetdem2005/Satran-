@@ -254,6 +254,7 @@ private fun AppRoot() {
                     memorySize = memory.size,
                     archiveSize = jobsState.archived.size,
                     testing = applyState.testing,
+                    smtpResult = applyState.smtpResult,
                     loadingModels = applyState.loadingModels,
                     verifying = applyState.verifying,
                     sourceProof = applyState.sourceProof,
