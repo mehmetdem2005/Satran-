@@ -215,7 +215,17 @@ data class AppSettings(
         get() = aiApiKey.isNotBlank() && effectiveBaseUrl.isNotBlank() && effectiveModel.isNotBlank()
 
     val smtpReady: Boolean
-        get() = gmailAddress.isNotBlank() && gmailAppPassword.isNotBlank()
+        get() = gmailAddress.isNotBlank() && appPasswordClean().isNotBlank()
+
+    /**
+     * Uygulama şifresini girişe verilebilir hâle getirir.
+     *
+     * Google şifreyi "abcd efgh ijkl mnop" diye boşluklu gösteriyor; kopyalayan
+     * çoğu kişi boşluklarla — bazen satır sonu ya da kırılmaz boşlukla (U+00A0)
+     * — yapıştırıyor. Hepsi atılmazsa giriş "şifre yanlış" diye reddedilir ve
+     * kullanıcı hatanın nerede olduğunu göremez.
+     */
+    fun appPasswordClean(): String = gmailAppPassword.filterNot { it.isWhitespace() || it == '\u00A0' }
 
     val searchReady: Boolean
         get() = !searchProvider.needsKey || searchApiKey.isNotBlank()

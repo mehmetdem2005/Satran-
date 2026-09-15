@@ -61,18 +61,18 @@ class GmailSender(private val settings: AppSettings) : AutoCloseable {
             put("mail.mime.charset", "UTF-8")
         }
 
+        val user = settings.gmailAddress.trim()
+        val secret = settings.appPasswordClean()
+
         val auth = object : Authenticator() {
             override fun getPasswordAuthentication(): PasswordAuthentication =
-                PasswordAuthentication(
-                    settings.gmailAddress.trim(),
-                    settings.gmailAppPassword.replace(" ", ""),
-                )
+                PasswordAuthentication(user, secret)
         }
 
         val newSession = Session.getInstance(props, auth)
         val newTransport = newSession.getTransport("smtp")
         try {
-            newTransport.connect(HOST, settings.gmailAddress.trim(), settings.gmailAppPassword.replace(" ", ""))
+            newTransport.connect(HOST, user, secret)
         } catch (e: javax.mail.AuthenticationFailedException) {
             throw IllegalStateException(
                 "Gmail girişi reddedildi. 2 adımlı doğrulamayı açıp 16 haneli uygulama şifresi " +

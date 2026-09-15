@@ -86,6 +86,25 @@ fun LazyListScope.gmailSection(
         )
     }
     item {
+        // Şifre gizli yazıldığı için eksik/fazla hane görünmüyordu; kullanıcı
+        // "şifre yanlış" hatasını alıp nerede yanlış yaptığını bulamıyordu.
+        val digits = settings.appPasswordClean().length
+        if (digits > 0 && digits != 16) {
+            Text(
+                "$digits hane girildi, 16 olmalı. Google boşluklu gösterir; " +
+                    "boşlukları kendim siliyorum, sen olduğu gibi yapıştırabilirsin.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        } else if (digits == 16) {
+            Text(
+                "16 hane tamam ✓ Şimdi \"Bağlantıyı test et\"e bas.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+    }
+    item {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { onOpenUrl("https://myaccount.google.com/apppasswords") }) {
                 Text("Şifre al")
