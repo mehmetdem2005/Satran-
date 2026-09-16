@@ -644,6 +644,12 @@ private fun summaryLine(state: JobsUiState): String = buildString {
         JobsView.ARCHIVE -> append("${state.archived.size} arşivlenmiş ilan")
         JobsView.LIVE -> {
             if (state.total > 0) append("${state.total} eşleşme")
+            // E-postasız ilanlar da listede; kaçına mektup gidebileceği
+            // görünmezse "hepsine başvur" sayısı tutmuyor sanılıyor.
+            val mailable = state.results.count { it.canEmail }
+            if (state.results.isNotEmpty() && mailable < state.results.size) {
+                append(" · $mailable'ine e-posta gider")
+            }
             if (state.offset > 0) append(" · ${state.offset}. kayıttan")
             if (state.duplicatesSkipped > 0) append(" · ${state.duplicatesSkipped} tekrar atlandı")
         }

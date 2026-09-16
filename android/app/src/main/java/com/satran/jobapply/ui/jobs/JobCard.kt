@@ -110,6 +110,17 @@ fun JobCard(
                         maxLines = 1,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     )
+                    // Liste artık e-postasız ilanları da gösteriyor; toplu
+                    // gönderime giremezler, bunu seçmeden önce görmeli.
+                    if (job.email == null) {
+                        Text(
+                            job.phone?.let { "E-posta yok · telefon: $it" }
+                                ?: "E-posta yok — mektup gönderilemez",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error,
+                            maxLines = 1,
+                        )
+                    }
                 }
                 // Çeviri tuşu kart kapalıyken de görünür; basınca kart açılıp
                 // başlık, meslek adı ve açıklama birlikte Türkçeye döner.

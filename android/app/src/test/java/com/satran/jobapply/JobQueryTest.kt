@@ -205,4 +205,28 @@ class JobQueryTest {
         assertFalse(built.filter.contains("soc_code_id"))
         assertFalse(built.filter.contains("apply_email"))
     }
+
+    @Test
+    fun `varsayilan liste butun tarim disi ilanlari gosterir`() {
+        // Kullanıcı "var olan bütün tarım dışı gözüksün, başlamamışlar dahil"
+        // dedi. E-posta şartı 209 gerçek ilanı gizliyordu.
+        val built = JobQuery.build(
+            JobQuery.Input(
+                emailOnly = false,
+                excludeAgricultural = true,
+                includeUpcoming = true,
+                nowIso = "2026-09-16T00:00:00Z",
+            ),
+        )
+        assertTrue("tarım dışı süzgeci dursun", built.filter.contains("visa_class eq 'H-2B'"))
+        assertTrue("başlamamışlar dahil olsun", built.filter.contains("begin_date gt"))
+        assertFalse("e-posta şartı olmasın", built.filter.contains("apply_email"))
+    }
+
+    @Test
+    fun `e-posta suzgeci acilinca sarta doner`() {
+        val built = JobQuery.build(JobQuery.Input(emailOnly = true, nowIso = "2026-09-16T00:00:00Z"))
+        assertTrue(built.filter.contains("apply_email ne null"))
+        assertTrue(built.filter.contains("apply_email ne 'N/A'"))
+    }
 }

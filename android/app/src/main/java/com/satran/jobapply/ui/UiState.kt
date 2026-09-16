@@ -42,7 +42,15 @@ data class JobsUiState(
     val selectedState: String? = null,
     val visaClass: String? = null,
     val sort: SeasonalJobsApi.Sort = SeasonalJobsApi.Sort.NEWEST,
-    val emailOnly: Boolean = true,
+    /**
+     * Yalnızca e-posta ile başvurulabilen ilanlar.
+     *
+     * Varsayılan **kapalı**: kullanıcı "var olan bütün tarım dışı ilanlar
+     * gözüksün" dedi. E-postası olmayan 209 ilan da gerçek ilan; toplu
+     * gönderime giremezler ama görünüp telefonla aranabilirler. Kart
+     * üstünde açıkça işaretleniyor.
+     */
+    val emailOnly: Boolean = false,
     /** Tarım dışı: H-2B vizesi + SOC 45 (tarım/balıkçılık/ormancılık) hariç. */
     val excludeAgricultural: Boolean = true,
     /** İşe başlama tarihi gelecekte olan ilanlar da listelensin mi? */

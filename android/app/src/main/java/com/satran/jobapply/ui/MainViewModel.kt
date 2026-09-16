@@ -792,10 +792,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         it.copy(expanded = next)
     }
 
-    fun toggleSelected(job: Job) = _jobs.update { state ->
-        val selected = state.selected.toMutableMap()
-        if (selected.remove(job.caseNumber) == null) selected[job.caseNumber] = job
-        state.copy(selected = selected)
+    fun toggleSelected(job: Job) {
+        // Liste e-postasız ilanları da gösteriyor; seçilebilseydi kuyruğa
+        // girer ve gönderim sırasında sessizce atlanırdı.
+        if (!job.canEmail && job.caseNumber !in _jobs.value.selected) {
+            _message.value = job.phone
+                ?.let { "Bu ilanda başvuru e-postası yok. Telefon: $it" }
+                ?: "Bu ilanda başvuru e-postası yok; mektup gönderilemiyor."
+            return
+        }
+        _jobs.update { state ->
+            val selected = state.selected.toMutableMap()
+            if (selected.remove(job.caseNumber) == null) selected[job.caseNumber] = job
+            state.copy(selected = selected)
+        }
     }
 
     fun selectAllVisible() = _jobs.update { state ->
