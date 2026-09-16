@@ -143,6 +143,12 @@ class JobArchiveStore(context: Context) {
     }
 
     private companion object {
-        const val MAX_JOBS = 2000
+        /**
+         * Süzgece uyan ilan sayısı (~2700) sınırın üstündeydi: arşiv taşınca
+         * en eskiler düşüyor, "aynı ilanı bir daha gösterme" bozuluyor ve
+         * tazelik denetimi de o ilanları göremiyordu. Kayıtlar uzun metinsiz
+         * saklandığı için 10.000 kayıt ~4 MB.
+         */
+        const val MAX_JOBS = 10_000
     }
 }

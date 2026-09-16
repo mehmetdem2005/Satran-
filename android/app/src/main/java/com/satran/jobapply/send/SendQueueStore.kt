@@ -54,7 +54,7 @@ fun SendQueueState.completed(caseNumber: String, succeeded: Boolean): SendQueueS
 fun SendQueueState.deferredToEnd(caseNumber: String): SendQueueState {
     val mail = pending.firstOrNull { it.caseNumber == caseNumber } ?: return this
     return copy(
-        pending = pending.filterNot { it.caseNumber == caseNumber } + mail,
+        pending = pending.filterNot { it.caseNumber == caseNumber } + mail.copy(attempts = mail.attempts + 1),
         deferred = deferred + 1,
     )
 }
@@ -73,15 +73,39 @@ class SendQueueStore(context: Context) {
     private val _state = MutableStateFlow(load())
     val state: StateFlow<SendQueueState> = _state.asStateFlow()
 
+    /**
+     * Yeni iletileri kuyruğa alır.
+     *
+     * Süren bir kuyruk varsa **üstüne eklenir**, silinmez: kullanıcı ikinci
+     * kez "Hepsine başvur" derse bekleyen başvurular çöpe gitmemeli. Zaten
+     * kuyrukta olan ilan iki kez eklenmez.
+     */
     @Synchronized
     fun enqueue(mails: List<QueuedMail>) {
-        val fresh = SendQueueState(
-            pending = mails,
-            totalQueued = mails.size,
-            startedAt = System.currentTimeMillis(),
-            dayStamp = today(),
+        if (mails.isEmpty()) return
+        val current = _state.value
+        if (!current.isActive) {
+            write(
+                SendQueueState(
+                    pending = mails,
+                    totalQueued = mails.size,
+                    startedAt = System.currentTimeMillis(),
+                    dayStamp = today(),
+                    sentToday = current.sentToday.takeIf { current.dayStamp == today() } ?: 0,
+                ),
+            )
+            return
+        }
+
+        val known = current.pending.mapTo(HashSet()) { it.caseNumber }
+        val added = mails.filterNot { it.caseNumber in known }
+        if (added.isEmpty()) return
+        write(
+            current.copy(
+                pending = current.pending + added,
+                totalQueued = current.totalQueued + added.size,
+            ),
         )
-        write(fresh)
     }
 
     /** Gün değiştiyse günlük sayacı sıfırlar ve güncel durumu döndürür. */

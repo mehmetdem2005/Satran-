@@ -122,7 +122,7 @@ class BulkSendWorker(
                         remainingToday--
                         transientStreak = 0
                     } else {
-                        when (val decision = SendPolicy.decide(outcome.exceptionOrNull(), transientStreak)) {
+                        when (val decision = SendPolicy.decide(outcome.exceptionOrNull(), transientStreak, mail.attempts)) {
                             // Kalıcı: adres yok. Tekrar denemenin anlamı yok.
                             is SendDecision.Drop -> {
                                 container.historyStore.add(

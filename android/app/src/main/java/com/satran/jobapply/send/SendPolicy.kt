@@ -28,7 +28,16 @@ object SendPolicy {
     /** Kaç ardışık geçici hatadan sonra "bağlantı gitmiş" sayılır. */
     const val MAX_TRANSIENT_STREAK = 5
 
-    fun decide(error: Throwable?, transientStreak: Int): SendDecision {
+    /**
+     * Tek bir iletiye en fazla kaç kez denenir.
+     *
+     * Olmasaydı, hatası geçici sanılan ama aslında hep başarısız olan bir
+     * ileti kuyruktan hiç çıkmaz; gönderim sonsuza kadar onun etrafında
+     * döner ve arkasındaki başvurular hiç gönderilmezdi.
+     */
+    const val MAX_ATTEMPTS_PER_MAIL = 4
+
+    fun decide(error: Throwable?, transientStreak: Int, attempts: Int = 0): SendDecision {
         if (error == null) return SendDecision.Sent
 
         val failure = MailFailures.classify(error)
@@ -38,12 +47,16 @@ object SendPolicy {
             FailureKind.THROTTLED ->
                 SendDecision.Pause(failure.reason, untilTomorrow = true)
 
-            FailureKind.TRANSIENT ->
-                if (transientStreak + 1 >= MAX_TRANSIENT_STREAK) {
+            FailureKind.TRANSIENT -> when {
+                // Kota/hız değil, bu iletiye özgü kalıcı bir sorun.
+                attempts + 1 >= MAX_ATTEMPTS_PER_MAIL ->
+                    SendDecision.Drop("${failure.reason} (${MAX_ATTEMPTS_PER_MAIL} denemede ulaşılamadı)")
+
+                transientStreak + 1 >= MAX_TRANSIENT_STREAK ->
                     SendDecision.Pause(failure.reason, untilTomorrow = false)
-                } else {
-                    SendDecision.Defer(failure.reason)
-                }
+
+                else -> SendDecision.Defer(failure.reason)
+            }
         }
     }
 }

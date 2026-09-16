@@ -29,6 +29,8 @@ data class LiveWatchState(
     val newJobs: List<Job> = emptyList(),
     /** Son denetim hatası; arayüzde dürüstçe gösterilir. */
     val lastError: String? = null,
+    /** Uzun arşivlerde tazelik taramasının kaldığı yer. */
+    val sweepCursor: Int = 0,
 )
 
 class LiveWatchStore(context: Context) {

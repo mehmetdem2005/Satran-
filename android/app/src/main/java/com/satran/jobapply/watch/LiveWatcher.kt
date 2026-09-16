@@ -26,8 +26,16 @@ class LiveWatcher(private val container: AppContainer) {
         val error: String? = null,
     )
 
-    /** Uzun arşivlerde taramanın kaldığı yer; tur tur ilerler. */
-    private var sweepCursor = 0
+    /**
+     * Uzun arşivlerde taramanın kaldığı yer.
+     *
+     * Diske yazılır: yedek WorkManager işi her turda yeni bir [LiveWatcher]
+     * kuruyor, alan içinde tutulsaydı imleç her seferinde sıfırlanır ve hep
+     * aynı ilk 300 ilan denetlenirdi.
+     */
+    private var sweepCursor: Int
+        get() = container.liveWatch.state.value.sweepCursor
+        set(value) = container.liveWatch.update { it.copy(sweepCursor = value) }
 
     suspend fun sweep(settings: AppSettings): Result {
         val nowIso = nowIso()
