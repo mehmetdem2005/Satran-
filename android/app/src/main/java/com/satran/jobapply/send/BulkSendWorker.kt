@@ -122,31 +122,9 @@ class BulkSendWorker(
                         remainingToday--
                         transientStreak = 0
                     } else {
-                        val failure = MailFailures.classify(outcome.exceptionOrNull())
-                        when (failure.kind) {
-                            // Kota ya da hız sınırı: ısrar etmek hesabı riske
-                            // atar. Kalan iletiler kuyrukta durur, yarın sürer.
-                            FailureKind.THROTTLED -> {
-                                queue.defer(mail.caseNumber)
-                                notifyPaused(queue.state.value)
-                                scheduleNextDay()
-                                return Result.success(summaryData(queue.state.value))
-                            }
-
-                            // Geçici: sona al, tekrar denenecek. Üst üste
-                            // olursa bağlantı gitmiş demektir, ısrar etmeyiz.
-                            FailureKind.TRANSIENT -> {
-                                state = queue.defer(mail.caseNumber)
-                                transientStreak++
-                                if (transientStreak >= MAX_TRANSIENT_STREAK) {
-                                    scheduleRetry()
-                                    notifyError(failure.reason)
-                                    return Result.success(summaryData(state))
-                                }
-                            }
-
+                        when (val decision = SendPolicy.decide(outcome.exceptionOrNull(), transientStreak)) {
                             // Kalıcı: adres yok. Tekrar denemenin anlamı yok.
-                            FailureKind.PERMANENT -> {
+                            is SendDecision.Drop -> {
                                 container.historyStore.add(
                                     SendRecord(
                                         caseNumber = mail.caseNumber,
@@ -154,12 +132,34 @@ class BulkSendWorker(
                                         employer = mail.employer,
                                         email = mail.to,
                                         status = SendStatus.FAILED,
-                                        error = failure.reason,
+                                        error = decision.reason,
                                     ),
                                 )
                                 state = queue.complete(mail.caseNumber, succeeded = false)
                                 transientStreak = 0
                             }
+
+                            // Geçici: sona al, bu turda tekrar denenecek.
+                            is SendDecision.Defer -> {
+                                state = queue.defer(mail.caseNumber)
+                                transientStreak++
+                            }
+
+                            // Kota, hız sınırı ya da kopan bağlantı: ısrar etmek
+                            // hesabı riske atar. Kuyruk olduğu gibi kalır.
+                            is SendDecision.Pause -> {
+                                state = queue.defer(mail.caseNumber)
+                                if (decision.untilTomorrow) {
+                                    notifyPaused(state)
+                                    scheduleNextDay()
+                                } else {
+                                    notifyError(decision.reason)
+                                    scheduleRetry()
+                                }
+                                return Result.success(summaryData(state))
+                            }
+
+                            SendDecision.Sent -> Unit
                         }
                     }
 
@@ -289,9 +289,6 @@ class BulkSendWorker(
         const val KEY_FAILED = "failed"
         const val KEY_PENDING = "pending"
         const val KEY_ERROR = "error"
-
-        /** Kaç ardışık geçici hatadan sonra bağlantı sorunu sayılır. */
-        private const val MAX_TRANSIENT_STREAK = 5
 
         private const val NOTIFICATION_ID = 4201
         private const val DONE_NOTIFICATION_ID = 4202

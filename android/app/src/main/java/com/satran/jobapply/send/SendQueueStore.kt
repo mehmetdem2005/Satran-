@@ -36,6 +36,29 @@ data class SendQueueState(
     val doneCount: Int get() = sentTotal + failedTotal
 }
 
+// ---------------------------------------------------------- saf durum geçişleri
+//
+// Depo bunları diske yazmak için sarar; sınamalar da aynılarını çağırır.
+// Ayrı durmasalardı kuyruk mantığı yalnızca cihazda çalışırken sınanabilirdi.
+
+/** İletiyi sonuçlandırır: kuyruktan düşer, sayaçlar güncellenir. */
+fun SendQueueState.completed(caseNumber: String, succeeded: Boolean): SendQueueState = copy(
+    pending = pending.filterNot { it.caseNumber == caseNumber },
+    sentTotal = sentTotal + if (succeeded) 1 else 0,
+    failedTotal = failedTotal + if (succeeded) 0 else 1,
+    sentToday = sentToday + if (succeeded) 1 else 0,
+    lastSentAt = System.currentTimeMillis(),
+)
+
+/** İletiyi kuyruğun sonuna alır; başarısız sayılmaz, kaybolmaz. */
+fun SendQueueState.deferredToEnd(caseNumber: String): SendQueueState {
+    val mail = pending.firstOrNull { it.caseNumber == caseNumber } ?: return this
+    return copy(
+        pending = pending.filterNot { it.caseNumber == caseNumber } + mail,
+        deferred = deferred + 1,
+    )
+}
+
 /**
  * Gönderim kuyruğu diskte tutulur; uygulama kapansa, süreç ölse ya da telefon
  * yeniden başlasa da iş kaldığı yerden sürer.
@@ -75,14 +98,7 @@ class SendQueueStore(context: Context) {
     /** Bir iletiyi sonuçlandırır: kuyruktan düşer, sayaçlar güncellenir. */
     @Synchronized
     fun complete(caseNumber: String, succeeded: Boolean): SendQueueState {
-        val current = _state.value
-        val next = current.copy(
-            pending = current.pending.filterNot { it.caseNumber == caseNumber },
-            sentTotal = current.sentTotal + if (succeeded) 1 else 0,
-            failedTotal = current.failedTotal + if (succeeded) 0 else 1,
-            sentToday = current.sentToday + if (succeeded) 1 else 0,
-            lastSentAt = System.currentTimeMillis(),
-        )
+        val next = _state.value.completed(caseNumber, succeeded)
         write(next)
         return next
     }
@@ -96,11 +112,8 @@ class SendQueueStore(context: Context) {
     @Synchronized
     fun defer(caseNumber: String): SendQueueState {
         val current = _state.value
-        val mail = current.pending.firstOrNull { it.caseNumber == caseNumber } ?: return current
-        val next = current.copy(
-            pending = current.pending.filterNot { it.caseNumber == caseNumber } + mail,
-            deferred = current.deferred + 1,
-        )
+        val next = current.deferredToEnd(caseNumber)
+        if (next == current) return current
         write(next)
         return next
     }
