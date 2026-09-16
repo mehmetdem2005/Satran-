@@ -25,6 +25,8 @@ data class JobsUiState(
     val duplicatesSkipped: Int = 0,
     val lastUpdatedAt: Long = 0L,
     /** Canlı tazelemede gelen, henüz listeye eklenmemiş yeni ilanlar. */
+    /** Liste şu anda siteyle birebir aynı süzgeçte mi. */
+    val siteMirror: Boolean = false,
     val incomingJobs: List<Job> = emptyList(),
     val liveChecking: Boolean = false,
     /** Canlı tazelemede listeden düşen ilan sayısı. */
@@ -127,6 +129,8 @@ data class ApplyUiState(
     val loadingModels: Boolean = false,
     val verifying: Boolean = false,
     val sourceProof: SeasonalJobsApi.SourceProof? = null,
+    /** Site ile uygulamanın sayılarının karşılaştırması. */
+    val funnel: SeasonalJobsApi.FilterFunnel? = null,
 
     /** Gmail'de tek tek açarken sırada hangi ileti var. */
     val gmailCursor: Int = 0,

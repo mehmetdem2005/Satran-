@@ -200,6 +200,8 @@ private fun AppRoot() {
                         )
                     },
                     onToggleUpcoming = { viewModel.onFilterChange(includeUpcoming = it) },
+                    onMatchSite = viewModel::matchSiteExactly,
+                    onUseApplyFilters = viewModel::useApplyFilters,
                     onFetchAll = viewModel::fetchAllJobs,
                     onRefreshArchive = viewModel::refreshArchive,
                     onToggleQueryPanel = viewModel::toggleQueryPanel,
@@ -264,6 +266,8 @@ private fun AppRoot() {
                     onTestAi = viewModel::testAi,
                     onTestSearch = viewModel::testSearch,
                     onVerifySource = viewModel::verifySource,
+                    funnel = applyState.funnel,
+                    onCompareWithSite = viewModel::compareWithSite,
                     onLoadModels = viewModel::loadModels,
                     onClearHistory = viewModel::clearHistory,
                     onClearArchive = viewModel::clearArchive,

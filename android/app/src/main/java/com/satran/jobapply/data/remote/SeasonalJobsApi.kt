@@ -132,6 +132,76 @@ class SeasonalJobsApi(
     )
 
     /**
+     * Sitedeki sayı ile uygulamadaki sayının neden farklı olduğunu,
+     * süzgeç süzgeç ölçerek gösterir.
+     *
+     * seasonaljobs.dol.gov ana sayfada bütün programları birden sayıyor;
+     * uygulama ise tarım dışını süzüp işi başlamamış ilanları da ekliyor.
+     * İkisi de doğru, ama aradaki farkı kullanıcının kendi gözüyle
+     * görebilmesi gerekiyor — yoksa "uygulama tutarsız" gibi duruyor.
+     */
+    data class FilterFunnel(
+        /** Sitenin ana sayfada saydığı: bütün programlar, yayındakiler. */
+        val siteTotal: Int,
+        /** Bunun kaçı tarım (H-2A) — uygulama bunları bilerek elemiyor. */
+        val agricultural: Int,
+        /** Tarım dışı (H-2B) yayındakiler. */
+        val nonAgricultural: Int,
+        /** H-2B olduğu hâlde tarım mesleği sayılanlar (SOC 45). */
+        val socFarming: Int,
+        /** E-posta ile başvurulamayanlar; mektup gönderilemiyor. */
+        val withoutEmail: Int,
+        /** Süzgeçten geçen, yayındaki ilanlar. */
+        val activeMatching: Int,
+        /** Uygulamanın listelediği toplam (işi başlamamışlar dahil). */
+        val appTotal: Int,
+    ) {
+        val upcoming: Int get() = (appTotal - activeMatching).coerceAtLeast(0)
+    }
+
+    suspend fun compareWithSite(input: JobQuery.Input): FilterFunnel = withContext(Dispatchers.IO) {
+        suspend fun count(filter: String): Int = countFor(filter)
+
+        val soc = "soc_code_id ge '45-' and soc_code_id lt '46-'"
+        val live = "display eq true and active eq true"
+        val nonAgri = "$live and visa_class eq '${JobQuery.NON_AGRICULTURAL_VISA}'"
+
+        FilterFunnel(
+            siteTotal = count(live),
+            agricultural = count("$live and visa_class eq '${JobQuery.AGRICULTURAL_VISA}'"),
+            nonAgricultural = count(nonAgri),
+            socFarming = count("$nonAgri and $soc"),
+            withoutEmail = count("$nonAgri and (apply_email eq null or apply_email eq 'N/A')"),
+            activeMatching = count(
+                "$nonAgri and not ($soc) and apply_email ne null and apply_email ne 'N/A'",
+            ),
+            appTotal = count(JobQuery.build(input).filter),
+        )
+    }
+
+    /** Yalnızca sayıyı ister; kayıt indirmez. */
+    private suspend fun countFor(filter: String): Int = withContext(Dispatchers.IO) {
+        val payload = buildJsonObject {
+            put("search", JsonPrimitive("*"))
+            put("count", JsonPrimitive(true))
+            put("top", JsonPrimitive(0))
+            put("filter", JsonPrimitive(filter))
+        }
+        val request = Request.Builder()
+            .url(endpoint)
+            .addHeader("Content-Type", "application/json")
+            .addHeader("User-Agent", "SatranJobs/1.0 (Android)")
+            .post(Net.json.encodeToString(JsonObject.serializer(), payload).toRequestBody(JSON_MEDIA))
+            .build()
+        Net.client.newCall(request).execute().use { response ->
+            val raw = response.body?.string().orEmpty()
+            if (!response.isSuccessful) throw IOException("Sayım yapılamadı (HTTP ${response.code}).")
+            Net.json.parseToJsonElement(raw).jsonObject["@odata.count"]
+                ?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+        }
+    }
+
+    /**
      * Uygulamanın gerçekten ağa çıktığını kullanıcının kendi gözüyle görmesi için.
      * Anahtar kullanmaz; ilan verisi kamuya açıktır.
      */

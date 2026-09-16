@@ -709,7 +709,9 @@ fun LazyListScope.dataSection(
     archiveSize: Int,
     verifying: Boolean,
     sourceProof: SeasonalJobsApi.SourceProof?,
+    funnel: SeasonalJobsApi.FilterFunnel?,
     onVerifySource: () -> Unit,
+    onCompareWithSite: () -> Unit,
     onClearHistory: () -> Unit,
     onClearArchive: () -> Unit,
     onClearSearchHistory: () -> Unit,
@@ -724,12 +726,50 @@ fun LazyListScope.dataSection(
         )
     }
     item {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onVerifySource, enabled = !verifying) {
                 Text(if (verifying) "Sorgulanıyor…" else "Kaynağı doğrula")
             }
+            Button(onClick = onCompareWithSite, enabled = !verifying) {
+                Text("Site ile karşılaştır")
+            }
             OutlinedButton(onClick = { onOpenUrl("https://seasonaljobs.dol.gov/jobs") }) {
                 Text("Siteyi aç")
+            }
+        }
+    }
+    funnel?.let { f ->
+        item {
+            // "Sitede 5455 yazıyor, burada 2750" sorusunun cevabı: her
+            // süzgecin kaç ilan elediği canlı sayımla gösteriliyor.
+            Card {
+                Column(Modifier.padding(12.dp)) {
+                    Text("Sayılar neden farklı", fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(6.dp))
+                    ProofLine("Sitenin saydığı (tüm programlar)", f.siteTotal.toString())
+                    ProofLine("— tarım (H-2A), bilerek eleniyor", "−${f.agricultural}")
+                    ProofLine("Tarım dışı (H-2B)", f.nonAgricultural.toString())
+                    ProofLine("— tarım mesleği sayılanlar", "−${f.socFarming}")
+                    ProofLine("— e-postası olmayan", "−${f.withoutEmail}")
+                    ProofLine("Süzgece uyan, yayındakiler", f.activeMatching.toString())
+                    ProofLine("+ işi başlamamış ilanlar", "+${f.upcoming}")
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Uygulamada görünen: ${f.appTotal}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Site ana sayfada tarım ilanlarını da sayıyor; ilanların çoğu " +
+                            "tarım olduğu için sayı büyük görünüyor. Buna karşılık site " +
+                            "işi başlamamış ilanları gizliyor, uygulama onları da " +
+                            "gösteriyor — yurt dışından başvuran için asıl değerli " +
+                            "olanlar onlar.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline,
+                    )
+                }
             }
         }
     }

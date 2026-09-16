@@ -87,6 +87,8 @@ fun JobsScreen(
     onViewChange: (JobsView) -> Unit,
     onFilter: (state: String?, sort: SeasonalJobsApi.Sort, excludeAgricultural: Boolean, emailOnly: Boolean, hideApplied: Boolean) -> Unit,
     onToggleUpcoming: (Boolean) -> Unit,
+    onMatchSite: () -> Unit,
+    onUseApplyFilters: () -> Unit,
     onFetchAll: () -> Unit,
     onRefreshArchive: () -> Unit,
     onToggleQueryPanel: () -> Unit,
@@ -184,6 +186,8 @@ fun JobsScreen(
                 onFilter = onFilter,
                 onTranslateAll = onTranslateAll,
                 onToggleUpcoming = onToggleUpcoming,
+                onMatchSite = onMatchSite,
+                onUseApplyFilters = onUseApplyFilters,
             )
 
             Spacer(Modifier.height(2.dp))
@@ -377,11 +381,22 @@ private fun FilterStrip(
     onFilter: (String?, SeasonalJobsApi.Sort, Boolean, Boolean, Boolean) -> Unit,
     onTranslateAll: (Boolean) -> Unit,
     onToggleUpcoming: (Boolean) -> Unit,
+    onMatchSite: () -> Unit,
+    onUseApplyFilters: () -> Unit,
 ) {
     var stateMenu by remember { mutableStateOf(false) }
     var sortMenu by remember { mutableStateOf(false) }
 
     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        item {
+            // Sitedeki sayıyla buradaki sayıyı karşılaştırmak isteyen için:
+            // süzgeçleri tek tek kapatmak yerine tek dokunuş.
+            FilterChip(
+                selected = state.siteMirror,
+                onClick = { if (state.siteMirror) onUseApplyFilters() else onMatchSite() },
+                label = { Text(if (state.siteMirror) "Site görünümü ✓" else "Site ile aynı") },
+            )
+        }
         item {
             // Google'ın cihaz üstü çeviri modeli; yapay zekâ değil, anahtar istemez.
             FilterChip(
@@ -633,6 +648,7 @@ private fun summaryLine(state: JobsUiState): String = buildString {
             if (state.duplicatesSkipped > 0) append(" · ${state.duplicatesSkipped} tekrar atlandı")
         }
     }
+    if (state.siteMirror) append(" · site ile aynı süzgeç")
     if (state.selectedCount > 0) append(" · ${state.selectedCount} seçili")
     val removed = state.removedStale + state.removedLive
     if (removed > 0) append(" · $removed kalkan silindi")

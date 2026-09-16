@@ -150,6 +150,53 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 excludeAgricultural = excludeAgricultural,
                 hideApplied = hideApplied,
                 includeUpcoming = includeUpcoming,
+                // Süzgeçlerden biri değişti; liste artık siteyle birebir değil.
+                siteMirror = it.siteMirror &&
+                    !excludeAgricultural && !emailOnly && !includeUpcoming && !hideApplied &&
+                    state == null,
+            )
+        }
+        search(reset = true)
+    }
+
+    /**
+     * Listeyi seasonaljobs.dol.gov'un ana sayfasıyla **birebir** aynı hâle getirir.
+     *
+     * Uygulamanın süzgeçleri kapatılınca sunucuya giden ifade
+     * `display eq true and active eq true` oluyor; sitenin saydığı da bu.
+     * Ölçüldü: ikisi de 5456 döndü. Kullanıcı sayıyı karşılaştırmak
+     * istediğinde tek tek süzgeç kapatmak zorunda kalmasın diye tek tuş.
+     *
+     * Not: site tarım ilanlarını da sayıyor ve işi başlamamış ilanları
+     * gizliyor — bu yüzden "site ile aynı" liste, başvuru için daha kötü
+     * bir listedir. Karşılaştırma içindir.
+     */
+    fun matchSiteExactly() {
+        _jobs.update {
+            it.copy(
+                selectedState = null,
+                visaClass = null,
+                excludeAgricultural = false,
+                emailOnly = false,
+                includeUpcoming = false,
+                hideApplied = false,
+                query = "",
+                siteMirror = true,
+            )
+        }
+        search(reset = true)
+        _message.value = "Site ile aynı süzgeç: tarım dahil, işi başlamamışlar hariç."
+    }
+
+    /** Başvuruya uygun varsayılan süzgeçlere döner. */
+    fun useApplyFilters() {
+        _jobs.update {
+            it.copy(
+                excludeAgricultural = true,
+                emailOnly = true,
+                includeUpcoming = true,
+                hideApplied = true,
+                siteMirror = false,
             )
         }
         search(reset = true)
@@ -1034,6 +1081,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 .onSuccess { _message.value = "Yapay zekâ çalışıyor ✓ (${settings.value.effectiveModel})" }
                 .onFailure { _message.value = it.friendly() }
             _apply.update { it.copy(testing = false) }
+        }
+    }
+
+    /** Sitedeki sayı ile buradaki sayının farkını canlı ölçüp gösterir. */
+    fun compareWithSite() {
+        viewModelScope.launch {
+            _apply.update { it.copy(verifying = true) }
+            runCatching {
+                container.jobsApi.compareWithSite(queryInput(_jobs.value, settings.value))
+            }
+                .onSuccess { funnel -> _apply.update { it.copy(funnel = funnel) } }
+                .onFailure { _message.value = it.friendly() }
+            _apply.update { it.copy(verifying = false) }
         }
     }
 

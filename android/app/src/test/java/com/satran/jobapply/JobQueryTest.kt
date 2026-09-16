@@ -178,4 +178,31 @@ class JobQueryTest {
         val filter = JobQuery.freshnessFilter(JobQuery.livenessInput("2026-09-13T00:00:00Z"), listOf("H'1"))
         assertTrue(filter.contains("'H''1'"))
     }
+
+    // ------------------------------------------------- site ile birebir aynı
+
+    @Test
+    fun `suzgecler kapaliyken sorgu sitenin sorgusuna esit`() {
+        // Canlı uçta ölçüldü: ikisi de 5456 döndürüyor. Uygulama siteyi
+        // takip etmiyor sanılmasın diye bu ifade sabitlenir.
+        val built = JobQuery.build(
+            JobQuery.Input(
+                emailOnly = false,
+                excludeAgricultural = false,
+                includeUpcoming = false,
+                nowIso = "",
+            ),
+        )
+        assertEquals("display eq true and active eq true", built.filter)
+    }
+
+    @Test
+    fun `site gorunumu tarim ilanlarini elemez`() {
+        val built = JobQuery.build(
+            JobQuery.Input(emailOnly = false, excludeAgricultural = false, includeUpcoming = false),
+        )
+        assertFalse(built.filter.contains("visa_class"))
+        assertFalse(built.filter.contains("soc_code_id"))
+        assertFalse(built.filter.contains("apply_email"))
+    }
 }

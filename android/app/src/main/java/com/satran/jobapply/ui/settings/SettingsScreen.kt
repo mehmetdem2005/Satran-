@@ -58,12 +58,14 @@ fun SettingsScreen(
     loadingModels: Boolean,
     verifying: Boolean,
     sourceProof: SeasonalJobsApi.SourceProof?,
+    funnel: SeasonalJobsApi.FilterFunnel?,
     onUpdate: ((AppSettings) -> AppSettings) -> Unit,
     onPickCv: () -> Unit,
     onTestSmtp: () -> Unit,
     onTestAi: () -> Unit,
     onTestSearch: () -> Unit,
     onVerifySource: () -> Unit,
+    onCompareWithSite: () -> Unit,
     onLoadModels: () -> Unit,
     onClearHistory: () -> Unit,
     onClearArchive: () -> Unit,
@@ -129,8 +131,8 @@ fun SettingsScreen(
                 )
                 SettingsSection.DATA -> dataSection(
                     settings, history, searchHistory, memorySize, archiveSize,
-                    verifying, sourceProof, onVerifySource, onClearHistory,
-                    onClearArchive, onClearSearchHistory, onClearMemory, onOpenUrl,
+                    verifying, sourceProof, funnel, onVerifySource, onCompareWithSite,
+                    onClearHistory, onClearArchive, onClearSearchHistory, onClearMemory, onOpenUrl,
                 )
             }
         }
