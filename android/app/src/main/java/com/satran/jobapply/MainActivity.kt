@@ -200,6 +200,9 @@ private fun AppRoot() {
                         )
                     },
                     onToggleUpcoming = { viewModel.onFilterChange(includeUpcoming = it) },
+                    onSourceChange = viewModel::setSource,
+                    onLoadOflc = { viewModel.loadOflc() },
+                    onCancelOflc = viewModel::cancelOflc,
                     onMatchSite = viewModel::matchSiteExactly,
                     onUseApplyFilters = viewModel::useApplyFilters,
                     onFetchAll = viewModel::fetchAllJobs,

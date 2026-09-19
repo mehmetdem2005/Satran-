@@ -18,6 +18,7 @@ import com.satran.jobapply.data.memory.MemoryDoc
 import com.satran.jobapply.data.memory.SearchEntry
 import com.satran.jobapply.data.model.AppSettings
 import com.satran.jobapply.data.model.Job
+import com.satran.jobapply.data.model.JobSource
 import com.satran.jobapply.data.model.SendRecord
 import com.satran.jobapply.data.model.TranslationEngine
 import com.satran.jobapply.core.runCatchingCancellable
@@ -200,6 +201,91 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             )
         }
         search(reset = true)
+    }
+
+    // ============================================================ kaynaklar
+
+    private var oflcJob: CoroutineJob? = null
+
+    /**
+     * Kaynak değiştirir. Listeler ayrı tutulduğu için hiçbir şey birleşmez;
+     * yalnızca hangi listenin gösterileceği değişir.
+     */
+    fun setSource(source: JobSource) {
+        if (_jobs.value.source == source) return
+        _jobs.update { it.copy(source = source, selected = emptyMap(), expanded = emptySet()) }
+        if (source == JobSource.OFLC_DISCLOSURE && _jobs.value.oflcJobs.isEmpty()) {
+            loadOflc()
+        }
+    }
+
+    /**
+     * OFLC açıklama dosyasını indirip ayrıştırır.
+     *
+     * Dosya ~47 MB ve üç ayda bir yenileniyor; bir kez indirilip önbellekte
+     * tutulur. Mobil veride kullanıcıya sorulmadan başlatılmaz.
+     */
+    fun loadOflc(force: Boolean = false) {
+        if (oflcJob?.isActive == true) return
+        oflcJob = viewModelScope.launch {
+            _jobs.update {
+                it.copy(oflcStage = OflcStage.DISCOVERING, oflcError = null, oflcParsed = 0)
+            }
+            val api = container.oflcApi()
+
+            val release = runCatchingCancellable { api.latestRelease() }.getOrElse { error ->
+                _jobs.update {
+                    it.copy(oflcStage = OflcStage.FAILED, oflcError = error.friendly())
+                }
+                return@launch
+            }
+            _jobs.update { it.copy(oflcLabel = release.label) }
+
+            val cached = if (force) null else api.cachedFile(release.label)
+            val file = cached ?: run {
+                _jobs.update { it.copy(oflcStage = OflcStage.DOWNLOADING) }
+                runCatchingCancellable {
+                    api.download(release) { done, total ->
+                        _jobs.update { it.copy(oflcDownloadedBytes = done, oflcTotalBytes = total) }
+                    }
+                }.getOrElse { error ->
+                    _jobs.update {
+                        it.copy(oflcStage = OflcStage.FAILED, oflcError = error.friendly())
+                    }
+                    return@launch
+                }
+            }
+
+            _jobs.update { it.copy(oflcStage = OflcStage.PARSING) }
+            val parsed = runCatchingCancellable {
+                api.parse(file, nowIso().take(10)) { count ->
+                    _jobs.update { it.copy(oflcParsed = count) }
+                }
+            }.getOrElse { error ->
+                _jobs.update { it.copy(oflcStage = OflcStage.FAILED, oflcError = error.friendly()) }
+                return@launch
+            }
+
+            // Bu kaynakta e-postası olmayan kayıt zaten alınmıyor; burada
+            // yalnızca daha önce yazılmış işverenler elenir.
+            val fresh = parsed.filterNot { container.historyStore.hasWrittenTo(it.email) }
+
+            _jobs.update {
+                it.copy(
+                    oflcJobs = fresh,
+                    oflcStage = OflcStage.READY,
+                    oflcParsed = fresh.size,
+                    oflcLoadedAt = System.currentTimeMillis(),
+                )
+            }
+            if (_jobs.value.translateAll) translateHeadlines()
+        }
+    }
+
+    fun cancelOflc() {
+        oflcJob?.cancel()
+        oflcJob = null
+        _jobs.update { it.copy(oflcStage = OflcStage.IDLE) }
     }
 
     fun toggleQueryPanel() = _jobs.update { it.copy(showQueryPanel = !it.showQueryPanel) }
@@ -810,8 +896,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun selectAllVisible() = _jobs.update { state ->
         val selected = state.selected.toMutableMap()
-        val source = if (state.view == JobsView.LIVE) state.results else state.archived.map { it.job }
-        source.filter { it.canEmail }.forEach { selected[it.caseNumber] = it }
+        // Ekranda hangi kaynağın listesi duruyorsa o seçilir; kaynaklar
+        // birbirine karışmasın diye visibleJobs kullanılır.
+        val pool = if (state.view == JobsView.LIVE) state.visibleJobs else state.archived.map { it.job }
+        pool.filter { it.canEmail }
+            // Daha önce yazılmış işveren yeniden seçilmez.
+            .filterNot { container.historyStore.hasWrittenTo(it.email) }
+            .forEach { selected[it.caseNumber] = it }
         state.copy(selected = selected)
     }
 
@@ -1192,28 +1283,42 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             _apply.update { it.copy(preparing = true, prepared = emptyList(), notes = emptyList(), progress = null) }
 
             // Kalkmış bir ilana başvuru göndermemek için son bir tazelik denetimi.
+            //
+            // Yalnızca SeasonalJobs ilanları sorulur: OFLC açıklama verisindeki
+            // işverenlerin çoğu (ölçüldü: 6.660'ın 4.666'sı) ilan sitesinde hiç
+            // yok. Hepsi birden sorulsaydı "yayında değil" sanılıp atlanırdı.
             val notes = mutableListOf<String>()
-            val live = runCatching {
-                container.jobsApi.stillActive(
-                    selected.map { it.caseNumber },
-                    JobQuery.livenessInput(nowIso()),
-                )
-            }.getOrNull()
+            val siteJobs = selected.filter { it.source == JobSource.SEASONAL_JOBS }
+            val otherJobs = selected.filterNot { it.source == JobSource.SEASONAL_JOBS }
+
+            val live = if (siteJobs.isEmpty()) {
+                emptySet()
+            } else {
+                runCatching {
+                    container.jobsApi.stillActive(
+                        siteJobs.map { it.caseNumber },
+                        JobQuery.livenessInput(nowIso()),
+                    )
+                }.getOrNull()
+            }
 
             val targets = if (live == null) {
                 notes += "Tazelik denetimi yapılamadı; ilanlar olduğu gibi kullanıldı."
                 selected
             } else {
-                val stale = selected.filterNot { it.caseNumber in live }
+                val stale = siteJobs.filterNot { it.caseNumber in live }
                 if (stale.isNotEmpty()) {
                     notes += "${stale.size} ilan artık yayında değil, atlandı: " +
                         stale.take(3).joinToString(", ") { it.employer }
-                    container.jobArchive.retainOnly(container.jobArchive.seenCaseNumbers - stale.map { it.caseNumber }.toSet())
+                    container.jobArchive.remove(stale.mapTo(HashSet()) { it.caseNumber })
+                    val gone = stale.mapTo(HashSet()) { it.caseNumber }
                     _jobs.update { state ->
-                        state.copy(selected = state.selected.filterKeys { it in live })
+                        state.copy(selected = state.selected.filterKeys { it !in gone })
                     }
                 }
-                selected.filter { it.caseNumber in live }
+                // Site ilanlarından yayında kalanlar + denetime girmeyen
+                // diğer kaynakların ilanları.
+                siteJobs.filter { it.caseNumber in live } + otherJobs
             }
 
             if (targets.isEmpty()) {
@@ -1325,25 +1430,42 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             _apply.update { it.copy(buildingAll = true, notes = emptyList()) }
             val current = _jobs.value
 
-            runCatching {
-                container.jobsApi.fetchAll(
-                    input = queryInput(current, config),
-                    sort = current.sort,
-                ) { fetched, total ->
-                    _jobs.update { it.copy(bulkFetching = true, bulkFetched = fetched, bulkTotal = total) }
+            // Her kaynağa ayrı ayrı gönderilir: kuyruk yalnızca o an seçili
+            // kaynağın ilanlarından kurulur, iki kaynak hiçbir yerde
+            // birleştirilmez.
+            val fetched = runCatching {
+                when (current.source) {
+                    JobSource.SEASONAL_JOBS -> container.jobsApi.fetchAll(
+                        input = queryInput(current, config),
+                        sort = current.sort,
+                    ) { done, total ->
+                        _jobs.update { it.copy(bulkFetching = true, bulkFetched = done, bulkTotal = total) }
+                    }.jobs
+
+                    // OFLC verisi zaten indirilip ayrıştırılmış durumda.
+                    JobSource.OFLC_DISCLOSURE -> current.oflcJobs
                 }
             }
-                .onSuccess { page ->
+            fetched
+                .onSuccess { jobs ->
                     _jobs.update { it.copy(bulkFetching = false) }
                     val applied = container.historyStore.appliedCaseNumbers
-                    val targets = page.jobs
+                    val targets = jobs
                         .filter { it.email != null }
                         .filterNot { it.caseNumber in applied }
+                        // Aynı işverene iki kaynaktan iki mektup gitmesin.
+                        .filterNot { container.historyStore.hasWrittenTo(it.email) }
                         .distinctBy { it.caseNumber }
+                        .distinctBy { it.email!!.lowercase() }
 
                     if (targets.isEmpty()) {
                         _apply.update {
-                            it.copy(buildingAll = false, notes = listOf("Başvurulacak yeni ilan bulunamadı."))
+                            it.copy(
+                                buildingAll = false,
+                                notes = listOf(
+                                    "${current.source.shortLabel}: başvurulacak yeni ilan bulunamadı.",
+                                ),
+                            )
                         }
                         return@onSuccess
                     }

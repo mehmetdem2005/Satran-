@@ -31,17 +31,37 @@ class HistoryStore(context: Context) {
     private val _records = MutableStateFlow(load())
     val records: StateFlow<List<SendRecord>> = _records.asStateFlow()
 
+    private val appliedEmailFile = File(context.applicationContext.filesDir, "applied_emails.json")
+
     private val _applied = MutableStateFlow(loadApplied())
+    private val _appliedEmails = MutableStateFlow(loadAppliedEmails())
 
     /** Daha önce başarıyla başvurulan ilanların case numaraları. */
     val appliedCaseNumbers: Set<String> get() = _applied.value
+
+    /**
+     * Daha önce mektup gönderilen işveren adresleri.
+     *
+     * Kaynaklar ayrı listeler hâlinde duruyor ama **aynı işveren iki
+     * kaynakta birden** çıkabiliyor: ölçüldü, 6.660 OFLC adresinin 1.994'ü
+     * seasonaljobs'ta da var. İlan numarasına bakmak yetmez, numaralar
+     * farklı; aynı kişiye iki mektup gitmesin diye adres de tutulur.
+     */
+    val appliedEmails: Set<String> get() = _appliedEmails.value
+
+    /** Bu adrese daha önce mektup gitti mi? */
+    fun hasWrittenTo(email: String?): Boolean =
+        email != null && email.trim().lowercase() in _appliedEmails.value
 
     @Synchronized
     fun add(record: SendRecord) {
         val next = (listOf(record) + _records.value).take(MAX_RECORDS)
         _records.value = next
         persist(next)
-        if (record.status == SendStatus.SENT) markApplied(setOf(record.caseNumber))
+        if (record.status == SendStatus.SENT) {
+            markApplied(setOf(record.caseNumber))
+            markEmailed(setOf(record.email))
+        }
     }
 
     @Synchronized
@@ -50,7 +70,9 @@ class HistoryStore(context: Context) {
         val next = (records.reversed() + _records.value).take(MAX_RECORDS)
         _records.value = next
         persist(next)
-        markApplied(records.filter { it.status == SendStatus.SENT }.mapTo(HashSet()) { it.caseNumber })
+        val sent = records.filter { it.status == SendStatus.SENT }
+        markApplied(sent.mapTo(HashSet()) { it.caseNumber })
+        markEmailed(sent.mapTo(HashSet()) { it.email })
     }
 
     @Synchronized
@@ -58,7 +80,9 @@ class HistoryStore(context: Context) {
         _records.value = emptyList()
         persist(emptyList())
         _applied.value = emptySet()
+        _appliedEmails.value = emptySet()
         runCatching { appliedFile.delete() }
+        runCatching { appliedEmailFile.delete() }
     }
 
     private fun markApplied(cases: Set<String>) {
@@ -69,6 +93,35 @@ class HistoryStore(context: Context) {
         runCatching {
             appliedFile.writeText(Net.json.encodeToString(SetSerializer(String.serializer()), next))
         }
+    }
+
+    private fun markEmailed(emails: Set<String>) {
+        val cleaned = emails.mapNotNull { it.trim().lowercase().takeIf { e -> "@" in e } }.toSet()
+        if (cleaned.isEmpty()) return
+        val next = _appliedEmails.value + cleaned
+        if (next.size == _appliedEmails.value.size) return
+        _appliedEmails.value = next
+        runCatching {
+            appliedEmailFile.writeText(Net.json.encodeToString(SetSerializer(String.serializer()), next))
+        }
+    }
+
+    private fun loadAppliedEmails(): Set<String> {
+        if (appliedEmailFile.exists()) {
+            runCatching {
+                return Net.json.decodeFromString(SetSerializer(String.serializer()), appliedEmailFile.readText())
+            }
+        }
+        // Eski kurulumlarda adres listesi yok; eldeki kayıtlardan kurulur.
+        val seeded = _records.value
+            .filter { it.status == SendStatus.SENT }
+            .mapNotNullTo(HashSet()) { it.email.trim().lowercase().takeIf { e -> "@" in e } }
+        if (seeded.isNotEmpty()) {
+            runCatching {
+                appliedEmailFile.writeText(Net.json.encodeToString(SetSerializer(String.serializer()), seeded))
+            }
+        }
+        return seeded
     }
 
     /**

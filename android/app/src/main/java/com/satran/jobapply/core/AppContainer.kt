@@ -8,6 +8,7 @@ import com.satran.jobapply.data.pipeline.ApplicationPipeline
 import com.satran.jobapply.data.prefs.HistoryStore
 import com.satran.jobapply.data.prefs.SettingsStore
 import com.satran.jobapply.data.remote.AiClient
+import com.satran.jobapply.data.remote.OflcDisclosureApi
 import com.satran.jobapply.data.remote.SeasonalJobsApi
 import com.satran.jobapply.data.remote.WebSearchClient
 import com.satran.jobapply.data.translate.JobTranslator
@@ -32,6 +33,11 @@ class AppContainer(context: Context) {
 
     /** Arka plan izleyicisinin bulguları. */
     val liveWatch = LiveWatchStore(context)
+
+    /** OFLC açıklama dosyası önbelleğe indirilir; uygulama verisi şişmesin diye cache'e. */
+    private val oflcCache = java.io.File(context.applicationContext.cacheDir, "oflc").apply { mkdirs() }
+
+    fun oflcApi() = OflcDisclosureApi(oflcCache)
 
     /** İstemciler o anki ayarlara bağlı olduğundan her çağrıda yeniden kurulur. */
     fun aiClient() = AiClient(settingsStore.settings.value)

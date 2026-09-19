@@ -2,6 +2,7 @@ package com.satran.jobapply.ui
 
 import com.satran.jobapply.data.memory.ArchivedJob
 import com.satran.jobapply.data.model.Job
+import com.satran.jobapply.data.model.JobSource
 import com.satran.jobapply.data.remote.SeasonalJobsApi
 import com.satran.jobapply.data.translate.JobTranslation
 import com.satran.jobapply.send.QueuedMail
@@ -12,7 +13,26 @@ enum class JobsView(val label: String) {
     ARCHIVE("Geçmiş"),
 }
 
+/** OFLC dosyasının o anki durumu. */
+enum class OflcStage { IDLE, DISCOVERING, DOWNLOADING, PARSING, READY, FAILED }
+
 data class JobsUiState(
+    /**
+     * Hangi kaynağa bakılıyor. Kaynaklar ayrı listelerdir; birbirine
+     * karışmaz, her birine ayrı ayrı toplu başvuru yapılır.
+     */
+    val source: JobSource = JobSource.SEASONAL_JOBS,
+
+    /** OFLC açıklama verisinden çıkan ilanlar. */
+    val oflcJobs: List<Job> = emptyList(),
+    val oflcStage: OflcStage = OflcStage.IDLE,
+    val oflcLabel: String = "",
+    val oflcDownloadedBytes: Long = 0L,
+    val oflcTotalBytes: Long = 0L,
+    val oflcParsed: Int = 0,
+    val oflcError: String? = null,
+    val oflcLoadedAt: Long = 0L,
+
     val query: String = "",
     val results: List<Job> = emptyList(),
     val archived: List<ArchivedJob> = emptyList(),
@@ -95,6 +115,24 @@ data class JobsUiState(
 
     /** Bir ağ işi sürerken yeni sayfalama isteği kabul edilmez. */
     val isBusy: Boolean get() = loading || loadingMore || refreshing || bulkFetching
+
+    /** OFLC verisi indiriliyor ya da ayrıştırılıyor. */
+    val oflcBusy: Boolean
+        get() = oflcStage == OflcStage.DISCOVERING ||
+            oflcStage == OflcStage.DOWNLOADING ||
+            oflcStage == OflcStage.PARSING
+
+    /**
+     * Seçili kaynağın listesi.
+     *
+     * Kaynaklar ayrı tutulduğu için ekran, kuyruk ve seçim hep bu listeden
+     * beslenir; iki kaynağın ilanları hiçbir yerde birleştirilmez.
+     */
+    val visibleJobs: List<Job>
+        get() = when (source) {
+            JobSource.SEASONAL_JOBS -> results
+            JobSource.OFLC_DISCLOSURE -> oflcJobs
+        }
 
     /** Sonraki sayfanın başlangıç kaydı. */
     val nextOffset: Int get() = offset + fetchedThisSearch

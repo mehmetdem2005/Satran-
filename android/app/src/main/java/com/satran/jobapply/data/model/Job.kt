@@ -69,8 +69,20 @@ data class Job(
     val experience: String?,
     val schedule: String?,
     val postedOn: String?,
+    /**
+     * İlanın geldiği kaynak. Varsayılan [JobSource.SEASONAL_JOBS]: arşivde
+     * kaynak alanı olmayan eski kayıtlar da okunabilsin diye.
+     */
+    val source: JobSource = JobSource.SEASONAL_JOBS,
 ) {
-    val detailUrl: String get() = "https://seasonaljobs.dol.gov/jobs/$caseNumber"
+    val detailUrl: String
+        get() = when (source) {
+            JobSource.SEASONAL_JOBS -> "https://seasonaljobs.dol.gov/jobs/$caseNumber"
+            // Açıklama verisindeki kayıtların ilan sayfası yok; dosyanın
+            // yayımlandığı sayfaya götürmek yanıltmaktan iyidir.
+            JobSource.OFLC_DISCLOSURE ->
+                "https://www.dol.gov/agencies/eta/foreign-labor/performance"
+        }
 
     val canEmail: Boolean get() = email != null
 

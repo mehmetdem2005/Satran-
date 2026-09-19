@@ -25,6 +25,7 @@ import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Clear
 import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -59,9 +60,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.satran.jobapply.data.model.Job
+import com.satran.jobapply.data.model.JobSource
 import com.satran.jobapply.data.remote.SeasonalJobsApi
 import com.satran.jobapply.ui.JobsUiState
 import com.satran.jobapply.ui.JobsView
+import com.satran.jobapply.ui.OflcStage
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -87,6 +90,9 @@ fun JobsScreen(
     onViewChange: (JobsView) -> Unit,
     onFilter: (state: String?, sort: SeasonalJobsApi.Sort, excludeAgricultural: Boolean, emailOnly: Boolean, hideApplied: Boolean) -> Unit,
     onToggleUpcoming: (Boolean) -> Unit,
+    onSourceChange: (JobSource) -> Unit,
+    onLoadOflc: () -> Unit,
+    onCancelOflc: () -> Unit,
     onMatchSite: () -> Unit,
     onUseApplyFilters: () -> Unit,
     onFetchAll: () -> Unit,
@@ -116,7 +122,7 @@ fun JobsScreen(
     }
 
     val visible: List<Pair<Job, String?>> = when (state.view) {
-        JobsView.LIVE -> state.results.map { (state.details[it.caseNumber] ?: it) to null }
+        JobsView.LIVE -> state.visibleJobs.map { (state.details[it.caseNumber] ?: it) to null }
         JobsView.ARCHIVE -> state.archived.map {
             (state.details[it.job.caseNumber] ?: it.job) to ARCHIVE_FORMAT.format(Date(it.lastSeenAt))
         }
@@ -189,6 +195,11 @@ fun JobsScreen(
                 onMatchSite = onMatchSite,
                 onUseApplyFilters = onUseApplyFilters,
             )
+
+            SourceRow(state, onSourceChange)
+            if (state.source == JobSource.OFLC_DISCLOSURE) {
+                OflcStatus(state, onLoadOflc, onCancelOflc)
+            }
 
             Spacer(Modifier.height(2.dp))
             SummaryRow(
@@ -662,5 +673,124 @@ private fun summaryLine(state: JobsUiState): String = buildString {
         append(" · denetleniyor…")
     } else if (state.lastUpdatedAt > 0) {
         append(" · ${UPDATED_FORMAT.format(Date(state.lastUpdatedAt))}")
+    }
+}
+
+
+/**
+ * Kaynak seçici.
+ *
+ * Kaynaklar ayrı listelerdir; burada hangisine bakıldığı seçilir. Seçim
+ * değişince seçili ilanlar temizlenir — iki kaynağın ilanları aynı kuyruğa
+ * karışmasın diye.
+ */
+@Composable
+private fun SourceRow(state: JobsUiState, onSourceChange: (JobSource) -> Unit) {
+    Column {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            items(JobSource.entries.toList(), key = { it.id }) { source ->
+                val count = when (source) {
+                    JobSource.SEASONAL_JOBS -> state.results.size
+                    JobSource.OFLC_DISCLOSURE -> state.oflcJobs.size
+                }
+                FilterChip(
+                    selected = state.source == source,
+                    onClick = { onSourceChange(source) },
+                    label = {
+                        Text(
+                            if (count > 0) "${source.shortLabel} ($count)" else source.shortLabel,
+                        )
+                    },
+                )
+            }
+        }
+        Text(
+            state.source.contactNote,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.outline,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+    }
+}
+
+/** OFLC dosyasının indirme/ayrıştırma durumu ve ne olduğu. */
+@Composable
+private fun OflcStatus(state: JobsUiState, onLoad: () -> Unit, onCancel: () -> Unit) {
+    Card(Modifier.padding(top = 6.dp)) {
+        Column(Modifier.padding(12.dp)) {
+            when (state.oflcStage) {
+                OflcStage.IDLE -> {
+                    Text(state.source.description, style = MaterialTheme.typography.bodySmall)
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Dosya ~47 MB ve üç ayda bir yenilenir; bir kez inip saklanır. " +
+                            "Mümkünse Wi-Fi'dayken indir.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Button(onClick = onLoad) { Text("Veriyi indir") }
+                }
+
+                OflcStage.DISCOVERING -> LabeledProgress("Güncel sürüm aranıyor…", null, onCancel)
+
+                OflcStage.DOWNLOADING -> {
+                    val done = state.oflcDownloadedBytes / (1024 * 1024)
+                    val total = state.oflcTotalBytes / (1024 * 1024)
+                    LabeledProgress(
+                        "${state.oflcLabel} indiriliyor — $done / $total MB",
+                        if (state.oflcTotalBytes > 0) {
+                            state.oflcDownloadedBytes.toFloat() / state.oflcTotalBytes
+                        } else {
+                            null
+                        },
+                        onCancel,
+                    )
+                }
+
+                OflcStage.PARSING ->
+                    LabeledProgress("Okunuyor — ${state.oflcParsed} işveren bulundu", null, onCancel)
+
+                OflcStage.READY -> {
+                    Text(
+                        "${state.oflcLabel} · ${state.oflcJobs.size} işveren",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        "Daha önce mektup yazdığın işverenler bu listede yok.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    TextButton(onClick = onLoad) { Text("Yeniden yükle") }
+                }
+
+                OflcStage.FAILED -> {
+                    Text(
+                        state.oflcError ?: "Veri alınamadı.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Button(onClick = onLoad) { Text("Tekrar dene") }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LabeledProgress(label: String, fraction: Float?, onCancel: () -> Unit) {
+    Column {
+        Text(label, style = MaterialTheme.typography.bodySmall)
+        Spacer(Modifier.height(6.dp))
+        if (fraction == null) {
+            LinearProgressIndicator(Modifier.fillMaxWidth())
+        } else {
+            LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth())
+        }
+        Spacer(Modifier.height(4.dp))
+        TextButton(onClick = onCancel) { Text("Durdur") }
     }
 }
