@@ -1,6 +1,5 @@
 package com.satran.jobapply.ui.settings
 
-import com.satran.jobapply.data.mail.CvLoader
 import com.satran.jobapply.data.model.AppSettings
 
 /**
@@ -26,10 +25,9 @@ enum class SettingsSection(val title: String) {
             else -> "Kurulmadı — başvuru gönderemezsin"
         }
 
-        // CV artık uygulamanın içinde geliyor; eksik olabilecek tek alan ad.
         PROFILE -> listOfNotNull(
             settings.fullName.takeIf { it.isNotBlank() } ?: "Ad soyad gerekli",
-            settings.cvFileName.takeIf { it.isNotBlank() } ?: CvLoader.BUILT_IN_NAME,
+            settings.cvFileName.takeIf { it.isNotBlank() } ?: "CV seçilmedi",
         ).joinToString(" · ")
 
         TEMPLATE -> "Konu ve mesaj metni"

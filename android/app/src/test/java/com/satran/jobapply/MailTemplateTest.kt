@@ -33,9 +33,9 @@ class MailTemplateTest {
     )
 
     private val settings = AppSettings(
-        fullName = "Mehmet Demir",
-        phone = "+90 555 000 00 00",
-        gmailAddress = "me@gmail.com",
+        fullName = "Ada Yılmaz",
+        phone = "+90 500 000 00 00",
+        gmailAddress = "ornek@example.com",
     )
 
     @Test
@@ -48,7 +48,7 @@ class MailTemplateTest {
         assertEquals(
             "Farmworkers & Laborers, Crop @ Lakeside Orchards Inc. (H-300-26173-037509) in Burt, New York " +
                 "— 03.09.2026 – 14.11.2026 — \$18.75 / saat — 115 — Farmworkers and Laborers, Crop " +
-                "— Mehmet Demir +90 555 000 00 00 me@gmail.com",
+                "— Ada Yılmaz +90 500 000 00 00 ornek@example.com",
             rendered,
         )
     }

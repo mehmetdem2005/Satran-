@@ -29,12 +29,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.satran.jobapply.data.filter.JobQuery
 import com.satran.jobapply.core.GoogleLinks
-import com.satran.jobapply.data.mail.CvLoader
 import com.satran.jobapply.data.mail.MailTemplate
 import com.satran.jobapply.data.memory.SearchEntry
 import com.satran.jobapply.data.model.AiProvider
@@ -197,34 +197,36 @@ fun LazyListScope.gmailSection(
 
 fun LazyListScope.profileSection(settings: AppSettings, onUpdate: Update, onPickCv: () -> Unit) {
     item {
-        val usingBuiltIn = settings.cvUri.isBlank()
+        val chosen = settings.cvFileName.isNotBlank()
         Card {
             Column(Modifier.padding(12.dp)) {
                 Text("Her mektuba eklenen CV", style = MaterialTheme.typography.labelMedium)
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    if (usingBuiltIn) CvLoader.BUILT_IN_NAME else settings.cvFileName,
+                    if (chosen) settings.cvFileName else "Henüz seçilmedi",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    if (usingBuiltIn) {
-                        "Uygulamanın içinde geliyor — telefonda dosya olmasa da gider."
-                    } else {
-                        "Telefonundan seçtiğin dosya. Okunamazsa yerleşik CV gider."
-                    },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline,
+                    color = if (chosen) Color.Unspecified else MaterialTheme.colorScheme.error,
                 )
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = onPickCv) { Text("Başka PDF seç") }
-                    if (!usingBuiltIn) {
+                    Button(onClick = onPickCv) {
+                        Text(if (chosen) "Başka PDF seç" else "PDF CV seç")
+                    }
+                    if (chosen) {
                         TextButton(onClick = { onUpdate { it.copy(cvUri = "", cvFileName = "") } }) {
-                            Text("Yerleşiğe dön")
+                            Text("Kaldır")
                         }
                     }
                 }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Dosya telefonunda kalır; uygulama yalnızca gönderirken okur. " +
+                        "ABD'de fotoğraflı özgeçmişler ayrımcılık iddiası riski yüzünden " +
+                        "çoğu zaman elenir — CV'nde fotoğraf olmaması işine yarar.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline,
+                )
             }
         }
     }

@@ -4,7 +4,6 @@ import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.core.net.toUri
-import com.satran.jobapply.R
 import com.satran.jobapply.data.model.AppSettings
 import java.io.IOException
 
@@ -25,34 +24,21 @@ object CvLoader {
     const val MAX_BYTES = 20 * 1024 * 1024
 
     /**
-     * Uygulamayla birlikte gelen CV'nin eklerde görünecek adı.
-     *
-     * CV'de **fotoğraf yoktur**: ABD'de işverenler ayrımcılık iddiası riskine
-     * girmemek için fotoğraflı özgeçmişleri çoğu zaman okumadan eliyor.
-     * Fotoğraf çıkarılınca dosya 2,2 MB'tan 53 KB'a indi; 2700 gönderimde
-     * yükleme yükü de buna göre düştü.
-     */
-    const val BUILT_IN_NAME = "Mehmet_Demirel_CV.pdf"
-
-    /**
      * Gönderime girecek CV'yi seçer.
      *
-     * Kullanıcı kendi PDF'ini seçtiyse o gider; seçmediyse uygulamanın içinde
-     * gelen CV gider. Seçilmiş dosya okunamıyorsa (telefondan silinmiş, izin
-     * düşmüş) yerleşiğe düşülür: mektup eksiz gitmesin diye. Böylece "ek yok"
-     * diye duran bir gönderim olmaz.
+     * CV kullanıcının kendi seçtiği dosyadır; uygulamanın içinde gömülü CV
+     * **yoktur**. Bir süre kişisel bir CV gömülüydü, ama uygulama tek kişiye
+     * değil herkese göre: başkasının özgeçmişini taşıyan bir APK kurulamaz.
+     *
+     * Dosya okunamıyorsa (telefondan silinmiş, izin düşmüş) sebebi anlatan
+     * bir hata atar; sessizce eksiz mektup gitmez.
      */
     fun resolve(context: Context, settings: AppSettings): CvFile {
         val picked = settings.cvUri
-        if (picked.isBlank()) return loadBuiltIn(context)
-        return runCatching { load(context, picked) }.getOrElse { loadBuiltIn(context) }
-    }
-
-    /** Uygulamanın içinde gelen CV. Telefonda dosya olmasa da çalışır. */
-    fun loadBuiltIn(context: Context): CvFile {
-        val bytes = context.resources.openRawResource(R.raw.builtin_cv).use { it.readBytes() }
-        if (bytes.isEmpty()) throw IOException("Yerleşik CV okunamadı.")
-        return CvFile(fileName = BUILT_IN_NAME, mimeType = "application/pdf", bytes = bytes)
+        require(picked.isNotBlank()) {
+            "Önce Ayarlar > Profil bölümünden PDF CV'ni seç."
+        }
+        return load(context, picked)
     }
 
     /** Belge sağlayıcıdan CV'yi belleğe okur. Gönderim başına tek kez çağrılır. */

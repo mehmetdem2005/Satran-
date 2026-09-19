@@ -289,7 +289,7 @@ private val TAB_TITLES = listOf("Mevsimlik iş ilanları", "Başvuru gönder", "
 private fun setupHint(settings: com.satran.jobapply.data.model.AppSettings): String? {
     val missing = buildList {
         if (!settings.sendReady) add("Gmail")
-        // CV uygulamanın içinde geliyor; artık eksik olamaz.
+        if (settings.cvFileName.isBlank()) add("PDF CV")
         if (settings.fullName.isBlank()) add("ad soyad")
     }
     return if (missing.isEmpty()) null else "Başvuru için eksik: ${missing.joinToString(", ")}"

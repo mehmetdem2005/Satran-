@@ -52,9 +52,9 @@ class BulkIntegrityTest {
         }
 
     private val settings = AppSettings(
-        fullName = "Mehmet Demir",
-        phone = "+90 555 000 00 00",
-        gmailAddress = "me@gmail.com",
+        fullName = "Ada Yılmaz",
+        phone = "+90 500 000 00 00",
+        gmailAddress = "ornek@example.com",
     )
 
     @Test
@@ -103,8 +103,8 @@ class BulkIntegrityTest {
         mails.forEach { mail ->
             // İmza her iletide aynı; gönderen adresi zaten From alanında
             // olduğu için gövdeye ayrıca yazılmaz.
-            assertTrue(mail.body.contains("Mehmet Demir"))
-            assertTrue(mail.body.contains("+90 555 000 00 00"))
+            assertTrue(mail.body.contains("Ada Yılmaz"))
+            assertTrue(mail.body.contains("+90 500 000 00 00"))
         }
     }
 
