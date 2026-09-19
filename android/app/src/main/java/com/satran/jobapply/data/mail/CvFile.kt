@@ -24,7 +24,14 @@ object CvLoader {
 
     const val MAX_BYTES = 20 * 1024 * 1024
 
-    /** Uygulamayla birlikte gelen CV'nin eklerde görünecek adı. */
+    /**
+     * Uygulamayla birlikte gelen CV'nin eklerde görünecek adı.
+     *
+     * CV'de **fotoğraf yoktur**: ABD'de işverenler ayrımcılık iddiası riskine
+     * girmemek için fotoğraflı özgeçmişleri çoğu zaman okumadan eliyor.
+     * Fotoğraf çıkarılınca dosya 2,2 MB'tan 53 KB'a indi; 2700 gönderimde
+     * yükleme yükü de buna göre düştü.
+     */
     const val BUILT_IN_NAME = "Mehmet_Demirel_CV.pdf"
 
     /**
